@@ -1,0 +1,13 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/TablePlanner.Core/TablePlanner.Core.csproj" />
+    <Project Path="src/TablePlanner.Export/TablePlanner.Export.csproj" />
+    <Project Path="src/TablePlanner.Solver/TablePlanner.Solver.csproj" />
+    <Project Path="src/TablePlanner.Web/TablePlanner.Web.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/TablePlanner.Core.Tests/TablePlanner.Core.Tests.csproj" />
+    <Project Path="tests/TablePlanner.Export.Tests/TablePlanner.Export.Tests.csproj" />
+    <Project Path="tests/TablePlanner.Solver.Tests/TablePlanner.Solver.Tests.csproj" />
+  </Folder>
+</Solution>

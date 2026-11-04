@@ -1,0 +1,21 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Table Planner (Edge)",
+      "type": "blazorwasm",
+      "request": "launch",
+      "cwd": "${workspaceFolder}/src/TablePlanner.Web",
+      "url": "http://localhost:5284",
+      "browser": "edge"
+    },
+    {
+      "name": "Table Planner (Chrome)",
+      "type": "blazorwasm",
+      "request": "launch",
+      "cwd": "${workspaceFolder}/src/TablePlanner.Web",
+      "url": "http://localhost:5284",
+      "browser": "chrome"
+    }
+  ]
+}

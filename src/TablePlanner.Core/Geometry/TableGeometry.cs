@@ -85,6 +85,27 @@ public sealed class LongTableGeometry : ITableShapeGeometry
             : Rect.Centered(table.X, table.Y, table.Length, table.Width);
     }
 
+    /// <summary>
+    /// Where a seat ends up when the table changes from <paramref name="oldPerSide"/>/<paramref name="oldEnds"/>
+    /// to <paramref name="newPerSide"/>/<paramref name="newEnds"/>, keeping its side and position from the left.
+    /// Returns null when the seat no longer exists.
+    /// </summary>
+    public static int? RemapSeatIndex(int index, int oldPerSide, int oldEnds, int newPerSide, int newEnds)
+    {
+        if (index < 0)
+            return null;
+        if (index < oldPerSide)
+            return index < newPerSide ? index : null;
+        if (index < 2 * oldPerSide)
+        {
+            var along = index - oldPerSide;
+            return along < newPerSide ? newPerSide + along : null;
+        }
+
+        var end = index - 2 * oldPerSide; // 0 = left end, 1 = right end
+        return end < oldEnds && end < newEnds ? 2 * newPerSide + end : null;
+    }
+
     private static SeatLayout Seat(Table table, int index, SeatSide side, int along, Point local) =>
         new(new SeatId(table.Id, index), side, along,
             local.Rotate(table.Rotation).Offset(table.X, table.Y),

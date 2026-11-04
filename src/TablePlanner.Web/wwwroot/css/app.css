@@ -87,3 +87,104 @@ code {
 .form-floating > .form-control-plaintext:focus::placeholder, .form-floating > .form-control:focus::placeholder {
     text-align: start;
 }
+/* ---- Layout editor ---- */
+
+.editor-page {
+    display: flex;
+    flex-direction: column;
+    height: calc(100vh - var(--mud-appbar-height));
+}
+
+.editor-toolbar {
+    border-bottom: 1px solid var(--mud-palette-lines-default);
+    flex: none;
+}
+
+.editor-body {
+    display: flex;
+    flex: 1;
+    min-height: 0;
+}
+
+.editor-canvas {
+    flex: 1;
+    overflow: auto;
+    background: #fafafa;
+    outline: none;
+}
+
+.editor-canvas:focus-visible {
+    box-shadow: inset 0 0 0 2px var(--mud-palette-primary);
+}
+
+.editor-side {
+    width: 340px;
+    flex: none;
+    overflow-y: auto;
+    padding: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    border-left: 1px solid var(--mud-palette-lines-default);
+}
+
+/* ---- Floor drawing (SVG units are metres) ---- */
+
+.floor-canvas {
+    display: block;
+    user-select: none;
+    touch-action: none;
+}
+
+.floor-canvas .grid-minor { fill: none; stroke: #e6e6e6; stroke-width: 0.02; }
+.floor-canvas .grid-major { fill: none; stroke: #cfcfcf; stroke-width: 0.04; }
+
+.floor-canvas text {
+    /* MudBlazor sets letter-spacing in px, which SVG would apply in metres. */
+    letter-spacing: normal;
+    pointer-events: none;
+    text-anchor: middle;
+    dominant-baseline: central;
+    font-family: Roboto, sans-serif;
+}
+
+.floor-canvas .item { cursor: move; }
+
+.floor-canvas .table rect { fill: #d7b98e; stroke: #8d6e45; stroke-width: 0.03; }
+.floor-canvas .table text { fill: #3e2c14; font-weight: 500; }
+.floor-canvas .seat { fill: #ffffff; stroke: #8d6e45; stroke-width: 0.03; }
+.floor-canvas .seat.disabled { fill: #bdbdbd; stroke: #9e9e9e; }
+.floor-canvas .seat.editable { cursor: pointer; }
+.floor-canvas .seat.editable:hover { stroke: var(--mud-palette-primary); stroke-width: 0.06; }
+.floor-canvas .seat-cross { stroke: #616161; stroke-width: 0.04; pointer-events: none; }
+
+.floor-canvas .element rect { fill: #e3eaf3; stroke: #7c8ea6; stroke-width: 0.03; stroke-dasharray: 0.12 0.08; }
+.floor-canvas .element text { fill: #33435a; }
+.floor-canvas .element.kind-stairs rect { fill: #ececec; stroke: #8a8a8a; }
+.floor-canvas .element.kind-bar rect,
+.floor-canvas .element.kind-buffet rect { fill: #f4e6d4; stroke: #b08b5a; }
+.floor-canvas .element.kind-stage rect,
+.floor-canvas .element.kind-dancefloor rect { fill: #ede3f3; stroke: #8f72a6; }
+.floor-canvas .element.kind-entrance rect,
+.floor-canvas .element.kind-exit rect { fill: #e1f1e3; stroke: #5f9b67; }
+
+.floor-canvas .item.selected rect { stroke: var(--mud-palette-primary); stroke-width: 0.07; stroke-dasharray: none; }
+
+.floor-canvas .resize-handle {
+    fill: var(--mud-palette-primary);
+    stroke: #ffffff;
+    stroke-width: 0.03;
+    cursor: ew-resize;
+}
+
+/* ---- Groups ---- */
+
+.colour-input {
+    width: 32px;
+    height: 24px;
+    padding: 0;
+    border: 1px solid var(--mud-palette-lines-default);
+    border-radius: 4px;
+    background: none;
+    cursor: pointer;
+}

@@ -1,0 +1,33 @@
+@* Shows the setup's validation problems, errors first. *@
+
+@{
+    var issues = SetupValidator.Validate(Setup).Issues.OrderByDescending(i => i.Severity).ToList();
+}
+<MudPaper Outlined="true" Class="pa-3">
+    <MudText Typo="Typo.subtitle2" GutterBottom="true">Checks</MudText>
+    @if (issues.Count == 0)
+    {
+        <MudAlert Severity="Severity.Success" Dense="true">No problems found.</MudAlert>
+    }
+    else
+    {
+        <MudStack Spacing="1">
+            @foreach (var issue in issues.Take(MaxShown))
+            {
+                <MudAlert Severity="@(issue.Severity == IssueSeverity.Error ? Severity.Error : Severity.Warning)" Dense="true">
+                    @issue.Message
+                </MudAlert>
+            }
+            @if (issues.Count > MaxShown)
+            {
+                <MudText Typo="Typo.caption">…and @(issues.Count - MaxShown) more.</MudText>
+            }
+        </MudStack>
+    }
+</MudPaper>
+
+@code {
+    private const int MaxShown = 8;
+
+    [Parameter, EditorRequired] public EventSetup Setup { get; set; } = default!;
+}

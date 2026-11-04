@@ -211,4 +211,12 @@ algorithm works on setup + assignment. UI code never goes into model or algorith
 8. **Background images**
 9. Later: the mobile page
 
-Status (2026-11-04): steps 1–2 done.
+Status (2026-11-04): steps 1–3 done.
+
+Notes from step 3:
+- Undo/redo stores a snapshot of the project before each edit (`EditHistory`); the edit logic itself lives in
+  `SetupOperations` in Core. Undo restores into the same project object, so the UI refers to items by ID.
+- Resizing a table keeps its left end in place; disabled seats, seat pins and seat assignments follow their seats.
+- The Checks panel also warns when tables on a floor overlap.
+- Not yet in the editor: rubber-band (drag-box) selection, and showing which tables count as adjacent
+  (comes with the seat graph in step 5).

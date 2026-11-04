@@ -1,0 +1,74 @@
+@* Picks and orders the groups a group would like to sit with. Returns the ordered IDs. *@
+
+<MudDialog>
+    <DialogContent>
+        <MudText Typo="Typo.body2" Class="mb-3">
+            Most wanted first, up to @Group.MaxPreferences. First choices are fulfilled for every group before second choices.
+        </MudText>
+
+        @if (_items.Count == 0)
+        {
+            <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mb-2">No preferences yet.</MudText>
+        }
+        @for (var i = 0; i < _items.Count; i++)
+        {
+            var index = i;
+            <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="1">
+                <MudText Style="width: 1.5rem">@(index + 1).</MudText>
+                <MudText Style="flex: 1">@NameOf(_items[index])</MudText>
+                <MudIconButton Icon="@Icons.Material.Filled.ArrowUpward" Size="Size.Small" Disabled="index == 0"
+                               OnClick="@(() => Move(index, -1))" aria-label="Move up" />
+                <MudIconButton Icon="@Icons.Material.Filled.ArrowDownward" Size="Size.Small" Disabled="index == _items.Count - 1"
+                               OnClick="@(() => Move(index, 1))" aria-label="Move down" />
+                <MudIconButton Icon="@Icons.Material.Filled.Close" Size="Size.Small"
+                               OnClick="@(() => _items.RemoveAt(index))" aria-label="Remove" />
+            </MudStack>
+        }
+
+        @if (_items.Count < Group.MaxPreferences)
+        {
+            <MudSelect T="Guid?" Label="Add a group" Value="null" ValueChanged="Add" Variant="Variant.Outlined" Margin="Margin.Dense" Class="mt-3"
+                       ToStringFunc="@(id => id is { } g ? NameOf(g) : "")">
+                @foreach (var group in Groups.Where(g => g.Id != GroupId && !_items.Contains(g.Id)).OrderBy(g => g.Name))
+                {
+                    <MudSelectItem T="Guid?" Value="group.Id">@group.Name (@group.PeopleCount)</MudSelectItem>
+                }
+            </MudSelect>
+        }
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="() => Dialog.Cancel()">Cancel</MudButton>
+        <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="() => Dialog.Close(DialogResult.Ok(_items))">Save</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    private List<Guid> _items = [];
+
+    [CascadingParameter] private IMudDialogInstance Dialog { get; set; } = default!;
+
+    /// <summary>The group whose preferences are edited.</summary>
+    [Parameter] public Guid GroupId { get; set; }
+
+    /// <summary>All groups in the project.</summary>
+    [Parameter] public List<Group> Groups { get; set; } = [];
+
+    /// <summary>The current preferences, most wanted first.</summary>
+    [Parameter] public List<Guid> Selected { get; set; } = [];
+
+    protected override void OnInitialized() => _items = [.. Selected];
+
+    private string NameOf(Guid id) => Groups.FirstOrDefault(g => g.Id == id)?.Name ?? "?";
+
+    private void Add(Guid? id)
+    {
+        if (id is { } groupId && !_items.Contains(groupId) && _items.Count < Group.MaxPreferences)
+            _items.Add(groupId);
+    }
+
+    private void Move(int index, int direction)
+    {
+        var target = index + direction;
+        (_items[index], _items[target]) = (_items[target], _items[index]);
+    }
+}

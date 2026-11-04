@@ -1,0 +1,39 @@
+@* Opens the project with the given ID and shows the content once it's loaded, or a message if it doesn't exist. *@
+@implements IDisposable
+@inject ProjectSession Session
+
+@if (_loading)
+{
+    <MudProgressLinear Indeterminate="true" />
+}
+else if (Session.Project?.Id != Id)
+{
+    <MudContainer MaxWidth="MaxWidth.Small" Class="py-8">
+        <MudAlert Severity="Severity.Warning">This project was not found in this browser.</MudAlert>
+        <MudButton Href="" Variant="Variant.Text" Class="mt-2">Back to projects</MudButton>
+    </MudContainer>
+}
+else
+{
+    @ChildContent
+}
+
+@code {
+    private bool _loading = true;
+
+    [Parameter, EditorRequired] public Guid Id { get; set; }
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+
+    protected override void OnInitialized() => Session.Changed += OnSessionChanged;
+
+    public void Dispose() => Session.Changed -= OnSessionChanged;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        _loading = true;
+        await Session.OpenAsync(Id);
+        _loading = false;
+    }
+
+    private void OnSessionChanged() => InvokeAsync(StateHasChanged);
+}

@@ -1,4 +1,7 @@
 @inherits LayoutComponentBase
+@implements IDisposable
+@inject ProjectSession Session
+@inject ISnackbar Snackbar
 
 <MudThemeProvider />
 <MudPopoverProvider />
@@ -7,9 +10,50 @@
 
 <MudLayout>
     <MudAppBar Elevation="1">
-        <MudText Typo="Typo.h6">Table Planner</MudText>
+        <MudLink Href="" Color="Color.Inherit" Underline="Underline.None" Typo="Typo.h6" Class="mr-4">Table Planner</MudLink>
+        @if (Session.Project is { } project)
+        {
+            <MudText Typo="Typo.subtitle1" Class="mr-4">@project.Name</MudText>
+            <MudButton Href="@($"project/{project.Id}/layout")" Color="Color.Inherit" StartIcon="@Icons.Material.Filled.TableRestaurant">Layout</MudButton>
+            <MudButton Href="@($"project/{project.Id}/groups")" Color="Color.Inherit" StartIcon="@Icons.Material.Filled.Groups">Groups</MudButton>
+            <MudSpacer />
+            <MudTooltip Text="@(Session.History!.CanUndo ? $"Undo: {Session.History.UndoDescription}" : "Nothing to undo")">
+                <MudIconButton Icon="@Icons.Material.Filled.Undo" Color="Color.Inherit" Disabled="@(!Session.History.CanUndo)" OnClick="Session.History.Undo" />
+            </MudTooltip>
+            <MudTooltip Text="@(Session.History.CanRedo ? $"Redo: {Session.History.RedoDescription}" : "Nothing to redo")">
+                <MudIconButton Icon="@Icons.Material.Filled.Redo" Color="Color.Inherit" Disabled="@(!Session.History.CanRedo)" OnClick="Session.History.Redo" />
+            </MudTooltip>
+            <MudText Typo="Typo.caption" Class="mx-3" Color="@(Session.HasChangesSinceExport ? Color.Warning : Color.Inherit)">@ExportStatus(project)</MudText>
+            <MudButton Variant="Variant.Outlined" Color="Color.Inherit" StartIcon="@Icons.Material.Filled.Download" OnClick="Export">Export</MudButton>
+        }
     </MudAppBar>
-    <MudMainContent Class="pa-4">
+    <MudMainContent>
+        @if (Session.SaveError is { } error)
+        {
+            <MudAlert Severity="Severity.Error" Dense="true" Square="true">@error</MudAlert>
+        }
         @Body
     </MudMainContent>
 </MudLayout>
+
+@code {
+    protected override void OnInitialized() => Session.Changed += OnSessionChanged;
+
+    public void Dispose() => Session.Changed -= OnSessionChanged;
+
+    private void OnSessionChanged() => InvokeAsync(StateHasChanged);
+
+    private async Task Export()
+    {
+        await Session.ExportAsync();
+        Snackbar.Add("Project exported. Keep the file somewhere safe.", Severity.Success);
+    }
+
+    private string ExportStatus(EventProject project)
+    {
+        if (project.LastExportedAt is not { } exported)
+            return "Not exported yet";
+        var text = $"Exported {Formatting.Ago(exported)}";
+        return Session.HasChangesSinceExport ? $"{text} · changes not exported" : text;
+    }
+}

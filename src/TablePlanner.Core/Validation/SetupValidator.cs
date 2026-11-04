@@ -1,8 +1,9 @@
+using TablePlanner.Core.Geometry;
 using TablePlanner.Core.Model;
 
 namespace TablePlanner.Core.Validation;
 
-public enum Severity
+public enum IssueSeverity
 {
     /// <summary>The solver can run, but not every rule can be met.</summary>
     Warning,
@@ -24,6 +25,7 @@ public enum IssueCode
     TableEndSeatsInvalid,
     TableDimensionsInvalid,
     TableNumberDuplicate,
+    TablesOverlap,
     DisabledSeatInvalid,
     FloorNameDuplicate,
     NotEnoughSeats,
@@ -38,7 +40,7 @@ public enum IssueCode
 }
 
 /// <summary>A problem found in the setup. <see cref="SubjectId"/> is the group, table, floor or pin concerned.</summary>
-public sealed record ValidationIssue(Severity Severity, IssueCode Code, string Message, Guid? SubjectId = null);
+public sealed record ValidationIssue(IssueSeverity Severity, IssueCode Code, string Message, Guid? SubjectId = null);
 
 public sealed class ValidationResult
 {
@@ -46,11 +48,11 @@ public sealed class ValidationResult
 
     public IReadOnlyList<ValidationIssue> Issues { get; }
 
-    public bool HasErrors => Issues.Any(i => i.Severity == Severity.Error);
+    public bool HasErrors => Issues.Any(i => i.Severity == IssueSeverity.Error);
 
-    public IEnumerable<ValidationIssue> Errors => Issues.Where(i => i.Severity == Severity.Error);
+    public IEnumerable<ValidationIssue> Errors => Issues.Where(i => i.Severity == IssueSeverity.Error);
 
-    public IEnumerable<ValidationIssue> Warnings => Issues.Where(i => i.Severity == Severity.Warning);
+    public IEnumerable<ValidationIssue> Warnings => Issues.Where(i => i.Severity == IssueSeverity.Warning);
 }
 
 /// <summary>Checks a setup before solving, so impossible cases are reported up front with a clear message.</summary>
@@ -115,6 +117,15 @@ public static class SetupValidator
 
         foreach (var duplicate in setup.AllTables.GroupBy(t => t.Number).Where(d => d.Count() > 1))
             issues.Add(Error(IssueCode.TableNumberDuplicate, $"Table number {duplicate.Key} is used {duplicate.Count()} times.", duplicate.First().Id));
+
+        foreach (var floor in setup.Floors)
+        {
+            var tables = floor.Tables.Select(t => (Table: t, Bounds: TableGeometry.GetBounds(t))).ToList();
+            for (var i = 0; i < tables.Count; i++)
+                for (var j = i + 1; j < tables.Count; j++)
+                    if (tables[i].Bounds.Overlaps(tables[j].Bounds))
+                        issues.Add(Warning(IssueCode.TablesOverlap, $"Tables {tables[i].Table.Number} and {tables[j].Table.Number} overlap.", tables[i].Table.Id));
+        }
     }
 
     private static void ValidateCapacity(EventSetup setup, List<ValidationIssue> issues)
@@ -206,7 +217,7 @@ public static class SetupValidator
     private static string GroupLabel(EventSetup setup, Guid groupId) =>
         setup.FindGroup(groupId) is { } g && !string.IsNullOrWhiteSpace(g.Name) ? $"Group '{g.Name}'" : "A group";
 
-    private static ValidationIssue Error(IssueCode code, string message, Guid? subject = null) => new(Severity.Error, code, message, subject);
+    private static ValidationIssue Error(IssueCode code, string message, Guid? subject = null) => new(IssueSeverity.Error, code, message, subject);
 
-    private static ValidationIssue Warning(IssueCode code, string message, Guid? subject = null) => new(Severity.Warning, code, message, subject);
+    private static ValidationIssue Warning(IssueCode code, string message, Guid? subject = null) => new(IssueSeverity.Warning, code, message, subject);
 }

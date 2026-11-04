@@ -1,0 +1,136 @@
+@page "/project/{Id:guid}/groups"
+@inject ProjectSession Session
+@inject IDialogService Dialogs
+
+<PageTitle>Groups · Table Planner</PageTitle>
+
+<ProjectLoader Id="Id">
+    @{
+        var setup = Session.Project!.Setup;
+        var people = setup.Groups.Sum(g => Math.Max(0, g.PeopleCount));
+        var seats = setup.AllTables.Sum(t => t.AvailableSeatCount);
+    }
+    <MudContainer MaxWidth="MaxWidth.ExtraExtraLarge" Class="py-4">
+        <MudStack Row="true" AlignItems="AlignItems.Center" Wrap="Wrap.Wrap" Class="mb-3">
+            <MudText Typo="Typo.h5">Groups</MudText>
+            <MudChip T="string" Size="Size.Small">@setup.Groups.Count groups</MudChip>
+            <MudChip T="string" Size="Size.Small">@people people</MudChip>
+            <MudChip T="string" Size="Size.Small">@seats seats</MudChip>
+            @if (people > seats)
+            {
+                <MudChip T="string" Size="Size.Small" Color="Color.Error">@(people - seats) seats short</MudChip>
+            }
+            else
+            {
+                <MudChip T="string" Size="Size.Small" Color="Color.Success">@(seats - people) seats free</MudChip>
+            }
+            <MudSpacer />
+            <MudTextField T="string" @bind-Value="_search" Placeholder="Search" Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search"
+                          Immediate="true" Variant="Variant.Outlined" Margin="Margin.Dense" Style="max-width: 260px" />
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add" OnClick="AddGroup">Add group</MudButton>
+        </MudStack>
+
+        <MudTable T="Group" Items="setup.Groups" Filter="Matches" Dense="true" Hover="true" Elevation="0" Outlined="true" Breakpoint="Breakpoint.None">
+            <HeaderContent>
+                <MudTh Style="min-width: 200px"><MudTableSortLabel T="Group" SortBy="g => g.Name">Name</MudTableSortLabel></MudTh>
+                <MudTh Style="width: 110px"><MudTableSortLabel T="Group" SortBy="g => g.PeopleCount">People</MudTableSortLabel></MudTh>
+                <MudTh Style="min-width: 240px">Would like to sit with</MudTh>
+                <MudTh>Contact person</MudTh>
+                <MudTh>Dietary info</MudTh>
+                <MudTh>Notes</MudTh>
+                <MudTh Style="width: 90px">Colour</MudTh>
+                <MudTh Style="width: 48px"></MudTh>
+            </HeaderContent>
+            <RowTemplate>
+                @{ var id = context.Id; }
+                <MudTd>
+                    <MudTextField T="string" Value="context.Name" Margin="Margin.Dense"
+                                  ValueChanged="@(v => Edit(id, "Rename group", g => g.Name = v))" />
+                </MudTd>
+                <MudTd>
+                    <MudNumericField T="int" Value="context.PeopleCount" Min="1" Margin="Margin.Dense"
+                                     ValueChanged="@(v => Edit(id, "Change group size", g => g.PeopleCount = v))" />
+                </MudTd>
+                <MudTd>
+                    <div class="d-flex align-center flex-wrap gap-1">
+                        @foreach (var (preferredId, rank) in context.PreferredGroupIds.Select((p, i) => (p, i + 1)))
+                        {
+                            <MudChip T="string" Size="Size.Small">@rank. @(setup.FindGroup(preferredId)?.Name ?? "?")</MudChip>
+                        }
+                        <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small" aria-label="Edit preferences"
+                                       OnClick="@(() => EditPreferences(id))" />
+                    </div>
+                </MudTd>
+                <MudTd>
+                    <MudTextField T="string" Value="context.ContactPerson" Margin="Margin.Dense"
+                                  ValueChanged="@(v => Edit(id, "Change contact person", g => g.ContactPerson = Blank(v)))" />
+                </MudTd>
+                <MudTd>
+                    <MudTextField T="string" Value="context.DietaryInfo" Margin="Margin.Dense"
+                                  ValueChanged="@(v => Edit(id, "Change dietary info", g => g.DietaryInfo = Blank(v)))" />
+                </MudTd>
+                <MudTd>
+                    <MudTextField T="string" Value="context.Notes" Margin="Margin.Dense"
+                                  ValueChanged="@(v => Edit(id, "Change notes", g => g.Notes = Blank(v)))" />
+                </MudTd>
+                <MudTd>
+                    <div class="d-flex align-center">
+                        <input type="color" class="colour-input" value="@(context.Colour ?? "#cccccc")" title="Colour in the plan"
+                               @onchange="@(e => Edit(id, "Change colour", g => g.Colour = e.Value as string))" />
+                        @if (context.Colour is not null)
+                        {
+                            <MudIconButton Icon="@Icons.Material.Filled.Clear" Size="Size.Small" aria-label="Use automatic colour"
+                                           OnClick="@(() => Edit(id, "Clear colour", g => g.Colour = null))" />
+                        }
+                    </div>
+                </MudTd>
+                <MudTd>
+                    <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" aria-label="Delete group"
+                                   OnClick="@(() => Session.History!.Execute("Delete group", p => SetupOperations.RemoveGroup(p, id)))" />
+                </MudTd>
+            </RowTemplate>
+            <NoRecordsContent>
+                <MudText>@(setup.Groups.Count == 0 ? "No groups yet. Add the first one." : "No groups match the search.")</MudText>
+            </NoRecordsContent>
+        </MudTable>
+
+        <div class="mt-4" style="max-width: 800px">
+            <IssuesPanel Setup="setup" />
+        </div>
+    </MudContainer>
+</ProjectLoader>
+
+@code {
+    private string? _search;
+
+    [Parameter] public Guid Id { get; set; }
+
+    private bool Matches(Group group) =>
+        string.IsNullOrWhiteSpace(_search)
+        || new[] { group.Name, group.ContactPerson, group.DietaryInfo, group.Notes }
+            .Any(text => text?.Contains(_search.Trim(), StringComparison.OrdinalIgnoreCase) == true);
+
+    private static string? Blank(string? value) => string.IsNullOrWhiteSpace(value) ? null : value;
+
+    // Groups are replaced on undo, so edits look the group up by ID rather than capturing the object.
+    private void Edit(Guid groupId, string description, Action<Group> edit) =>
+        Session.History!.Execute(description, p => edit(p.Setup.FindGroup(groupId)!));
+
+    private void AddGroup() => Session.History!.Execute("Add group", p => SetupOperations.AddGroup(p));
+
+    private async Task EditPreferences(Guid groupId)
+    {
+        var group = Session.Project!.Setup.FindGroup(groupId)!;
+        var parameters = new DialogParameters<PreferencesDialog>
+        {
+            { x => x.GroupId, groupId },
+            { x => x.Groups, Session.Project.Setup.Groups.ToList() },
+            { x => x.Selected, group.PreferredGroupIds.ToList() },
+        };
+        var dialog = await Dialogs.ShowAsync<PreferencesDialog>($"{group.Name} would like to sit with",
+            parameters, new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true });
+
+        if (await dialog.Result is { Canceled: false, Data: List<Guid> preferred })
+            Session.History!.Execute("Change preferences", p => SetupOperations.SetPreferences(p, groupId, preferred));
+    }
+}

@@ -1,0 +1,142 @@
+@* Edits the selected table or element, or the project and floor when nothing is selected. *@
+@inject IDialogService Dialogs
+
+<MudPaper Outlined="true" Class="pa-3">
+    @if (SelectedTable is { } table)
+    {
+        <MudText Typo="Typo.h6" GutterBottom="true">Table @table.Number</MudText>
+        <MudStack Spacing="2">
+            <MudNumericField T="int" Label="Table number" Value="table.Number" Min="1" Variant="Variant.Outlined" Margin="Margin.Dense"
+                             ValueChanged="@(v => EditTable(table.Id, "Change table number", t => t.Number = v))" />
+            <MudStack Row="true">
+                <MudNumericField T="int" Label="Seats per side" Value="table.SeatsPerSide" Min="1" Max="60" Variant="Variant.Outlined" Margin="Margin.Dense"
+                                 ValueChanged="@(v => History.Execute("Resize table", p => SetupOperations.ResizeTable(p, table.Id, v, table.EndSeats)))" />
+                <MudSelect T="int" Label="End seats" Value="table.EndSeats" Variant="Variant.Outlined" Margin="Margin.Dense"
+                           ValueChanged="@(v => History.Execute("Change end seats", p => SetupOperations.ResizeTable(p, table.Id, table.SeatsPerSide, v)))">
+                    <MudSelectItem Value="0">None</MudSelectItem>
+                    <MudSelectItem Value="1">1 (left end)</MudSelectItem>
+                    <MudSelectItem Value="2">2 (both ends)</MudSelectItem>
+                </MudSelect>
+            </MudStack>
+            <MudText Typo="Typo.body2">
+                @table.SeatCount seats@(table.AvailableSeatCount < table.SeatCount ? $", {table.AvailableSeatCount} available" : "") ·
+                @Formatting.Svg(table.Length) × @Formatting.Svg(table.Width) m
+            </MudText>
+            <PositionFields X="table.X" Y="table.Y" Rotation="table.Rotation"
+                            XChanged="@(v => EditTable(table.Id, "Move table", t => t.X = v))"
+                            YChanged="@(v => EditTable(table.Id, "Move table", t => t.Y = v))"
+                            OnRotate="@(() => History.Execute("Rotate", p => SetupOperations.RotateItems(p, FloorId, [table.Id])))" />
+            <MudSwitch T="bool" Value="EditSeats" ValueChanged="EditSeatsChanged" Color="Color.Primary"
+                       Label="Disable seats: click seats in the plan" />
+        </MudStack>
+    }
+    else if (SelectedElement is { } element)
+    {
+        <MudText Typo="Typo.h6" GutterBottom="true">@FloorElementGeometry.DisplayName(element.Kind)</MudText>
+        <MudStack Spacing="2">
+            <MudTextField T="string" Label="Label" Value="element.Label" Variant="Variant.Outlined" Margin="Margin.Dense"
+                          ValueChanged="@(v => EditElement(element.Id, "Change label", el => el.Label = v))" />
+            <MudSelect T="FloorElementKind" Label="Kind" Value="element.Kind" Variant="Variant.Outlined" Margin="Margin.Dense"
+                       ToStringFunc="FloorElementGeometry.DisplayName"
+                       ValueChanged="@(v => EditElement(element.Id, "Change kind", el => el.Kind = v))">
+                @foreach (var kind in Enum.GetValues<FloorElementKind>())
+                {
+                    <MudSelectItem Value="kind">@FloorElementGeometry.DisplayName(kind)</MudSelectItem>
+                }
+            </MudSelect>
+            <MudStack Row="true">
+                <MudNumericField T="double" Label="Width (m)" Value="element.Width" Min="0.1" Step="0.5" Variant="Variant.Outlined" Margin="Margin.Dense"
+                                 ValueChanged="@(v => EditElement(element.Id, "Resize", el => el.Width = v))" />
+                <MudNumericField T="double" Label="Depth (m)" Value="element.Depth" Min="0.1" Step="0.5" Variant="Variant.Outlined" Margin="Margin.Dense"
+                                 ValueChanged="@(v => EditElement(element.Id, "Resize", el => el.Depth = v))" />
+            </MudStack>
+            <PositionFields X="element.X" Y="element.Y" Rotation="element.Rotation"
+                            XChanged="@(v => EditElement(element.Id, "Move", el => el.X = v))"
+                            YChanged="@(v => EditElement(element.Id, "Move", el => el.Y = v))"
+                            OnRotate="@(() => History.Execute("Rotate", p => SetupOperations.RotateItems(p, FloorId, [element.Id])))" />
+        </MudStack>
+    }
+    else if (Selection.Count > 1)
+    {
+        <MudText Typo="Typo.h6" GutterBottom="true">@Selection.Count items selected</MudText>
+        <MudText Typo="Typo.body2">Drag to move them together. Use the toolbar or the keyboard to rotate, duplicate or delete them.</MudText>
+    }
+    else if (Floor is { } floor)
+    {
+        <MudText Typo="Typo.h6" GutterBottom="true">Project</MudText>
+        <MudTextField T="string" Label="Project name" Value="History.Project.Name" Variant="Variant.Outlined" Margin="Margin.Dense"
+                      ValueChanged="@(v => History.Execute("Rename project", p => p.Name = v))" />
+
+        <MudText Typo="Typo.h6" Class="mt-4" GutterBottom="true">Floor</MudText>
+        <MudStack Spacing="2">
+            <MudTextField T="string" Label="Floor name" Value="floor.Name" Variant="Variant.Outlined" Margin="Margin.Dense"
+                          ValueChanged="@(v => EditFloor(floor.Id, "Rename floor", f => f.Name = v))" />
+            <MudNumericField T="int" Label="Floor number (tables are numbered 101, 201, …)" Value="floor.Number" Min="1" Variant="Variant.Outlined" Margin="Margin.Dense"
+                             ValueChanged="@(v => EditFloor(floor.Id, "Change floor number", f => f.Number = v))" />
+            <MudText Typo="Typo.body2">@floor.Tables.Count tables · @floor.Tables.Sum(t => t.AvailableSeatCount) seats</MudText>
+            <MudStack Row="true" Wrap="Wrap.Wrap" Spacing="1">
+                <MudButton Size="Size.Small" Variant="Variant.Outlined" StartIcon="@Icons.Material.Filled.FormatListNumbered"
+                           OnClick="@(() => History.Execute("Renumber tables", p => SetupOperations.RenumberTables(p, floor.Id)))">Renumber tables</MudButton>
+                <MudButton Size="Size.Small" Variant="Variant.Outlined" StartIcon="@Icons.Material.Filled.ContentCopy" OnClick="@(() => DuplicateFloor(floor.Id))">Duplicate floor</MudButton>
+                <MudButton Size="Size.Small" Variant="Variant.Outlined" Color="Color.Error" StartIcon="@Icons.Material.Filled.Delete"
+                           Disabled="History.Project.Setup.Floors.Count <= 1" OnClick="@(() => DeleteFloor(floor))">Delete floor</MudButton>
+            </MudStack>
+        </MudStack>
+
+        <MudText Typo="Typo.subtitle2" Class="mt-4">Tips</MudText>
+        <MudText Typo="Typo.body2">
+            Drag to move (snaps to 0.5 m; hold Alt to move freely). Shift-click to select several.
+            Drag a table's square handle to add or remove seats.
+            Keys: R rotate, Ctrl+D duplicate, Delete remove, arrows nudge, Ctrl+Z / Ctrl+Y undo / redo.
+        </MudText>
+    }
+</MudPaper>
+
+@code {
+    [Parameter, EditorRequired] public EditHistory History { get; set; } = default!;
+    [Parameter, EditorRequired] public Guid FloorId { get; set; }
+    [Parameter, EditorRequired] public IReadOnlySet<Guid> Selection { get; set; } = default!;
+    [Parameter] public bool EditSeats { get; set; }
+    [Parameter] public EventCallback<bool> EditSeatsChanged { get; set; }
+
+    /// <summary>Raised with the floor to show after a floor is duplicated or deleted.</summary>
+    [Parameter] public EventCallback<Guid> FloorSelected { get; set; }
+
+    private Floor? Floor => History.Project.Setup.Floors.FirstOrDefault(f => f.Id == FloorId);
+
+    private Table? SelectedTable => Selection.Count == 1 ? Floor?.Tables.FirstOrDefault(t => Selection.Contains(t.Id)) : null;
+
+    private FloorElement? SelectedElement => Selection.Count == 1 ? Floor?.Elements.FirstOrDefault(e => Selection.Contains(e.Id)) : null;
+
+    // The project's objects are replaced on undo, so edits look items up by ID rather than capturing them.
+    private void EditTable(Guid id, string description, Action<Table> edit) =>
+        History.Execute(description, p => edit(p.Setup.FindTable(id)!));
+
+    private void EditElement(Guid id, string description, Action<FloorElement> edit) =>
+        History.Execute(description, p => edit(p.Setup.Floors.SelectMany(f => f.Elements).First(e => e.Id == id)));
+
+    private void EditFloor(Guid id, string description, Action<Floor> edit) =>
+        History.Execute(description, p => edit(p.Setup.Floors.First(f => f.Id == id)));
+
+    private async Task DuplicateFloor(Guid floorId)
+    {
+        var newId = Guid.Empty;
+        History.Execute("Duplicate floor", p => newId = SetupOperations.DuplicateFloor(p, floorId).Id);
+        await FloorSelected.InvokeAsync(newId);
+    }
+
+    private async Task DeleteFloor(Floor floor)
+    {
+        if (floor.Tables.Count > 0 || floor.Elements.Count > 0)
+        {
+            var confirmed = await Dialogs.ShowMessageBoxAsync("Delete floor?",
+                $"Delete '{floor.Name}' with its {floor.Tables.Count} tables and {floor.Elements.Count} other items? You can undo this.",
+                yesText: "Delete", cancelText: "Cancel");
+            if (confirmed != true)
+                return;
+        }
+
+        History.Execute("Delete floor", p => SetupOperations.RemoveFloor(p, floor.Id));
+        await FloorSelected.InvokeAsync(History.Project.Setup.Floors[0].Id);
+    }
+}

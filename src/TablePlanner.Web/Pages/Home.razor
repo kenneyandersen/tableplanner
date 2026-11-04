@@ -1,6 +1,151 @@
 @page "/"
+@inject ProjectStore Store
+@inject ProjectSession Session
+@inject NavigationManager Navigation
+@inject IDialogService Dialogs
+@inject ISnackbar Snackbar
 
-<PageTitle>Table Planner</PageTitle>
+<PageTitle>Projects · Table Planner</PageTitle>
 
-<MudText Typo="Typo.h4" GutterBottom="true">Table Planner</MudText>
-<MudText>Seat groups of guests at tables across floors. The setup editor comes in the next step.</MudText>
+<MudContainer MaxWidth="MaxWidth.Large" Class="py-6">
+    <MudStack Row="true" AlignItems="AlignItems.Center" Class="mb-4" Wrap="Wrap.Wrap">
+        <MudText Typo="Typo.h4">Projects</MudText>
+        <MudSpacer />
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add" OnClick="CreateEmpty">New project</MudButton>
+        <MudButton Variant="Variant.Outlined" StartIcon="@Icons.Material.Filled.AutoAwesome" OnClick="CreateExample">New from example</MudButton>
+        <MudButton HtmlTag="label" Variant="Variant.Outlined" StartIcon="@Icons.Material.Filled.Upload" for="import-file">Import</MudButton>
+        <InputFile id="import-file" accept=".json,application/json" OnChange="Import" hidden />
+    </MudStack>
+
+    @if (_projects is null)
+    {
+        <MudProgressLinear Indeterminate="true" />
+    }
+    else if (_projects.Count == 0)
+    {
+        <MudPaper Class="pa-6" Outlined="true">
+            <MudText Typo="Typo.h6">No projects yet</MudText>
+            <MudText>Create a new project, start from the example, or import a project file.</MudText>
+        </MudPaper>
+    }
+    else
+    {
+        <MudAlert Severity="Severity.Info" Dense="true" Class="mb-3">
+            Projects are stored in this browser only. Export them regularly to keep a copy.
+        </MudAlert>
+        <MudTable Items="_projects" Hover="true" Elevation="0" Outlined="true" OnRowClick="@((TableRowClickEventArgs<ProjectSummary> e) => Open(e.Item!.Id))" T="ProjectSummary" RowStyle="cursor: pointer">
+            <HeaderContent>
+                <MudTh>Name</MudTh>
+                <MudTh>Groups</MudTh>
+                <MudTh>People</MudTh>
+                <MudTh>Last changed</MudTh>
+                <MudTh>Exported</MudTh>
+                <MudTh></MudTh>
+            </HeaderContent>
+            <RowTemplate>
+                <MudTd>@context.Name</MudTd>
+                <MudTd>@context.Groups</MudTd>
+                <MudTd>@context.People</MudTd>
+                <MudTd>@Formatting.Ago(context.UpdatedAt)</MudTd>
+                <MudTd>
+                    @if (context.LastExportedAt is not { } exported)
+                    {
+                        <MudText Typo="Typo.body2" Color="Color.Warning">Never</MudText>
+                    }
+                    else if (context.UpdatedAt > exported)
+                    {
+                        <MudText Typo="Typo.body2" Color="Color.Warning">@Formatting.Ago(exported), changed since</MudText>
+                    }
+                    else
+                    {
+                        @Formatting.Ago(exported)
+                    }
+                </MudTd>
+                <MudTd Style="text-align: right">
+                    @* The span keeps the click from also opening the project (row click). *@
+                    <span @onclick:stopPropagation="true">
+                        <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" aria-label="Delete project"
+                                       OnClick="@(() => Delete(context))" />
+                    </span>
+                </MudTd>
+            </RowTemplate>
+        </MudTable>
+    }
+</MudContainer>
+
+@code {
+    private const long MaxImportBytes = 50_000_000;
+
+    private List<ProjectSummary>? _projects;
+
+    protected override async Task OnInitializedAsync()
+    {
+        Session.Close();
+        await Reload();
+    }
+
+    private async Task Reload() =>
+        _projects = (await Store.ListAsync()).OrderByDescending(p => p.UpdatedAt).ToList();
+
+    private void Open(Guid id) => Navigation.NavigateTo($"project/{id}/layout");
+
+    private async Task CreateEmpty()
+    {
+        var project = new EventProject { Name = "New event" };
+        SetupOperations.AddFloor(project, "Ground floor");
+        await OpenNew(project);
+    }
+
+    private Task CreateExample() => OpenNew(ExampleProject.Create());
+
+    private async Task OpenNew(EventProject project)
+    {
+        await Session.OpenNewAsync(project);
+        Open(project.Id);
+    }
+
+    private async Task Import(InputFileChangeEventArgs e)
+    {
+        string json;
+        try
+        {
+            using var reader = new StreamReader(e.File.OpenReadStream(MaxImportBytes));
+            json = await reader.ReadToEndAsync();
+        }
+        catch (IOException ex)
+        {
+            Snackbar.Add($"Could not read the file: {ex.Message}", Severity.Error);
+            return;
+        }
+
+        var result = Core.Serialization.ProjectSerializer.Deserialize(json);
+        if (result.Project is not { } project)
+        {
+            Snackbar.Add(result.Error ?? "The file could not be imported.", Severity.Error);
+            return;
+        }
+
+        if (_projects!.Any(p => p.Id == project.Id))
+        {
+            var replace = await Dialogs.ShowMessageBoxAsync("Replace project?",
+                $"'{project.Name}' is already in this browser. Replace it with the imported file?",
+                yesText: "Replace", cancelText: "Cancel");
+            if (replace != true)
+                return;
+        }
+
+        await OpenNew(project);
+    }
+
+    private async Task Delete(ProjectSummary project)
+    {
+        var confirmed = await Dialogs.ShowMessageBoxAsync("Delete project?",
+            $"Delete '{project.Name}' from this browser? This can't be undone. Export it first if you may need it again.",
+            yesText: "Delete", cancelText: "Cancel");
+        if (confirmed != true)
+            return;
+
+        await Store.DeleteAsync(project.Id);
+        await Reload();
+    }
+}

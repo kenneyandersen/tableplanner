@@ -39,7 +39,7 @@ public class SetupValidatorTests
         var setup = ValidSetup();
         setup.Groups[0].Name = "  ";
 
-        Assert.Equal(Severity.Error, Single(setup, IssueCode.GroupNameMissing).Severity);
+        Assert.Equal(IssueSeverity.Error, Single(setup, IssueCode.GroupNameMissing).Severity);
     }
 
     [Fact]
@@ -48,7 +48,7 @@ public class SetupValidatorTests
         var setup = ValidSetup();
         setup.Groups[1].Name = " a ";
 
-        Assert.Equal(Severity.Error, Single(setup, IssueCode.GroupNameDuplicate).Severity);
+        Assert.Equal(IssueSeverity.Error, Single(setup, IssueCode.GroupNameDuplicate).Severity);
     }
 
     [Theory]
@@ -59,7 +59,7 @@ public class SetupValidatorTests
         var setup = ValidSetup();
         setup.Groups[0].PeopleCount = count;
 
-        Assert.Equal(Severity.Error, Single(setup, IssueCode.GroupSizeInvalid).Severity);
+        Assert.Equal(IssueSeverity.Error, Single(setup, IssueCode.GroupSizeInvalid).Severity);
     }
 
     [Fact]
@@ -135,7 +135,7 @@ public class SetupValidatorTests
         var setup = ValidSetup();
         OnlyTable(setup).DisabledSeats = [42];
 
-        Assert.Equal(Severity.Warning, Single(setup, IssueCode.DisabledSeatInvalid).Severity);
+        Assert.Equal(IssueSeverity.Warning, Single(setup, IssueCode.DisabledSeatInvalid).Severity);
     }
 
     [Fact]
@@ -153,7 +153,38 @@ public class SetupValidatorTests
         var setup = ValidSetup();
         setup.Floors.Add(new Floor { Name = "ground", Number = 2 });
 
-        Assert.Equal(Severity.Warning, Single(setup, IssueCode.FloorNameDuplicate).Severity);
+        Assert.Equal(IssueSeverity.Warning, Single(setup, IssueCode.FloorNameDuplicate).Severity);
+    }
+
+    [Fact]
+    public void Overlapping_tables_are_a_warning()
+    {
+        var setup = ValidSetup();
+        setup.Floors[0].Tables.Add(new Table { Number = 102, SeatsPerSide = 5, X = 2, Y = 0.5 });
+
+        var issue = Single(setup, IssueCode.TablesOverlap);
+
+        Assert.Equal(IssueSeverity.Warning, issue.Severity);
+        Assert.Contains("101 and 102", issue.Message);
+    }
+
+    [Fact]
+    public void Tables_placed_end_to_end_do_not_overlap()
+    {
+        var setup = ValidSetup();
+        // Table 101 is 3 m long, centred at 0, so it ends at x = 1.5; the next one starts exactly there.
+        setup.Floors[0].Tables.Add(new Table { Number = 102, SeatsPerSide = 5, X = 3 });
+
+        Assert.DoesNotContain(SetupValidator.Validate(setup).Issues, i => i.Code == IssueCode.TablesOverlap);
+    }
+
+    [Fact]
+    public void Tables_on_different_floors_never_overlap()
+    {
+        var setup = ValidSetup();
+        setup.Floors.Add(new Floor { Name = "First", Number = 2, Tables = [new Table { Number = 201, SeatsPerSide = 5 }] });
+
+        Assert.DoesNotContain(SetupValidator.Validate(setup).Issues, i => i.Code == IssueCode.TablesOverlap);
     }
 
     [Fact]
@@ -164,7 +195,7 @@ public class SetupValidatorTests
 
         var issue = Single(setup, IssueCode.NotEnoughSeats);
 
-        Assert.Equal(Severity.Warning, issue.Severity);
+        Assert.Equal(IssueSeverity.Warning, issue.Severity);
         Assert.Contains("3 seats short", issue.Message);
         Assert.False(SetupValidator.Validate(setup).HasErrors);
     }

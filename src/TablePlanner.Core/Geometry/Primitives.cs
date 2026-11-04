@@ -28,6 +28,13 @@ public readonly record struct Rect(double Left, double Top, double Width, double
         new(centreX - width / 2, centreY - height / 2, width, height);
 
     public bool Contains(Point p) => p.X >= Left && p.X <= Right && p.Y >= Top && p.Y <= Bottom;
+
+    /// <summary>True when the rectangles share an area (touching edges don't count).</summary>
+    public bool Overlaps(Rect other) =>
+        Left < other.Right - Tolerance && other.Left < Right - Tolerance
+        && Top < other.Bottom - Tolerance && other.Top < Bottom - Tolerance;
+
+    private const double Tolerance = 1e-6;
 }
 
 public static class Grid

@@ -1,0 +1,20 @@
+@* Position and rotation fields shared by tables and floor elements. *@
+
+<MudStack Row="true" AlignItems="AlignItems.Center">
+    <MudNumericField T="double" Label="X (m)" Value="X" ValueChanged="XChanged" Step="0.5" Variant="Variant.Outlined" Margin="Margin.Dense" />
+    <MudNumericField T="double" Label="Y (m)" Value="Y" ValueChanged="YChanged" Step="0.5" Variant="Variant.Outlined" Margin="Margin.Dense" />
+    <MudTooltip Text="@($"Rotate 90° (now {RotationDegrees}°)")">
+        <MudIconButton Icon="@Icons.Material.Filled.RotateRight" OnClick="OnRotate" aria-label="Rotate" />
+    </MudTooltip>
+</MudStack>
+
+@code {
+    [Parameter] public double X { get; set; }
+    [Parameter] public double Y { get; set; }
+    [Parameter] public Rotation Rotation { get; set; }
+    [Parameter] public EventCallback<double> XChanged { get; set; }
+    [Parameter] public EventCallback<double> YChanged { get; set; }
+    [Parameter] public EventCallback OnRotate { get; set; }
+
+    private int RotationDegrees => (int)Rotation * 90;
+}

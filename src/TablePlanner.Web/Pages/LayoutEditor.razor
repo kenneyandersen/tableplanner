@@ -1,0 +1,239 @@
+@page "/project/{Id:guid}/layout"
+@implements IDisposable
+@inject ProjectSession Session
+@inject IJSRuntime JS
+
+<PageTitle>Layout · Table Planner</PageTitle>
+
+<ProjectLoader Id="Id">
+    @if (CurrentFloor is not { } floor)
+    {
+        <MudContainer MaxWidth="MaxWidth.Small" Class="py-8">
+            <MudText Class="mb-2">This project has no floors yet.</MudText>
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add" OnClick="AddFloor">Add floor</MudButton>
+        </MudContainer>
+    }
+    else
+    {
+        var history = Session.History!;
+        <div class="editor-page">
+            <MudToolBar Dense="true" Class="editor-toolbar" WrapContent="true">
+                <MudToggleGroup T="Guid" Value="floor.Id" ValueChanged="SelectFloor" Size="Size.Small" Color="Color.Primary">
+                    @foreach (var f in history.Project.Setup.Floors)
+                    {
+                        <MudToggleItem Value="f.Id" Text="@f.Name" />
+                    }
+                </MudToggleGroup>
+                <MudTooltip Text="Add floor">
+                    <MudIconButton Icon="@Icons.Material.Filled.Add" Size="Size.Small" OnClick="AddFloor" aria-label="Add floor" />
+                </MudTooltip>
+    
+                <MudDivider Vertical="true" FlexItem="true" Class="mx-2" />
+    
+                <MudMenu Label="Add table" StartIcon="@Icons.Material.Filled.TableBar" Variant="Variant.Outlined" Size="Size.Small">
+                    @foreach (var (label, perSide, ends) in TablePresets)
+                    {
+                        <MudMenuItem OnClick="@(() => AddTable(perSide, ends))">@label</MudMenuItem>
+                    }
+                </MudMenu>
+                <MudMenu Label="Add element" StartIcon="@Icons.Material.Filled.Place" Variant="Variant.Outlined" Size="Size.Small" Class="ml-2">
+                    @foreach (var kind in Enum.GetValues<FloorElementKind>())
+                    {
+                        <MudMenuItem OnClick="@(() => AddElement(kind))">@FloorElementGeometry.DisplayName(kind)</MudMenuItem>
+                    }
+                </MudMenu>
+    
+                <MudDivider Vertical="true" FlexItem="true" Class="mx-2" />
+    
+                <MudTooltip Text="Rotate 90° (R)">
+                    <MudIconButton Icon="@Icons.Material.Filled.RotateRight" Disabled="_selection.Count == 0" OnClick="RotateSelected" aria-label="Rotate" />
+                </MudTooltip>
+                <MudTooltip Text="Duplicate (Ctrl+D)">
+                    <MudIconButton Icon="@Icons.Material.Filled.ContentCopy" Disabled="_selection.Count == 0" OnClick="DuplicateSelected" aria-label="Duplicate" />
+                </MudTooltip>
+                <MudTooltip Text="Delete (Delete)">
+                    <MudIconButton Icon="@Icons.Material.Filled.Delete" Disabled="_selection.Count == 0" OnClick="DeleteSelected" aria-label="Delete" />
+                </MudTooltip>
+    
+                <MudSpacer />
+    
+                <MudTooltip Text="Zoom out">
+                    <MudIconButton Icon="@Icons.Material.Filled.ZoomOut" Disabled="_scale <= MinScale" OnClick="@(() => Zoom(-10))" aria-label="Zoom out" />
+                </MudTooltip>
+                <MudText Typo="Typo.caption">@((int)(_scale / DefaultScale * 100))%</MudText>
+                <MudTooltip Text="Zoom in">
+                    <MudIconButton Icon="@Icons.Material.Filled.ZoomIn" Disabled="_scale >= MaxScale" OnClick="@(() => Zoom(10))" aria-label="Zoom in" />
+                </MudTooltip>
+            </MudToolBar>
+    
+            <div class="editor-body">
+                <div class="editor-canvas" tabindex="0" @ref="_canvasHost" @onkeydown="OnKeyDown">
+                    <FloorCanvas History="history" FloorId="floor.Id" Selection="_selection" SelectionChanged="SetSelection"
+                                 Scale="_scale" EditSeats="_editSeats" />
+                </div>
+                <div class="editor-side">
+                    <PropertiesPanel History="history" FloorId="floor.Id" Selection="_selection"
+                                     @bind-EditSeats="_editSeats" FloorSelected="SelectFloor" />
+                    <IssuesPanel Setup="history.Project.Setup" />
+                </div>
+            </div>
+        </div>
+    }
+</ProjectLoader>
+
+@code {
+    private const double DefaultScale = 40, MinScale = 15, MaxScale = 100;
+
+    /// <summary>Offset for duplicates: one row further down, so duplicating builds rows that sit back to back.</summary>
+    private const double DuplicateOffset = 2.5;
+
+    private static readonly (string Label, int PerSide, int Ends)[] TablePresets =
+    [
+        ("Long table, 6 per side (12 seats)", 6, 0),
+        ("Long table, 8 per side (16 seats)", 8, 0),
+        ("Long table, 10 per side (20 seats)", 10, 0),
+        ("Long table, 8 per side + 2 ends (18 seats)", 8, 2),
+    ];
+
+    private ElementReference _canvasHost;
+    private bool _keysHooked;
+    private Guid _floorId;
+    private HashSet<Guid> _selection = [];
+    private bool _editSeats;
+    private double _scale = DefaultScale;
+
+    [Parameter] public Guid Id { get; set; }
+
+    private EditHistory History => Session.History!;
+
+    /// <summary>The floor being edited; falls back to the first floor (e.g. after an undo removed it).</summary>
+    private Floor? CurrentFloor =>
+        Session.Project?.Setup.Floors.FirstOrDefault(f => f.Id == _floorId) ?? Session.Project?.Setup.Floors.FirstOrDefault();
+
+    protected override void OnInitialized() => Session.Changed += OnSessionChanged;
+
+    public void Dispose() => Session.Changed -= OnSessionChanged;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        // The canvas only exists once the project has loaded, so hook the keys on the first render that has it.
+        if (!_keysHooked && _canvasHost.Context is not null)
+        {
+            _keysHooked = true;
+            await JS.InvokeVoidAsync("tablePlanner.preventEditorKeys", _canvasHost);
+        }
+    }
+
+    private void OnSessionChanged()
+    {
+        // Drop selected items that no longer exist (deleted, or removed by undo).
+        if (CurrentFloor is { } floor)
+        {
+            _floorId = floor.Id;
+            _selection.RemoveWhere(id => floor.Tables.All(t => t.Id != id) && floor.Elements.All(e => e.Id != id));
+        }
+        InvokeAsync(StateHasChanged);
+    }
+
+    private void SelectFloor(Guid floorId)
+    {
+        _floorId = floorId;
+        _selection = [];
+        _editSeats = false;
+    }
+
+    private void SetSelection(IReadOnlySet<Guid> selection)
+    {
+        _selection = [.. selection];
+        if (_selection.Count != 1)
+            _editSeats = false;
+    }
+
+    private void AddFloor()
+    {
+        var newId = Guid.Empty;
+        History.Execute("Add floor", p => newId = SetupOperations.AddFloor(p).Id);
+        SelectFloor(newId);
+    }
+
+    private void AddTable(int seatsPerSide, int endSeats)
+    {
+        var (x, y) = FreeSpot();
+        var newId = Guid.Empty;
+        History.Execute("Add table", p => newId = SetupOperations.AddTable(p, CurrentFloor!.Id, x, y, seatsPerSide, endSeats).Id);
+        SetSelection(new HashSet<Guid> { newId });
+    }
+
+    private void AddElement(FloorElementKind kind)
+    {
+        var (x, y) = FreeSpot();
+        var newId = Guid.Empty;
+        History.Execute($"Add {FloorElementGeometry.DisplayName(kind).ToLowerInvariant()}",
+            p => newId = SetupOperations.AddElement(p, CurrentFloor!.Id, kind, x, y).Id);
+        SetSelection(new HashSet<Guid> { newId });
+    }
+
+    /// <summary>A spot below everything on the floor, so new items don't land on top of existing ones.</summary>
+    private (double X, double Y) FreeSpot()
+    {
+        var floor = CurrentFloor!;
+        var bottoms = floor.Tables.Select(t => TableGeometry.GetBounds(t).Bottom)
+            .Concat(floor.Elements.Select(e => FloorElementGeometry.GetBounds(e).Bottom)).ToList();
+        return bottoms.Count == 0 ? (4, 3) : (6, Grid.Snap(bottoms.Max() + 2));
+    }
+
+    private void RotateSelected()
+    {
+        if (_selection.Count > 0)
+            History.Execute("Rotate", p => SetupOperations.RotateItems(p, CurrentFloor!.Id, _selection));
+    }
+
+    private void DuplicateSelected()
+    {
+        if (_selection.Count == 0)
+            return;
+        List<Guid> newIds = [];
+        History.Execute("Duplicate", p => newIds = SetupOperations.DuplicateItems(p, CurrentFloor!.Id, _selection, 0, DuplicateOffset));
+        SetSelection(newIds.ToHashSet());
+    }
+
+    private void DeleteSelected()
+    {
+        if (_selection.Count == 0)
+            return;
+        var ids = _selection.ToList();
+        History.Execute(ids.Count == 1 ? "Delete item" : "Delete items", p => SetupOperations.RemoveItems(p, CurrentFloor!.Id, ids));
+        SetSelection(new HashSet<Guid>());
+    }
+
+    private void Nudge(double dx, double dy)
+    {
+        if (_selection.Count > 0)
+            History.Execute("Move", p => SetupOperations.MoveItems(p, CurrentFloor!.Id, _selection, dx, dy));
+    }
+
+    private void Zoom(double delta) => _scale = Math.Clamp(_scale + delta, MinScale, MaxScale);
+
+    private void OnKeyDown(KeyboardEventArgs e)
+    {
+        var ctrl = e.CtrlKey || e.MetaKey;
+        var step = e.AltKey ? 0.1 : Grid.DefaultStep;
+        switch (e.Key)
+        {
+            case "r" or "R" when !ctrl: RotateSelected(); break;
+            case "Delete" or "Backspace": DeleteSelected(); break;
+            case "Escape": SetSelection(new HashSet<Guid>()); break;
+            case "ArrowLeft": Nudge(-step, 0); break;
+            case "ArrowRight": Nudge(step, 0); break;
+            case "ArrowUp": Nudge(0, -step); break;
+            case "ArrowDown": Nudge(0, step); break;
+            case "d" or "D" when ctrl: DuplicateSelected(); break;
+            case "a" or "A" when ctrl:
+                SetSelection(CurrentFloor!.Tables.Select(t => t.Id).Concat(CurrentFloor.Elements.Select(el => el.Id)).ToHashSet());
+                break;
+            case "z" or "Z" when ctrl && e.ShiftKey: History.Redo(); break;
+            case "z" or "Z" when ctrl: History.Undo(); break;
+            case "y" or "Y" when ctrl: History.Redo(); break;
+        }
+    }
+}

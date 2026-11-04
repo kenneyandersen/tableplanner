@@ -1,6 +1,6 @@
 // Small browser helpers called from Blazor through JS interop.
 window.tablePlanner = {
-    /** Offers text content to the user as a file download. */
+    /** Offers content (text, or bytes from a .NET byte[]) to the user as a file download. */
     downloadFile(fileName, contentType, content) {
         const blob = new Blob([content], { type: contentType });
         const url = URL.createObjectURL(blob);

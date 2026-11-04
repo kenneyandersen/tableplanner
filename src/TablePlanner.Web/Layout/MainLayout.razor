@@ -18,10 +18,10 @@
             <MudButton Href="@($"project/{project.Id}/groups")" Color="Color.Inherit" StartIcon="@Icons.Material.Filled.Groups">Groups</MudButton>
             <MudSpacer />
             <MudTooltip Text="@(Session.History!.CanUndo ? $"Undo: {Session.History.UndoDescription}" : "Nothing to undo")">
-                <MudIconButton Icon="@Icons.Material.Filled.Undo" Color="Color.Inherit" Disabled="@(!Session.History.CanUndo)" OnClick="Session.History.Undo" />
+                <MudIconButton Icon="@Icons.Material.Filled.Undo" aria-label="Undo" Color="Color.Inherit" Disabled="@(!Session.History.CanUndo)" OnClick="Session.History.Undo" />
             </MudTooltip>
             <MudTooltip Text="@(Session.History.CanRedo ? $"Redo: {Session.History.RedoDescription}" : "Nothing to redo")">
-                <MudIconButton Icon="@Icons.Material.Filled.Redo" Color="Color.Inherit" Disabled="@(!Session.History.CanRedo)" OnClick="Session.History.Redo" />
+                <MudIconButton Icon="@Icons.Material.Filled.Redo" aria-label="Redo" Color="Color.Inherit" Disabled="@(!Session.History.CanRedo)" OnClick="Session.History.Redo" />
             </MudTooltip>
             <MudText Typo="Typo.caption" Class="mx-3" Color="@(Session.HasChangesSinceExport ? Color.Warning : Color.Inherit)">@ExportStatus(project)</MudText>
             <MudButton Variant="Variant.Outlined" Color="Color.Inherit" StartIcon="@Icons.Material.Filled.Download" OnClick="Export">Export</MudButton>

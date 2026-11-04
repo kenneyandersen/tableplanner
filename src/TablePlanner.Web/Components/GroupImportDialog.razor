@@ -1,0 +1,104 @@
+@* Shows what importing a groups file will do, and lets the user pick merge or replace. Returns the chosen GroupImportMode. *@
+@using TablePlanner.Export.Groups
+
+<MudDialog>
+    <DialogContent>
+        @if (Project.Setup.Groups.Count > 0 && File.Groups.Count > 0)
+        {
+            <MudRadioGroup T="GroupImportMode" Value="_mode" ValueChanged="SetMode" Class="mb-2">
+                <MudRadio Value="GroupImportMode.Merge" Color="Color.Primary">
+                    Merge: update groups with the same name and add new ones
+                </MudRadio>
+                <MudRadio Value="GroupImportMode.Replace" Color="Color.Primary">
+                    Replace: also remove groups that are not in the file
+                </MudRadio>
+            </MudRadioGroup>
+        }
+
+        <MudStack Row="true" Spacing="1" Wrap="Wrap.Wrap" Class="mb-3">
+            <MudChip T="string" Size="Size.Small" Color="Color.Success">@_result.Count(GroupChangeKind.Added) new</MudChip>
+            <MudChip T="string" Size="Size.Small" Color="Color.Info">@_result.Count(GroupChangeKind.Updated) updated</MudChip>
+            <MudChip T="string" Size="Size.Small">@_result.Count(GroupChangeKind.Unchanged) unchanged</MudChip>
+            @if (_mode == GroupImportMode.Replace)
+            {
+                <MudChip T="string" Size="Size.Small" Color="Color.Warning">@_result.Count(GroupChangeKind.Removed) removed</MudChip>
+            }
+        </MudStack>
+
+        @if (_result.Errors.Count > 0)
+        {
+            <MudAlert Severity="Severity.Error" Dense="true" Class="mb-2">
+                @(File.Groups.Count > 0 ? "Rows with errors are skipped:" : "The file cannot be imported:")
+                <MessageList Messages="_result.Errors" />
+            </MudAlert>
+        }
+        @if (_result.Warnings.Count > 0)
+        {
+            <MudAlert Severity="Severity.Warning" Dense="true" Class="mb-2">
+                <MessageList Messages="_result.Warnings" />
+            </MudAlert>
+        }
+        @if (_result.Count(GroupChangeKind.Removed) > 0)
+        {
+            <MudAlert Severity="Severity.Info" Dense="true" Class="mb-2">Removed groups also lose their pins and seats in the current plan.</MudAlert>
+        }
+
+        @{ var changes = _result.Changes.Where(c => c.Kind != GroupChangeKind.Unchanged).ToList(); }
+        @if (changes.Count > 0)
+        {
+            <MudSimpleTable Dense="true" Outlined="true" Style="max-height: 45vh; overflow-y: auto">
+                <thead>
+                    <tr><th>Group</th><th>People</th><th>Change</th><th>Details</th></tr>
+                </thead>
+                <tbody>
+                    @foreach (var change in changes)
+                    {
+                        <tr>
+                            <td>@change.Name</td>
+                            <td>@change.PeopleCount</td>
+                            <td>@KindText(change.Kind)</td>
+                            <td>@string.Join(", ", change.Details)</td>
+                        </tr>
+                    }
+                </tbody>
+            </MudSimpleTable>
+        }
+        else if (_result.Errors.Count == 0)
+        {
+            <MudText>The groups in the file are the same as in the project. There is nothing to import.</MudText>
+        }
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="() => Dialog.Cancel()">Cancel</MudButton>
+        <MudButton Color="Color.Primary" Variant="Variant.Filled" Disabled="!_result.HasChanges" OnClick="() => Dialog.Close(DialogResult.Ok(_mode))">
+            Import
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    private GroupImportMode _mode = GroupImportMode.Merge;
+    private GroupImportResult _result = null!;
+
+    [CascadingParameter] private IMudDialogInstance Dialog { get; set; } = null!;
+
+    [Parameter, EditorRequired] public EventProject Project { get; set; } = null!;
+
+    [Parameter, EditorRequired] public GroupFile File { get; set; } = null!;
+
+    protected override void OnParametersSet() => _result = GroupImport.Preview(Project, File, _mode);
+
+    private void SetMode(GroupImportMode mode)
+    {
+        _mode = mode;
+        _result = GroupImport.Preview(Project, File, _mode);
+    }
+
+    private static string KindText(GroupChangeKind kind) => kind switch
+    {
+        GroupChangeKind.Added => "New",
+        GroupChangeKind.Updated => "Updated",
+        GroupChangeKind.Removed => "Removed",
+        _ => "",
+    };
+}

@@ -1,6 +1,9 @@
 @page "/project/{Id:guid}/groups"
 @inject ProjectSession Session
 @inject IDialogService Dialogs
+@inject IJSRuntime JS
+@inject ISnackbar Snackbar
+@using TablePlanner.Export.Groups
 
 <PageTitle>Groups · Table Planner</PageTitle>
 
@@ -27,6 +30,13 @@
             <MudSpacer />
             <MudTextField T="string" @bind-Value="_search" Placeholder="Search" Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search"
                           Immediate="true" Variant="Variant.Outlined" Margin="Margin.Dense" Style="max-width: 260px" />
+            <MudButton HtmlTag="label" Variant="Variant.Outlined" StartIcon="@Icons.Material.Filled.Upload" for="groups-import-file">Import</MudButton>
+            <InputFile id="groups-import-file" accept=".csv,.txt,.xlsx,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                       OnChange="Import" hidden @key="_importKey" />
+            <MudMenu Label="Export" Variant="Variant.Outlined" StartIcon="@Icons.Material.Filled.Download" EndIcon="@Icons.Material.Filled.ArrowDropDown">
+                <MudMenuItem OnClick="@(() => Export("xlsx"))">Excel (.xlsx)</MudMenuItem>
+                <MudMenuItem OnClick="@(() => Export("csv"))">CSV (.csv)</MudMenuItem>
+            </MudMenu>
             <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add" OnClick="AddGroup">Add group</MudButton>
         </MudStack>
 
@@ -101,7 +111,12 @@
 </ProjectLoader>
 
 @code {
+    private const long MaxImportBytes = 5 * 1024 * 1024;
+
     private string? _search;
+
+    // A new key resets the file input, so picking the same file again triggers OnChange.
+    private int _importKey;
 
     [Parameter] public Guid Id { get; set; }
 
@@ -132,5 +147,49 @@
 
         if (await dialog.Result is { Canceled: false, Data: List<Guid> preferred })
             Session.History!.Execute("Change preferences", p => SetupOperations.SetPreferences(p, groupId, preferred));
+    }
+
+    private async Task Import(InputFileChangeEventArgs e)
+    {
+        _importKey++;
+        byte[] content;
+        try
+        {
+            using var stream = new MemoryStream();
+            await e.File.OpenReadStream(MaxImportBytes).CopyToAsync(stream);
+            content = stream.ToArray();
+        }
+        catch (IOException ex)
+        {
+            Snackbar.Add($"Could not read the file: {ex.Message}", Severity.Error);
+            return;
+        }
+
+        var file = GroupFile.Read(e.File.Name, content);
+        var parameters = new DialogParameters<GroupImportDialog>
+        {
+            { x => x.Project, Session.Project! },
+            { x => x.File, file },
+        };
+        var dialog = await Dialogs.ShowAsync<GroupImportDialog>($"Import groups from {e.File.Name}",
+            parameters, new DialogOptions { MaxWidth = MaxWidth.Medium, FullWidth = true });
+
+        if (await dialog.Result is { Canceled: false, Data: GroupImportMode mode })
+        {
+            GroupImportResult? result = null;
+            Session.History!.Execute("Import groups", p => result = GroupImport.Apply(p, file, mode));
+            Snackbar.Add($"Imported groups: {result!.Count(GroupChangeKind.Added)} new, {result.Count(GroupChangeKind.Updated)} updated"
+                + (mode == GroupImportMode.Replace ? $", {result.Count(GroupChangeKind.Removed)} removed." : "."), Severity.Success);
+        }
+    }
+
+    private async Task Export(string format)
+    {
+        var setup = Session.Project!.Setup;
+        var fileName = $"{Formatting.FileName(Session.Project.Name)} groups.{format}";
+        var (content, contentType) = format == "csv"
+            ? (GroupExporter.ToCsv(setup), "text/csv")
+            : (GroupExporter.ToXlsx(setup), "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+        await JS.InvokeVoidAsync("tablePlanner.downloadFile", fileName, contentType, content);
     }
 }

@@ -188,3 +188,8 @@ code {
     background: none;
     cursor: pointer;
 }
+
+.message-list {
+    margin: 4px 0 0;
+    padding-left: 1.2em;
+}

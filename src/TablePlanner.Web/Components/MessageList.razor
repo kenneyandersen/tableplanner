@@ -1,0 +1,19 @@
+@* A short list of import messages; long lists are cut off with a count of the rest. *@
+@using TablePlanner.Export.Groups
+
+<ul class="message-list">
+    @foreach (var message in Messages.Take(MaxShown))
+    {
+        <li>@message</li>
+    }
+    @if (Messages.Count > MaxShown)
+    {
+        <li>… and @(Messages.Count - MaxShown) more.</li>
+    }
+</ul>
+
+@code {
+    private const int MaxShown = 10;
+
+    [Parameter, EditorRequired] public IReadOnlyList<ImportMessage> Messages { get; set; } = [];
+}

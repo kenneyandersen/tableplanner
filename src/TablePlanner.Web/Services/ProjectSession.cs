@@ -66,7 +66,7 @@ public sealed class ProjectSession(ProjectStore store, IJSRuntime js)
             return;
 
         Project.LastExportedAt = DateTimeOffset.Now;
-        var fileName = $"{SafeFileName(Project.Name)}.tableplanner.json";
+        var fileName = $"{Formatting.FileName(Project.Name)}.tableplanner.json";
         await js.InvokeVoidAsync("tablePlanner.downloadFile", fileName, "application/json", ProjectSerializer.Serialize(Project));
         await SaveNowAsync();
     }
@@ -125,12 +125,5 @@ public sealed class ProjectSession(ProjectStore store, IJSRuntime js)
             SaveError = $"Could not save in the browser: {ex.Message}. Export the project to keep your changes.";
         }
         Changed?.Invoke();
-    }
-
-    private static string SafeFileName(string name)
-    {
-        var invalid = Path.GetInvalidFileNameChars();
-        var safe = new string(name.Select(c => invalid.Contains(c) ? '_' : c).ToArray()).Trim();
-        return safe.Length == 0 ? "project" : safe;
     }
 }

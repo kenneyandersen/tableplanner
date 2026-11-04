@@ -16,4 +16,12 @@ public static class Formatting
             : age.TotalDays < 1 ? $"{(int)age.TotalHours} h ago"
             : $"{(int)age.TotalDays} days ago";
     }
+
+    /// <summary>A name made safe to use in a file name. Empty names become <paramref name="fallback"/>.</summary>
+    public static string FileName(string name, string fallback = "project")
+    {
+        var invalid = Path.GetInvalidFileNameChars();
+        var safe = new string(name.Select(c => invalid.Contains(c) ? '_' : c).ToArray()).Trim();
+        return safe.Length == 0 ? fallback : safe;
+    }
 }

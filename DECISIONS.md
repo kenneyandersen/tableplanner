@@ -84,14 +84,31 @@ algorithm works on setup + assignment. UI code never goes into model or algorith
   less, duplicate names).
 - Live totals: groups, people, seats, shortfall.
 - Preferences are picked from the other groups and reordered by dragging (max 5).
-- **CSV:** semicolon separator, UTF-8 with BOM (Excel-friendly with æøå). The separator is detected
-  automatically on import. Header row; optional columns may be missing. A `Preferences` column lists
-  group names in order.
-- **Excel (.xlsx):** same columns as CSV. The Excel library (MiniExcel or ClosedXML) is lazy-loaded.
-- CSV and Excel readers produce rows that go through one shared pipeline: validation, then an import
-  preview with row-level errors, then apply.
-- When groups already exist, the import **merges by name** (keeping IDs, so pins and saved plans stay
-  valid) and adds new groups. Replace-all is an option.
+- **Columns:** `Name`, `People`, `Contact person`, `Dietary info`, `Colour`, `Notes`, `Preference 1` …
+  `Preference 5`. Only `Name` and `People` are required. Headers are matched loosely (case, spaces, a few
+  alternatives like `Group`, `Size`, `Color`, `Pref 1`); unknown columns are ignored with a warning.
+  - *Changed (step 4):* preferences are five columns of group names rather than one `Preferences` column,
+    so no separator inside a cell is needed and the file is easy to edit in Excel.
+- **CSV:** semicolon separator, UTF-8 with BOM (Excel-friendly with æøå). On import the separator (`;`, `,`,
+  tab) is detected from the header line; files that are not valid UTF-8 are read as Latin-1 (Excel's
+  "CSV" save in the Windows code page).
+- **Excel (.xlsx):** same columns as CSV, first sheet only. Old `.xls` files are rejected with a message.
+  - *Changed (step 4):* no Excel library. A small reader/writer in `TablePlanner.Export` handles the zip/XML
+    parts needed for one sheet (shared and inline strings, numbers, booleans, cached formula values).
+    It keeps the WebAssembly download small, needs no lazy loading, and has no trimming or licence concerns.
+    The written file has a bold, frozen header row and `People` as numbers; it opens in Excel without repair.
+- CSV and Excel readers produce rows that go through one shared pipeline (`GroupFile` → `GroupImport`):
+  validation, then an import preview, then apply as one undoable edit.
+- **Merge** (default): groups are matched by name, ignoring case and surrounding spaces, and keep their IDs,
+  so pins, plans and preferences stay valid. New names are added; groups not in the file are kept.
+  **Replace** also removes groups that are not in the file (with their pins and seats).
+- For an existing group, only the columns present in the file are changed; a present column with an empty
+  cell clears the value. If any preference column is present, preferences are replaced.
+- **Row errors** (missing name, people not a whole number ≥ 1, a name used twice in the file) skip that row;
+  the rest can still be imported. In Replace mode a group whose row has errors is kept as it is.
+- **Warnings** (invalid colour → automatic colour; preference for an unknown group or itself → left out)
+  do not block the import. Preferences may refer to groups further down the same file.
+- Export of an empty project gives a header-only file, which doubles as a template.
 
 ## Seating rules and solver
 
@@ -211,7 +228,7 @@ algorithm works on setup + assignment. UI code never goes into model or algorith
 8. **Background images**
 9. Later: the mobile page
 
-Status (2026-11-04): steps 1–3 done.
+Status (2026-11-04): steps 1–4 done.
 
 Notes from step 3:
 - Undo/redo stores a snapshot of the project before each edit (`EditHistory`); the edit logic itself lives in
@@ -220,3 +237,7 @@ Notes from step 3:
 - The Checks panel also warns when tables on a floor overlap.
 - Not yet in the editor: rubber-band (drag-box) selection, and showing which tables count as adjacent
   (comes with the seat graph in step 5).
+
+Notes from step 4:
+- Groups page has Import (CSV/Excel) and Export (CSV or Excel). The import dialog shows new / updated /
+  unchanged / removed groups with what changed, plus row errors and warnings, before anything is applied.

@@ -1,0 +1,37 @@
+using System.Globalization;
+using TablePlanner.Core.Model;
+using TablePlanner.Export.Tabular;
+
+namespace TablePlanner.Export.Groups;
+
+/// <summary>Writes the groups as CSV or Excel, one row per group, with preferences as group names.</summary>
+public static class GroupExporter
+{
+    public static byte[] ToCsv(EventSetup setup) => CsvFile.Write(ToRows(setup));
+
+    public static byte[] ToXlsx(EventSetup setup) =>
+        XlsxFile.Write("Groups", ToRows(setup), new HashSet<int> { GroupColumns.All.ToList().IndexOf(GroupColumn.People) });
+
+    /// <summary>The header row followed by one row per group, in the order of <see cref="GroupColumns.All"/>.</summary>
+    public static IReadOnlyList<IReadOnlyList<string>> ToRows(EventSetup setup)
+    {
+        var rows = new List<IReadOnlyList<string>> { GroupColumns.All.Select(GroupColumns.Header).ToArray() };
+        foreach (var group in setup.Groups)
+            rows.Add(GroupColumns.All.Select(column => Cell(setup, group, column)).ToArray());
+        return rows;
+    }
+
+    private static string Cell(EventSetup setup, Group group, GroupColumn column) => column switch
+    {
+        GroupColumn.Name => group.Name,
+        GroupColumn.People => group.PeopleCount.ToString(CultureInfo.InvariantCulture),
+        GroupColumn.ContactPerson => group.ContactPerson ?? "",
+        GroupColumn.DietaryInfo => group.DietaryInfo ?? "",
+        GroupColumn.Colour => group.Colour ?? "",
+        GroupColumn.Notes => group.Notes ?? "",
+        _ => PreferenceName(setup, group, GroupColumns.PreferenceRank(column)),
+    };
+
+    private static string PreferenceName(EventSetup setup, Group group, int rank) =>
+        rank <= group.PreferredGroupIds.Count ? setup.FindGroup(group.PreferredGroupIds[rank - 1])?.Name ?? "" : "";
+}

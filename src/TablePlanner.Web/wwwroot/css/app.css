@@ -193,3 +193,36 @@ code {
     margin: 4px 0 0;
     padding-left: 1.2em;
 }
+
+/* Plan page */
+.solver-progress { width: 260px; }
+.proposal { border-color: var(--mud-palette-primary); margin-bottom: 12px; }
+.summary-table td:last-child { text-align: right; white-space: nowrap; }
+
+.plan-canvas .seat.empty { fill: #ffffff; }
+.plan-canvas .seat.taken { stroke: rgba(0, 0, 0, 0.45); cursor: pointer; }
+.plan-canvas .seat.dimmed { opacity: 0.25; }
+.plan-canvas .seat.highlighted { stroke: #000; stroke-width: 0.06; }
+.plan-canvas .table .table-number { fill: #6d5534; font-weight: 700; }
+.plan-canvas .table .group-label text { fill: #2b1d0b; font-weight: 500; pointer-events: auto; cursor: pointer; }
+.plan-canvas .group-label.dimmed { opacity: 0.3; }
+
+.group-list { display: flex; flex-direction: column; }
+.group-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 3px 6px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 0.875rem;
+}
+.group-row:hover { background: var(--mud-palette-action-default-hover); }
+.group-row.highlighted { background: var(--mud-palette-primary-hover); }
+.group-dot { width: 12px; height: 12px; border-radius: 50%; flex: none; border: 1px solid rgba(0, 0, 0, 0.3); }
+.group-name { flex: 1; min-width: 0; }
+.group-count { color: var(--mud-palette-text-secondary); }
+.group-tables { color: var(--mud-palette-text-secondary); white-space: nowrap; }
+
+/* Adjacency overlay in the layout editor */
+.floor-canvas .adjacency { stroke: var(--mud-palette-primary); stroke-width: 0.05; stroke-dasharray: 0.15 0.1; opacity: 0.7; pointer-events: none; }

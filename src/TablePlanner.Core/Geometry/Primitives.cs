@@ -34,6 +34,14 @@ public readonly record struct Rect(double Left, double Top, double Width, double
         Left < other.Right - Tolerance && other.Left < Right - Tolerance
         && Top < other.Bottom - Tolerance && other.Top < Bottom - Tolerance;
 
+    /// <summary>The shortest distance between the rectangles; 0 when they touch or overlap.</summary>
+    public double DistanceTo(Rect other)
+    {
+        var dx = Math.Max(0, Math.Max(Left - other.Right, other.Left - Right));
+        var dy = Math.Max(0, Math.Max(Top - other.Bottom, other.Top - Bottom));
+        return Math.Sqrt(dx * dx + dy * dy);
+    }
+
     private const double Tolerance = 1e-6;
 }
 

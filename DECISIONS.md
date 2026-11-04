@@ -135,9 +135,40 @@ algorithm works on setup + assignment. UI code never goes into model or algorith
   split penalty, adjacent vs. distant split, floor split penalty, minimum fragment size, preference
   weights, fill vs. spread. Each penalty can be soft (a weight) or hard (a rule). Presets plus sliders.
   Per-group overrides: later.
-- **Algorithm:** 1) assign groups to floors (bin packing), 2) greedy placement per floor, largest groups
-  first, in the most compact free region, 3) local search (move/swap groups and blocks) with
-  **incremental (delta) scoring**. AOT compilation is the fallback if it's too slow.
+- **Algorithm** (*changed in step 5*, from "floor bin packing, then greedy, then local search over seats"):
+  - All free seats are put in one fixed **fill order**: floor by floor; within a floor from table to the
+    nearest table (a snake through rows); within a table column by column (top seat, then the one across),
+    end seats first and last. Each table is walked in whichever of its 4 directions starts closest to where
+    the previous one ended, so the joint between back-to-back rows is close.
+  - A plan is an **order of the groups**. Decoding fills the seats in fill order, group after group, so every
+    group is a compact block (across the table and along it, spilling onto the next adjacent table when big).
+    A group that does not fit in the rest of a table (or floor) starts at the next one when there are seats
+    to spare and it then fits entirely, which puts empty seats at table ends. Groups that do not fit at all
+    are skipped (unplaced), and later, smaller groups still get seats.
+  - The start order is the better of "largest first, followed by the groups it prefers (and that prefer it)"
+    and plain "largest first". **Simulated annealing** then changes the order (swap, move, move next to a
+    preferred group, move or reverse a short run), with full re-scoring of each candidate.
+  - This searches a small space in which every plan is already sensible; there is no seat-level search.
+    Floor assignment falls out of the order, so floor bin packing is not a separate step.
+- **Score** (`PlanEvaluator`, also used for plans edited by hand): points for same-group pairs that are next to,
+  across, diagonal or back to back, plus per pair at the same table and at adjacent tables; preference
+  points by rank × closeness (same table 1, adjacent table 0.6, same floor 0.2) plus the mutual bonus;
+  minus penalties per extra table, per part not adjacent to the rest, per extra floor, per small part, per
+  empty seat between people, per person moved (re-optimize only). Unplaced people (10,000 each) and broken
+  hard rules (100,000 per person: pins, never-split-floors) outweigh everything else.
+- **Default preference weights 200 / 60 / 20 / 6 / 2** (*changed in step 5* from 100 / 30 / 10 / 3 / 1): with the
+  lower weights the solver sometimes gave up a group's 1st choice for slightly more compact big groups.
+- **Seat graph** thresholds: tables are adjacent when their tops are at most 2.0 m apart (on the same floor);
+  seats at different tables are next to each other when facing the same way within 1.3 m (tables end to end),
+  and back to back when facing away from each other within 1.5 m.
+- **Pins:** seat pins are placed as given; table pins take that table's first free seats in fill order before
+  the search; floor pins are a hard-rule penalty, so the search moves those groups onto their floor.
+- **Re-optimize** starts from the current plan's group order and adds the moved-person penalty.
+- **Repeatability:** with a fixed seed, cooling follows the iteration count, so tests get the same plan on any machine.
+- **Speed:** WebAssembly normally runs .NET in an interpreter, about 100 times slower than native for the solver
+  (700 people: ~750 plans/s). Release builds are therefore **AOT-compiled** (~12,700 plans/s for 700 people;
+  the compressed download grows from 3.3 to 7.9 MB, and publishing takes ~7 minutes). F5/`dotnet run` stay
+  interpreted for fast builds, so the solver is slower there.
 - **Minimal-change re-optimize:** after last-minute changes, rearrange as little as possible.
 - A group that can't be kept together is **split as compactly as possible, with a warning**.
 
@@ -228,7 +259,7 @@ algorithm works on setup + assignment. UI code never goes into model or algorith
 8. **Background images**
 9. Later: the mobile page
 
-Status (2026-11-04): steps 1–4 done.
+Status (2026-11-04): steps 1–5 done.
 
 Notes from step 3:
 - Undo/redo stores a snapshot of the project before each edit (`EditHistory`); the edit logic itself lives in
@@ -241,3 +272,13 @@ Notes from step 3:
 Notes from step 4:
 - Groups page has Import (CSV/Excel) and Export (CSV or Excel). The import dialog shows new / updated /
   unchanged / removed groups with what changed, plus row errors and warnings, before anything is applied.
+
+Notes from step 5:
+- New **Plan** page: Make plan, Re-optimize (keep close to the current plan), Stop, Priorities, Clear plan. A new
+  plan is shown as a proposal with its summary and only replaces the current plan on "Use this plan" (undoable).
+  The solver runs on a copy of the project.
+- The plan view colours seats by group, writes group names on their part of each table, and highlights a group
+  when it is clicked (in the drawing or in the group list). Richer visualization and manual edits come in step 6.
+- The priorities dialog edits all weights as numbers; presets and sliders are not done yet.
+- The layout editor can show which tables count as adjacent ("Adjacent tables" switch).
+- Automatic group colours are spread around the colour wheel; with many groups some look alike.

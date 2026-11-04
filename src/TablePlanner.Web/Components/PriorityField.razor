@@ -1,0 +1,14 @@
+@* A labelled number field in a grid cell, for the priorities dialog. *@
+
+<MudItem xs="6" sm="4">
+    <MudNumericField T="double" Label="@Label" Value="Value" ValueChanged="ValueChanged" Min="Min" Max="Max"
+                     Variant="Variant.Outlined" Margin="Margin.Dense" />
+</MudItem>
+
+@code {
+    [Parameter, EditorRequired] public string Label { get; set; } = "";
+    [Parameter] public double Value { get; set; }
+    [Parameter] public EventCallback<double> ValueChanged { get; set; }
+    [Parameter] public double Min { get; set; } = 0;
+    [Parameter] public double Max { get; set; } = 1_000_000;
+}

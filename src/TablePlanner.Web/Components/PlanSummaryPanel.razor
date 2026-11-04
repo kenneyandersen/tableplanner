@@ -1,0 +1,72 @@
+@* Totals, preference fulfilment, issues and the group list for a plan. Clicking a group highlights it. *@
+@using TablePlanner.Solver
+
+<MudText Typo="Typo.subtitle1">@(Summary.PeoplePlaced == 0 ? "No plan yet" : "Plan")</MudText>
+@if (Summary.PeoplePlaced == 0)
+{
+    <MudText Typo="Typo.body2" Class="mb-2">Press <b>Make plan</b> to seat the groups.</MudText>
+}
+else
+{
+    <MudSimpleTable Dense="true" Elevation="0" Class="mb-2 summary-table">
+        <tbody>
+            <tr><td>People seated</td><td>@Summary.PeoplePlaced of @Summary.PeopleTotal</td></tr>
+            <tr><td>Groups split over tables</td><td>@Summary.SplitGroups of @Summary.Groups.Count</td></tr>
+            @foreach (var stat in Summary.PreferenceStats)
+            {
+                <tr><td>@Formatting.Ordinal(stat.Rank) choices met</td><td>@stat.Met of @stat.Wanted</td></tr>
+            }
+        </tbody>
+    </MudSimpleTable>
+}
+
+@if (Summary.PeoplePlaced > 0 && Summary.Issues.Count > 0)
+{
+    <MudAlert Severity="@(Summary.Issues.Any(i => i.Severity == Core.Validation.IssueSeverity.Error) ? Severity.Error : Severity.Warning)" Dense="true" Class="mb-2">
+        <ul class="message-list">
+            @foreach (var issue in Summary.Issues.Take(MaxIssues))
+            {
+                <li>@issue.Message</li>
+            }
+            @if (Summary.Issues.Count > MaxIssues)
+            {
+                <li>… and @(Summary.Issues.Count - MaxIssues) more.</li>
+            }
+        </ul>
+    </MudAlert>
+}
+
+<MudText Typo="Typo.subtitle2" Class="mt-1">Groups</MudText>
+<div class="group-list">
+    @foreach (var group in Summary.Groups.OrderBy(g => g.Name, StringComparer.CurrentCultureIgnoreCase))
+    {
+        var id = group.GroupId;
+        <div class="group-row @(Highlight == id ? "highlighted" : "")" @onclick="() => HighlightChanged.InvokeAsync(id)">
+            <span class="group-dot" style="background: @Colours.GetValueOrDefault(id, "#ccc")"></span>
+            <span class="group-name">@group.Name <span class="group-count">(@group.PeopleCount)</span></span>
+            <span class="group-tables">
+                @if (group.Placed == 0)
+                {
+                    <MudText Typo="Typo.caption" Color="Color.Warning">No seats</MudText>
+                }
+                else
+                {
+                    @string.Join(", ", group.TableNumbers)
+                    @if (!group.IsPlaced)
+                    {
+                        <MudText Typo="Typo.caption" Color="Color.Warning" Inline="true"> · @group.Placed seated</MudText>
+                    }
+                }
+            </span>
+        </div>
+    }
+</div>
+
+@code {
+    private const int MaxIssues = 6;
+
+    [Parameter, EditorRequired] public PlanSummary Summary { get; set; } = default!;
+    [Parameter, EditorRequired] public IReadOnlyDictionary<Guid, string> Colours { get; set; } = default!;
+    [Parameter] public Guid? Highlight { get; set; }
+    [Parameter] public EventCallback<Guid?> HighlightChanged { get; set; }
+}

@@ -1,0 +1,116 @@
+@* Draws one floor with a seating plan: seats coloured by group and group names on their part of each table.
+   Read-only; clicking a seat or label highlights its group. Coordinates are metres; Scale is pixels per metre. *@
+@using static TablePlanner.Web.Formatting
+
+@if (Floor is { } floor)
+{
+    var (width, height) = Extent(floor);
+    <svg class="floor-canvas plan-canvas" width="@Svg(width * Scale)" height="@Svg(height * Scale)" viewBox="0 0 @Svg(width) @Svg(height)"
+         @onclick="() => HighlightChanged.InvokeAsync(null)">
+        <defs>
+            <pattern id="plan-grid" width="5" height="5" patternUnits="userSpaceOnUse">
+                <path d="M 5 0 L 0 0 0 5" class="grid-major" />
+            </pattern>
+        </defs>
+        <rect width="@Svg(width)" height="@Svg(height)" fill="url(#plan-grid)" />
+
+        @foreach (var element in floor.Elements)
+        {
+            var bounds = FloorElementGeometry.GetBounds(element);
+            <g class="element kind-@element.Kind.ToString().ToLowerInvariant()">
+                <rect x="@Svg(bounds.Left)" y="@Svg(bounds.Top)" width="@Svg(bounds.Width)" height="@Svg(bounds.Height)" rx="0.05" />
+                <text x="@Svg(element.X)" y="@Svg(element.Y)" font-size="@Svg(Math.Min(0.45, Math.Min(bounds.Height, bounds.Width) * 0.45))">@element.Label</text>
+            </g>
+        }
+
+        @foreach (var table in floor.Tables)
+        {
+            var bounds = TableGeometry.GetBounds(table);
+            var seats = TableGeometry.GetSeats(table);
+            var vertical = table.Rotation is Rotation.R90 or Rotation.R270;
+            <g class="table">
+                <rect x="@Svg(bounds.Left)" y="@Svg(bounds.Top)" width="@Svg(bounds.Width)" height="@Svg(bounds.Height)" rx="0.05" />
+                @foreach (var seat in seats)
+                {
+                    var groupId = _groupAt.GetValueOrDefault(seat.Id);
+                    var group = groupId == Guid.Empty ? null : Setup.FindGroup(groupId);
+                    var dimmed = Highlight is { } h && h != groupId;
+                    <circle cx="@Svg(seat.Position.X)" cy="@Svg(seat.Position.Y)" r="0.22"
+                            class="seat @(seat.IsDisabled ? "disabled" : "") @(group is null ? "empty" : "taken") @(dimmed ? "dimmed" : "") @(Highlight == groupId && group is not null ? "highlighted" : "")"
+                            style="@(group is null ? null : $"fill: {Colours.GetValueOrDefault(groupId, "#ccc")}")"
+                            @onclick="() => HighlightChanged.InvokeAsync(group?.Id)" @onclick:stopPropagation="true">
+                        <title>@(group is null ? $"Table {table.Number}, empty seat" : $"{group.Name} ({group.PeopleCount}) · table {table.Number}")</title>
+                    </circle>
+                }
+                @{ var numberAt = TableNumberPosition(table); }
+                <text class="table-number" x="@Svg(numberAt.X)" y="@Svg(numberAt.Y)" font-size="0.2">@table.Number</text>
+                @foreach (var block in Blocks(table, seats))
+                {
+                    var dimmed = Highlight is { } h && h != block.GroupId;
+                    @* Wrapped in <g>: a <text> element directly in a code block would be Razor's own <text> tag. *@
+                    <g class="group-label @(dimmed ? "dimmed" : "")" @onclick="() => HighlightChanged.InvokeAsync(block.GroupId)" @onclick:stopPropagation="true">
+                        <text x="@Svg(block.Position.X)" y="@Svg(block.Position.Y)" font-size="0.26"
+                              transform="@(vertical ? $"rotate(90 {Svg(block.Position.X)} {Svg(block.Position.Y)})" : null)">@block.Label</text>
+                    </g>
+                }
+            </g>
+        }
+    </svg>
+}
+
+@code {
+    private Dictionary<SeatId, Guid> _groupAt = [];
+
+    [Parameter, EditorRequired] public EventSetup Setup { get; set; } = default!;
+    [Parameter, EditorRequired] public Guid FloorId { get; set; }
+    [Parameter, EditorRequired] public SeatingAssignment Assignment { get; set; } = default!;
+    [Parameter, EditorRequired] public IReadOnlyDictionary<Guid, string> Colours { get; set; } = default!;
+
+    /// <summary>Pixels per metre.</summary>
+    [Parameter] public double Scale { get; set; } = 40;
+
+    /// <summary>The group drawn in full colour while the others are dimmed.</summary>
+    [Parameter] public Guid? Highlight { get; set; }
+    [Parameter] public EventCallback<Guid?> HighlightChanged { get; set; }
+
+    private Floor? Floor => Setup.Floors.FirstOrDefault(f => f.Id == FloorId);
+
+    protected override void OnParametersSet() =>
+        _groupAt = Assignment.Seats.GroupBy(s => s.Seat).ToDictionary(g => g.Key, g => g.First().GroupId);
+
+    private static (double Width, double Height) Extent(Floor floor)
+    {
+        var bounds = floor.Tables.Select(TableGeometry.GetBounds).Concat(floor.Elements.Select(FloorElementGeometry.GetBounds)).ToList();
+        var right = bounds.Count == 0 ? 0 : bounds.Max(b => b.Right);
+        var bottom = bounds.Count == 0 ? 0 : bounds.Max(b => b.Bottom);
+        return (Math.Max(30, Math.Ceiling(right) + 5), Math.Max(20, Math.Ceiling(bottom) + 5));
+    }
+
+    // The table number goes in a small line along the top edge of the table top (in the table's own frame);
+    // group names sit just below the middle, so the two never overlap.
+    private static double LabelOffset(Table table) => table.Width * 0.12;
+
+    private static Point TableNumberPosition(Table table) =>
+        new Point(-table.Length / 2 + 0.25, -table.Width / 2 + 0.15).Rotate(table.Rotation).Offset(table.X, table.Y);
+
+    private sealed record Block(Guid GroupId, string Label, Point Position);
+
+    /// <summary>A label per group at this table, on the table top in the middle of the group's seats, shortened to fit.</summary>
+    private IEnumerable<Block> Blocks(Table table, IReadOnlyList<SeatLayout> seats)
+    {
+        foreach (var part in seats.Where(s => _groupAt.ContainsKey(s.Id)).GroupBy(s => _groupAt[s.Id]))
+        {
+            if (Setup.FindGroup(part.Key) is not { } group)
+                continue;
+            // Along the table: the middle of the group's side seats (or the end it sits at). Across: the middle of the table top.
+            var along = part.Where(s => s.Side is SeatSide.Top or SeatSide.Bottom).Select(s => s.PositionAlongSide).ToList();
+            if (along.Count == 0)
+                along = [part.First().Side == SeatSide.LeftEnd ? 0 : table.SeatsPerSide - 1];
+            var local = new Point(-table.Length / 2 + table.SeatSpacing * ((along.Min() + along.Max()) / 2.0 + 0.5), LabelOffset(table));
+            var columns = along.Max() - along.Min() + 1;
+            var maxChars = Math.Max(3, (int)(columns * table.SeatSpacing / 0.15));
+            var label = group.Name.Length <= maxChars ? group.Name : group.Name[..(maxChars - 1)] + "…";
+            yield return new Block(group.Id, label, local.Rotate(table.Rotation).Offset(table.X, table.Y));
+        }
+    }
+}

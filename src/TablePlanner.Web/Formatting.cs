@@ -17,6 +17,9 @@ public static class Formatting
             : $"{(int)age.TotalDays} days ago";
     }
 
+    /// <summary>"1st", "2nd", "3rd", "4th", …</summary>
+    public static string Ordinal(int n) => n switch { 1 => "1st", 2 => "2nd", 3 => "3rd", _ => $"{n}th" };
+
     /// <summary>A name made safe to use in a file name. Empty names become <paramref name="fallback"/>.</summary>
     public static string FileName(string name, string fallback = "project")
     {

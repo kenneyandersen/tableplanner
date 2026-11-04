@@ -5,6 +5,9 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <OverrideHtmlAssetPlaceholders>true</OverrideHtmlAssetPlaceholders>
+    <!-- Compile to WebAssembly ahead of time when publishing (needs the wasm-tools workload). The solver runs about
+         17 times faster in the browser; publishing takes several minutes and the download grows from ~3 to ~8 MB. -->
+    <RunAOTCompilation Condition="'$(Configuration)' == 'Release'">true</RunAOTCompilation>
   </PropertyGroup>
 
   <ItemGroup>

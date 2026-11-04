@@ -2,6 +2,7 @@
    Coordinates in the SVG are metres; Scale is pixels per metre. All changes go through History. *@
 @inject IJSRuntime JS
 @using static TablePlanner.Web.Formatting
+@using TablePlanner.Core.Graph
 
 @if (Floor is { } floor)
 {
@@ -28,6 +29,14 @@
                 <rect x="@Svg(bounds.Left)" y="@Svg(bounds.Top)" width="@Svg(bounds.Width)" height="@Svg(bounds.Height)" rx="0.05" />
                 <text x="@Svg(element.X)" y="@Svg(element.Y)" font-size="@Svg(Math.Min(0.45, Math.Min(bounds.Height, bounds.Width) * 0.45))">@element.Label</text>
             </g>
+        }
+
+        @if (ShowAdjacency)
+        {
+            foreach (var (a, b) in SeatGraph.AdjacentTablePairs(floor))
+            {
+                <line class="adjacency" x1="@Svg(a.X)" y1="@Svg(a.Y)" x2="@Svg(b.X)" y2="@Svg(b.Y)" />
+            }
         }
 
         @foreach (var table in floor.Tables)
@@ -87,6 +96,9 @@
 
     /// <summary>When on, clicking a seat of the selected table disables or enables it.</summary>
     [Parameter] public bool EditSeats { get; set; }
+
+    /// <summary>Draws lines between tables that count as adjacent (for keeping groups close).</summary>
+    [Parameter] public bool ShowAdjacency { get; set; }
 
     private Floor? Floor => History.Project.Setup.Floors.FirstOrDefault(f => f.Id == FloorId);
 

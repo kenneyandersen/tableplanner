@@ -1,0 +1,251 @@
+@page "/project/{Id:guid}/plan"
+@implements IDisposable
+@inject ProjectSession Session
+@inject IDialogService Dialogs
+@inject ISnackbar Snackbar
+@using TablePlanner.Core.Serialization
+@using TablePlanner.Solver
+
+<PageTitle>Plan · Table Planner</PageTitle>
+
+<ProjectLoader Id="Id">
+    @if (CurrentFloor is not { } floor)
+    {
+        <MudContainer MaxWidth="MaxWidth.Small" Class="py-8">
+            <MudText Class="mb-2">This project has no floors or tables yet.</MudText>
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" Href="@($"project/{Id}/layout")">Set up the layout</MudButton>
+        </MudContainer>
+    }
+    else
+    {
+        var setup = Session.Project!.Setup;
+        var summary = DisplayedSummary;
+        <div class="editor-page">
+            <MudToolBar Dense="true" Class="editor-toolbar" WrapContent="true">
+                <MudToggleGroup T="Guid" Value="floor.Id" ValueChanged="@(id => _floorId = id)" Size="Size.Small" Color="Color.Primary">
+                    @foreach (var f in setup.Floors)
+                    {
+                        <MudToggleItem Value="f.Id" Text="@f.Name" />
+                    }
+                </MudToggleGroup>
+
+                <MudDivider Vertical="true" FlexItem="true" Class="mx-2" />
+
+                @if (_running)
+                {
+                    <div class="solver-progress">
+                        <MudProgressLinear Color="Color.Primary" Value="@((_progress?.Fraction ?? 0) * 100)" />
+                        <MudText Typo="Typo.caption">
+                            Searching… @(_progress is { } p ? $"{p.Iterations:N0} plans tried, {p.Elapsed.TotalSeconds:0} of {p.TimeBudget.TotalSeconds:0} s" : "")
+                        </MudText>
+                    </div>
+                    <MudButton Variant="Variant.Outlined" StartIcon="@Icons.Material.Filled.Stop" OnClick="Cancel" Class="ml-2">Stop</MudButton>
+                }
+                else
+                {
+                    <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.AutoAwesome"
+                               OnClick="@(() => Solve(SolveMode.Fresh))">Make plan</MudButton>
+                    <MudTooltip Text="Improve the current plan while moving as few people as possible to other tables">
+                        <MudButton Variant="Variant.Outlined" StartIcon="@Icons.Material.Filled.Tune" Class="ml-2"
+                                   Disabled="Session.Project.CurrentAssignment.Seats.Count == 0" OnClick="@(() => Solve(SolveMode.KeepCloseToCurrent))">Re-optimize</MudButton>
+                    </MudTooltip>
+                    <MudButton Variant="Variant.Text" StartIcon="@Icons.Material.Filled.Settings" Class="ml-2" OnClick="EditPriorities">Priorities</MudButton>
+                    <MudButton Variant="Variant.Text" StartIcon="@Icons.Material.Filled.ClearAll" Class="ml-2"
+                               Disabled="Session.Project.CurrentAssignment.Seats.Count == 0" OnClick="ClearPlan">Clear plan</MudButton>
+                }
+
+                <MudSpacer />
+
+                <MudTooltip Text="Zoom out">
+                    <MudIconButton Icon="@Icons.Material.Filled.ZoomOut" Disabled="_scale <= MinScale" OnClick="@(() => Zoom(-10))" aria-label="Zoom out" />
+                </MudTooltip>
+                <MudText Typo="Typo.caption">@((int)(_scale / DefaultScale * 100))%</MudText>
+                <MudTooltip Text="Zoom in">
+                    <MudIconButton Icon="@Icons.Material.Filled.ZoomIn" Disabled="_scale >= MaxScale" OnClick="@(() => Zoom(10))" aria-label="Zoom in" />
+                </MudTooltip>
+            </MudToolBar>
+
+            <div class="editor-body">
+                <div class="editor-canvas">
+                    <PlanCanvas Setup="setup" FloorId="floor.Id" Assignment="DisplayedAssignment" Colours="_colours" Scale="_scale"
+                                Highlight="_highlight" HighlightChanged="HighlightGroup" />
+                </div>
+                <div class="editor-side">
+                    @if (_failure is { } failure)
+                    {
+                        <MudAlert Severity="Severity.Error" Dense="true" ShowCloseIcon="true" CloseIconClicked="@(() => _failure = null)">
+                            No plan could be made.
+                            <ul class="message-list">
+                                @foreach (var issue in failure.Take(8))
+                                {
+                                    <li>@issue.Message</li>
+                                }
+                            </ul>
+                        </MudAlert>
+                    }
+                    @if (_proposal is not null && _proposalSummary is { } proposed)
+                    {
+                        <MudPaper Outlined="true" Class="pa-3 proposal">
+                            <MudText Typo="Typo.subtitle1">New plan</MudText>
+                            <MudText Typo="Typo.body2" Class="mb-2">
+                                Shown on the left. @(Session.Project.CurrentAssignment.Seats.Count > 0 ? "It replaces the current plan when you use it." : "")
+                                Found in @_proposal.Elapsed.TotalSeconds.ToString("0.0") s after trying @_proposal.Iterations.ToString("N0") plans.
+                            </MudText>
+                            @if (_currentSummary is { PeoplePlaced: > 0 } current)
+                            {
+                                <MudText Typo="Typo.body2" Class="mb-2">
+                                    Score @proposed.Score.ToString("N0") (current plan: @current.Score.ToString("N0")).
+                                </MudText>
+                            }
+                            <MudStack Row="true" Spacing="2">
+                                <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="Accept">Use this plan</MudButton>
+                                <MudButton Variant="Variant.Text" OnClick="@(() => (_proposal, _proposalSummary) = (null, null))">Discard</MudButton>
+                            </MudStack>
+                        </MudPaper>
+                    }
+
+                    @if (summary is not null)
+                    {
+                        <PlanSummaryPanel Summary="summary" Colours="_colours" Highlight="_highlight" HighlightChanged="HighlightGroup" />
+                    }
+                </div>
+            </div>
+        </div>
+    }
+</ProjectLoader>
+
+@code {
+    private const double DefaultScale = 40, MinScale = 15, MaxScale = 100;
+
+    private Guid _floorId;
+    private double _scale = DefaultScale;
+    private Guid? _highlight;
+    private IReadOnlyDictionary<Guid, string> _colours = new Dictionary<Guid, string>();
+    private PlanSummary? _currentSummary;
+
+    private bool _running;
+    private CancellationTokenSource? _cancel;
+    private SolveProgress? _progress;
+    private SolveResult? _proposal;
+    private PlanSummary? _proposalSummary;
+    private IReadOnlyList<PlanIssue>? _failure;
+
+    [Parameter] public Guid Id { get; set; }
+
+    private Floor? CurrentFloor =>
+        Session.Project?.Setup.Floors.FirstOrDefault(f => f.Id == _floorId) ?? Session.Project?.Setup.Floors.FirstOrDefault();
+
+    /// <summary>The proposed plan while there is one, otherwise the current plan.</summary>
+    private SeatingAssignment DisplayedAssignment => _proposal?.Assignment ?? Session.Project!.CurrentAssignment;
+
+    private PlanSummary? DisplayedSummary => _proposalSummary ?? _currentSummary;
+
+    protected override void OnInitialized()
+    {
+        Session.Changed += OnSessionChanged;
+        Refresh();
+    }
+
+    public void Dispose()
+    {
+        Session.Changed -= OnSessionChanged;
+        _cancel?.Cancel();
+    }
+
+    private void OnSessionChanged()
+    {
+        Refresh();
+        InvokeAsync(StateHasChanged);
+    }
+
+    /// <summary>Recomputes colours and the summary of the current plan after any change to the project.</summary>
+    private void Refresh()
+    {
+        if (Session.Project is not { } project)
+            return;
+        _colours = GroupColours.For(project.Setup);
+        _currentSummary = Summarize(project.CurrentAssignment);
+        _proposalSummary = _proposal?.Assignment is { } proposed ? Summarize(proposed) : null;
+    }
+
+    /// <summary>Scores a plan against the project as it is now, the same way for the current and the proposed plan.</summary>
+    private PlanSummary Summarize(SeatingAssignment assignment)
+    {
+        var project = Session.Project!;
+        var problem = SeatingProblem.Create(project.Setup, project.Priorities);
+        return new PlanEvaluator(problem).Summarize(problem.ToPlan(assignment));
+    }
+
+    private async Task Solve(SolveMode mode)
+    {
+        // The solver works on a copy, so edits elsewhere in the app during the search don't interfere.
+        var copy = ProjectSerializer.Deserialize(ProjectSerializer.Serialize(Session.Project!)).Project!;
+        _cancel = new CancellationTokenSource();
+        _running = true;
+        _failure = null;
+        (_proposal, _proposalSummary) = (null, null);
+        _progress = null;
+        var progress = new Progress<SolveProgress>(p =>
+        {
+            _progress = p;
+            InvokeAsync(StateHasChanged);
+        });
+
+        try
+        {
+            var result = await SeatingSolver.SolveAsync(copy, new SolverOptions { Mode = mode }, progress, _cancel.Token);
+            if (result.Status == SolveStatus.Failed)
+                _failure = result.Issues;
+            else
+                (_proposal, _proposalSummary) = (result, Summarize(result.Assignment!));
+        }
+        catch (Exception ex)
+        {
+            _failure = [new PlanIssue(Core.Validation.IssueSeverity.Error, $"Something went wrong: {ex.Message}")];
+        }
+        finally
+        {
+            _running = false;
+            _cancel.Dispose();
+            _cancel = null;
+        }
+    }
+
+    private void Cancel() => _cancel?.Cancel();
+
+    private void Accept()
+    {
+        var assignment = _proposal!.Assignment!;
+        (_proposal, _proposalSummary) = (null, null);
+        Session.History!.Execute("Make plan", p => p.CurrentAssignment = assignment);
+        Snackbar.Add("The new plan is now the current plan.", Severity.Success);
+    }
+
+    private async Task ClearPlan()
+    {
+        var confirm = await Dialogs.ShowMessageBoxAsync("Clear plan?", "Remove everyone from their seats? You can undo this.",
+            yesText: "Clear", cancelText: "Cancel");
+        if (confirm == true)
+            Session.History!.Execute("Clear plan", p => p.CurrentAssignment = new SeatingAssignment());
+    }
+
+    private async Task EditPriorities()
+    {
+        var parameters = new DialogParameters<PrioritiesDialog> { { x => x.Priorities, Session.Project!.Priorities } };
+        var dialog = await Dialogs.ShowAsync<PrioritiesDialog>("Priorities", parameters,
+            new DialogOptions { MaxWidth = MaxWidth.Medium, FullWidth = true });
+        if (await dialog.Result is { Canceled: false, Data: SeatingPriorities edited })
+            Session.History!.Execute("Change priorities", p => p.Priorities = edited);
+    }
+
+    /// <summary>Highlights a group and shows the floor where it sits.</summary>
+    private void HighlightGroup(Guid? groupId)
+    {
+        _highlight = _highlight == groupId ? null : groupId;
+        if (_highlight is { } id && DisplayedAssignment.SeatsOf(id).FirstOrDefault() is { TableId: var tableId } && tableId != Guid.Empty)
+            if (Session.Project!.Setup.Floors.FirstOrDefault(f => f.Tables.Any(t => t.Id == tableId)) is { } floor)
+                _floorId = floor.Id;
+    }
+
+    private void Zoom(double delta) => _scale = Math.Clamp(_scale + delta, MinScale, MaxScale);
+}

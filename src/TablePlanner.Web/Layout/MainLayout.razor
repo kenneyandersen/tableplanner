@@ -16,6 +16,7 @@
             <MudText Typo="Typo.subtitle1" Class="mr-4">@project.Name</MudText>
             <MudButton Href="@($"project/{project.Id}/layout")" Color="Color.Inherit" StartIcon="@Icons.Material.Filled.TableRestaurant">Layout</MudButton>
             <MudButton Href="@($"project/{project.Id}/groups")" Color="Color.Inherit" StartIcon="@Icons.Material.Filled.Groups">Groups</MudButton>
+            <MudButton Href="@($"project/{project.Id}/plan")" Color="Color.Inherit" StartIcon="@Icons.Material.Filled.EventSeat">Plan</MudButton>
             <MudSpacer />
             <MudTooltip Text="@(Session.History!.CanUndo ? $"Undo: {Session.History.UndoDescription}" : "Nothing to undo")">
                 <MudIconButton Icon="@Icons.Material.Filled.Undo" aria-label="Undo" Color="Color.Inherit" Disabled="@(!Session.History.CanUndo)" OnClick="Session.History.Undo" />

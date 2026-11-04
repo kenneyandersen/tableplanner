@@ -13,10 +13,10 @@ Design decisions are recorded in [DECISIONS.md](DECISIONS.md).
 
 | Project | Contents |
 |---|---|
-| `src/TablePlanner.Core` | Model, seat geometry, validation, editing operations and undo/redo, project JSON, example project |
-| `src/TablePlanner.Solver` | Seating algorithm (not yet implemented) |
+| `src/TablePlanner.Core` | Model, seat geometry, seat graph, validation, editing operations and undo/redo, project JSON, example project |
+| `src/TablePlanner.Solver` | Seating algorithm: scoring, plan summary, search |
 | `src/TablePlanner.Export` | CSV and Excel (.xlsx) import/export of groups; print templates (not yet implemented) |
-| `src/TablePlanner.Web` | Blazor UI (MudBlazor): projects, floor layout editor, groups editor with import/export |
+| `src/TablePlanner.Web` | Blazor UI (MudBlazor): projects, floor layout editor, groups editor with import/export, plan page |
 | `tests/*` | xUnit tests per project |
 
 Dependencies point one way: Web → Solver/Export → Core.
@@ -31,11 +31,23 @@ dotnet test
 dotnet run --project src/TablePlanner.Web
 ```
 
-## Publishing to GitHub Pages
+Solver diagnostics for the benchmark setups (scores, preference fulfilment, iterations per second):
 
 ```sh
+dotnet test tests/TablePlanner.Solver.Tests -c Release --filter SolverDiagnostics --logger "console;verbosity=detailed"
+```
+
+## Publishing to GitHub Pages
+
+Release builds are compiled ahead of time (AOT), which makes the solver much faster in the browser.
+This needs the WebAssembly build tools once, and publishing takes several minutes:
+
+```sh
+dotnet workload install wasm-tools
 dotnet publish src/TablePlanner.Web -c Release -o publish
 ```
+
+Add `-p:RunAOTCompilation=false` for a quick publish without AOT.
 
 Then, in `publish/wwwroot`:
 

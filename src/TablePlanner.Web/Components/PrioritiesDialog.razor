@@ -1,0 +1,74 @@
+@* Edits a copy of the solver priorities. Returns the edited SeatingPriorities. *@
+
+<MudDialog>
+    <DialogContent>
+        <MudText Typo="Typo.body2" Class="mb-3">
+            The solver adds up points for people of a group sitting close and for groups near the groups they prefer,
+            and subtracts penalties. Higher numbers make a rule matter more.
+        </MudText>
+
+        <MudText Typo="Typo.subtitle2">Keeping a group together (points per pair of people)</MudText>
+        <MudGrid Spacing="2" Class="mb-3">
+            <PriorityField Label="Next to each other" @bind-Value="_p.NextToWeight" />
+            <PriorityField Label="Across the table" @bind-Value="_p.AcrossWeight" />
+            <PriorityField Label="Diagonally across" @bind-Value="_p.DiagonalWeight" />
+            <PriorityField Label="Back to back" @bind-Value="_p.BackToBackWeight" />
+            <PriorityField Label="Same table" @bind-Value="_p.SameTableWeight" />
+            <PriorityField Label="Adjacent tables" @bind-Value="_p.AdjacentTableWeight" />
+        </MudGrid>
+
+        <MudText Typo="Typo.subtitle2">Splitting a group (penalties)</MudText>
+        <MudGrid Spacing="2" Class="mb-1">
+            <PriorityField Label="Per extra table" @bind-Value="_p.TableSplitPenalty" />
+            <PriorityField Label="Per part not next to the rest" @bind-Value="_p.DistantTableSplitPenalty" />
+            <PriorityField Label="Per extra floor" @bind-Value="_p.FloorSplitPenalty" />
+            <PriorityField Label="Per small part" @bind-Value="_p.SmallFragmentPenalty" />
+            <MudItem xs="6" sm="4">
+                <MudNumericField T="int" Label="Small part: fewer than" @bind-Value="_p.MinimumFragmentSize" Min="1" Max="20"
+                                 Variant="Variant.Outlined" Margin="Margin.Dense" />
+            </MudItem>
+            <PriorityField Label="Per empty seat between people" @bind-Value="_p.EmptySeatGapPenalty" />
+        </MudGrid>
+        <MudSwitch T="bool" @bind-Value="_p.NeverSplitAcrossFloors" Color="Color.Primary" Class="mb-3">
+            Never split a group across floors (a hard rule; groups that cannot fit stay without seats)
+        </MudSwitch>
+
+        <MudText Typo="Typo.subtitle2">Preferences (points when groups sit at the same table; less at adjacent tables or on the same floor)</MudText>
+        <MudGrid Spacing="2" Class="mb-3">
+            @for (var i = 0; i < _p.PreferenceRankWeights.Count; i++)
+            {
+                var rank = i;
+                <PriorityField Label="@($"{Formatting.Ordinal(rank + 1)} choice")" Value="_p.PreferenceRankWeights[rank]" ValueChanged="@(v => _p.PreferenceRankWeights[rank] = v)" />
+            }
+            <PriorityField Label="Extra when both want it" @bind-Value="_p.MutualPreferenceBonus" />
+        </MudGrid>
+
+        <MudText Typo="Typo.subtitle2">Re-optimizing and time</MudText>
+        <MudGrid Spacing="2">
+            <PriorityField Label="Per person moved to another table" @bind-Value="_p.MovedPersonPenalty" />
+            <PriorityField Label="Time limit (seconds)" @bind-Value="_p.TimeBudgetSeconds" Min="1" Max="120" />
+        </MudGrid>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Reset" Class="mr-auto">Reset to defaults</MudButton>
+        <MudButton OnClick="() => Dialog.Cancel()">Cancel</MudButton>
+        <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="() => Dialog.Close(DialogResult.Ok(_p))">Save</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    private SeatingPriorities _p = new();
+
+    [CascadingParameter] private IMudDialogInstance Dialog { get; set; } = null!;
+
+    [Parameter, EditorRequired] public SeatingPriorities Priorities { get; set; } = null!;
+
+    protected override void OnInitialized()
+    {
+        _p = Priorities.Clone();
+        while (_p.PreferenceRankWeights.Count < Group.MaxPreferences)
+            _p.PreferenceRankWeights.Add(0);
+    }
+
+    private void Reset() => _p = new SeatingPriorities();
+}

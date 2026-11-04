@@ -56,6 +56,10 @@
                 </MudTooltip>
     
                 <MudSpacer />
+
+                <MudTooltip Text="Show which tables count as adjacent: groups split over adjacent tables still sit close">
+                    <MudSwitch T="bool" @bind-Value="_showAdjacency" Color="Color.Primary" Class="mr-2">Adjacent tables</MudSwitch>
+                </MudTooltip>
     
                 <MudTooltip Text="Zoom out">
                     <MudIconButton Icon="@Icons.Material.Filled.ZoomOut" Disabled="_scale <= MinScale" OnClick="@(() => Zoom(-10))" aria-label="Zoom out" />
@@ -69,7 +73,7 @@
             <div class="editor-body">
                 <div class="editor-canvas" tabindex="0" @ref="_canvasHost" @onkeydown="OnKeyDown">
                     <FloorCanvas History="history" FloorId="floor.Id" Selection="_selection" SelectionChanged="SetSelection"
-                                 Scale="_scale" EditSeats="_editSeats" />
+                                 Scale="_scale" EditSeats="_editSeats" ShowAdjacency="_showAdjacency" />
                 </div>
                 <div class="editor-side">
                     <PropertiesPanel History="history" FloorId="floor.Id" Selection="_selection"
@@ -101,6 +105,7 @@
     private HashSet<Guid> _selection = [];
     private bool _editSeats;
     private double _scale = DefaultScale;
+    private bool _showAdjacency;
 
     [Parameter] public Guid Id { get; set; }
 

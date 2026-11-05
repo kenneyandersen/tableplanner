@@ -28,6 +28,22 @@
                 }
             </MudSelect>
 
+            @if (_kind == PrintKind.TableCards)
+            {
+                <MudSelect T="CardsFor" Value="_cards.For" ValueChanged="@(v => SetCards(_cards with { For = v }))" Label="One card per"
+                           Dense="true" Margin="Margin.Dense" Variant="Variant.Outlined" Class="ml-3 print-option" Style="max-width: 200px">
+                    <MudSelectItem Value="CardsFor.GroupAtTable">Group at each table</MudSelectItem>
+                    <MudSelectItem Value="CardsFor.Seat">Seat</MudSelectItem>
+                </MudSelect>
+                <MudTooltip Text="Each A4 sheet is one card, printed twice with the top half upside down: fold it across the middle and it stands on the table.">
+                    <MudSwitch T="bool" Value="_cards.Folded" ValueChanged="@(v => SetCards(_cards with { Folded = v }))" Label="Folded tent cards" Color="Color.Primary" Class="ml-3" />
+                </MudTooltip>
+                @if (_sheetCount > 0)
+                {
+                    <MudText Typo="Typo.caption" Class="ml-2 mud-text-secondary">@_cardCount cards · @_sheetCount A4 @(_sheetCount == 1 ? "sheet" : "sheets")</MudText>
+                }
+            }
+
             @if (_kind == PrintKind.Poster)
             {
                 <MudSelect T="PaperSize" Value="_poster.Paper" ValueChanged="@(v => SetPoster(_poster with { Paper = v }))" Label="Paper"
@@ -141,6 +157,8 @@
     private PrintKind _kind = PrintKind.TableCards;
     private Guid _planId = Guid.Empty;
     private PosterOptions _poster = new();
+    private CardOptions _cards = new();
+    private int _cardCount, _sheetCount;
     private bool _editing;
     private int _fileKey;
     private ElementReference _frame;
@@ -195,10 +213,11 @@
         _notSeated = project.Setup.Groups.Count(g => g.PeopleCount > 0 && plan.Seated(g) < g.PeopleCount);
         var data = _kind switch
         {
-            PrintKind.TableCards => TableCards.BuildData(project.Name, plan),
+            PrintKind.TableCards => TableCards.BuildData(project.Name, plan, _cards),
             PrintKind.Poster => Poster.BuildData(project.Name, plan, _poster, Session.Images),
             _ => GuestPage.BuildData(project.Name, plan, Session.Images),
         };
+        (_cardCount, _sheetCount) = _kind == PrintKind.TableCards ? ((int)data["CardCount"]!, (int)data["SheetCount"]!) : (0, 0);
         try
         {
             var result = HtmlTemplate.Render(Template, data);
@@ -235,6 +254,12 @@
     private void SetPlan(Guid id)
     {
         _planId = id;
+        Rebuild();
+    }
+
+    private void SetCards(CardOptions options)
+    {
+        _cards = options;
         Rebuild();
     }
 

@@ -227,6 +227,8 @@ algorithm works on setup + assignment. UI code never goes into model or algorith
 - **Table cards:** A5, 2 per A4 sheet, flat. One card per group area at a table (a group split over
   2 tables gets 2 cards). Each card shows the group name, the count, and the table number. A split
   group's card shows "30 of 50". A folded tent-card option comes later.
+  - *Changed (after step 9):* two options, see the notes below: a card per **seat** as well as per group at a table,
+    and **folded tent cards**.
 - **Poster:** A3 (A4 option). A floor plan page per floor, with group names on their areas, plus an
   alphabetical "Find your table" list (group → floor and table).
 
@@ -235,7 +237,7 @@ algorithm works on setup + assignment. UI code never goes into model or algorith
 - A **mobile page:** a generated, self-contained HTML page (like the poster) that can be hosted
   separately, so guests can look up their group on their phone.
 - Round tables, free rotation angles, partial group moves, per-group priority overrides,
-  "should not sit near" rules, side-by-side plan comparison, folded table cards.
+  "should not sit near" rules, side-by-side plan comparison.
 
 ## Defaults chosen without explicit discussion (change if wrong)
 
@@ -370,3 +372,16 @@ Notes from step 9:
 - In the sandboxed preview `history.pushState` is not allowed; the page then works without the address change.
 - The downloaded file name is URL-friendly (e.g. `example-party-find-your-table.html`).
 - Not done: a QR code generator, a hosted version that updates itself.
+
+Notes after step 9 (table card options):
+- **One card per:** "Group at each table" (as before) or **"Seat"**: an A5 card for every seated person, to put on
+  their seat. Seat cards come per table in **seat order around the table**, so they can be laid out one after the
+  other: numbered from 1 along the top side left to right, the right end, the bottom side right to left, the left end
+  (in the table's own frame; every seat counts, taken or not, so numbers do not depend on the plan). The card shows
+  "Seat N" small in a corner, for the staff; the people count is left out on seat cards.
+- **Folded tent cards** (switch): each A4 sheet holds one card twice, the top half turned 180°; folded across the
+  middle it stands on the table and reads from both sides. The group's colour stripes meet at the fold. Without it,
+  cards are flat, two to a sheet, cut apart. Both options combine (231 seat tents = 231 sheets for the example).
+- The data gives the halves of each sheet (`Sheets` → `Cards`, with `Flipped`), so a template never repeats its card
+  markup for tents. New placeholders: `PerSeat`, `Folded`, `SheetCount`, `SeatNumber`, `SeatNumbers`, `Flipped`.
+  The page shows how many cards and sheets the choice takes.

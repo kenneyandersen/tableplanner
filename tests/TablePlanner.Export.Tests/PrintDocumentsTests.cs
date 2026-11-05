@@ -67,6 +67,79 @@ public class PrintDocumentsTests
     }
 
     [Fact]
+    public void Seats_are_numbered_around_the_table()
+    {
+        // 4 per side and both end seats: top 1–4, right end 5, bottom 6–9 from the right, left end 10.
+        var table = new Table { SeatsPerSide = 4, EndSeats = 2 };
+        var numbers = TableGeometry.GetSeats(table).ToDictionary(s => s.Id.Index, s => PrintedPlan.SeatNumber(table, s));
+
+        Assert.Equal([1, 2, 3, 4], new[] { 0, 1, 2, 3 }.Select(i => numbers[i]));
+        Assert.Equal([9, 8, 7, 6], new[] { 4, 5, 6, 7 }.Select(i => numbers[i]));
+        Assert.Equal(10, numbers[8]);
+        Assert.Equal(5, numbers[9]);
+    }
+
+    [Fact]
+    public void A_card_per_seat_gives_every_seated_person_a_card_in_seat_order_around_each_table()
+    {
+        var (project, _, _, _, _) = Setup();
+
+        var data = TableCards.BuildData(project.Name, new PrintedPlan(project.Setup, project.CurrentAssignment), new CardOptions(CardsFor.Seat));
+
+        var cards = List(data, "Cards");
+        Assert.Equal(7, cards.Count);
+        // Table 101: Zeta on top seats 1–2, Alpha on top 3–4 and bottom seat 0 (number 8); table 102: Alpha on 1–2.
+        Assert.Equal(["101 1 Zeta", "101 2 Zeta", "101 3 Alpha", "101 4 Alpha", "101 8 Alpha", "102 1 Alpha", "102 2 Alpha"],
+            cards.Select(c => $"{c["TableNumber"]} {c["SeatNumber"]} {c["GroupName"]}"));
+        Assert.Equal(true, data["PerSeat"]);
+        Assert.Equal(4, data["SheetCount"]);
+    }
+
+    [Fact]
+    public void A_card_per_group_lists_its_seats_and_has_no_single_seat_number()
+    {
+        var (project, _, _, _, _) = Setup();
+
+        var cards = List(TableCards.BuildData(project.Name, new PrintedPlan(project.Setup, project.CurrentAssignment)), "Cards");
+
+        Assert.Equal(["1, 2", "3, 4, 8", "1, 2"], cards.Select(c => c["SeatNumbers"]));
+        Assert.All(cards, c => Assert.Equal("", c["SeatNumber"]));
+    }
+
+    [Fact]
+    public void A_tent_card_sheet_holds_one_card_twice_with_the_top_half_flipped()
+    {
+        var (project, _, _, _, _) = Setup();
+
+        var data = TableCards.BuildData(project.Name, new PrintedPlan(project.Setup, project.CurrentAssignment), new CardOptions(Folded: true));
+
+        var sheets = List(data, "Sheets");
+        Assert.Equal(3, sheets.Count);
+        Assert.All(sheets, sheet =>
+        {
+            var halves = List(sheet, "Cards");
+            Assert.Equal([true, false], halves.Select(h => (bool)h["Flipped"]!));
+            Assert.Equal(halves[0]["GroupName"], halves[1]["GroupName"]);
+        });
+        Assert.Equal(3, data["SheetCount"]);
+    }
+
+    [Fact]
+    public void The_built_in_card_template_turns_the_top_half_of_tent_cards_and_shows_seat_numbers()
+    {
+        var (project, _, _, _, _) = Setup();
+        var plan = new PrintedPlan(project.Setup, project.CurrentAssignment);
+
+        var tents = HtmlTemplate.Render(DefaultTemplates.For(PrintKind.TableCards), TableCards.BuildData(project.Name, plan, new CardOptions(CardsFor.Seat, Folded: true)));
+
+        Assert.Empty(tents.Warnings);
+        Assert.Equal(7, tents.Html.Split("<div class=\"card flipped\">").Length - 1);
+        Assert.Equal(7, tents.Html.Split("<section class=\"sheet folded\">").Length - 1);
+        Assert.Contains("Seat 8", tents.Html);
+        Assert.DoesNotContain("people", tents.Html.Split("<body>")[1]);
+    }
+
+    [Fact]
     public void Seats_that_no_longer_exist_and_deleted_groups_are_left_out()
     {
         var (project, first, _, _, _) = Setup();

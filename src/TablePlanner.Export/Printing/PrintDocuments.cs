@@ -8,39 +8,77 @@ namespace TablePlanner.Export.Printing;
 /// <param name="Items">For a list: the placeholders available inside <c>{{#Name}}…{{/Name}}</c>.</param>
 public sealed record Placeholder(string Name, string Description, IReadOnlyList<Placeholder>? Items = null);
 
-/// <summary>Table cards: one A5 card per group per table, two cards to an A4 sheet.</summary>
+/// <summary>What the table cards are printed for.</summary>
+public enum CardsFor
+{
+    /// <summary>One card for each group at each table.</summary>
+    GroupAtTable,
+
+    /// <summary>One card for each seated person, to put on their seat.</summary>
+    Seat,
+}
+
+/// <param name="Folded">
+/// Tent cards: one card per A4 sheet, printed twice with the top half upside down, so the sheet folded across the
+/// middle stands on the table and reads from both sides. Otherwise flat cards, two to a sheet, to cut apart.
+/// </param>
+public sealed record CardOptions(CardsFor For = CardsFor.GroupAtTable, bool Folded = false);
+
+/// <summary>Table cards: A5 cards, two to an A4 sheet, either cut apart or folded into a tent card.</summary>
 public static class TableCards
 {
-    public const int CardsPerSheet = 2;
+    /// <summary>An A4 sheet holds two A5 halves.</summary>
+    public const int HalvesPerSheet = 2;
 
     public static readonly IReadOnlyList<Placeholder> Placeholders =
     [
         new("EventName", "The project's name."),
         new("CardCount", "How many cards there are."),
-        new("Sheets", "The A4 sheets, each with up to two cards.", [new("Cards", "The cards on this sheet (see Cards).")]),
-        new("Cards", "All cards, by floor, table number and position along the table.",
+        new("SheetCount", "How many A4 sheets that takes."),
+        new("PerSeat", "True when there is a card for each seat (otherwise one per group at each table)."),
+        new("Folded", "True for folded tent cards."),
+        new("Sheets", "The A4 sheets, each with two halves: two cards, or for tent cards one card twice.",
         [
-            new("GroupName", "The group's name."),
-            new("PeopleCount", "How many people are in the group."),
-            new("PeopleHere", "How many of them sit at this table."),
-            new("OnePerson", "True when the group is one person (for \"person\" or \"people\")."),
-            new("IsSplit", "True when the group sits at more than one table."),
-            new("OtherTables", "The group's other table numbers, e.g. \"105, 201\"."),
-            new("SeveralOtherTables", "True when there is more than one other table (for \"table\" or \"tables\")."),
-            new("TableNumber", "The table's number."),
-            new("FloorName", "The floor the table is on."),
-            new("Colour", "The group's colour, e.g. #4e79a7."),
-            new("ContactPerson", "The group's contact person."),
-            new("DietaryInfo", "The group's dietary info."),
-            new("Notes", "The group's notes."),
+            new("Cards", "The halves of this sheet, top first: everything listed under Cards, and Flipped.",
+                [new("Flipped", "True for the top half of a tent card, which is printed upside down."), .. CardItems]),
         ]),
+        new("Cards", "All cards, by floor, table number and position along the table (for a card per seat: seat order).", CardItems),
     ];
 
-    public static TemplateData BuildData(string eventName, PrintedPlan plan)
+    private static IReadOnlyList<Placeholder> CardItems =>
+    [
+        new("GroupName", "The group's name."),
+        new("PeopleCount", "How many people are in the group."),
+        new("PeopleHere", "How many of them sit at this table."),
+        new("OnePerson", "True when the group is one person (for \"person\" or \"people\")."),
+        new("IsSplit", "True when the group sits at more than one table."),
+        new("OtherTables", "The group's other table numbers, e.g. \"105, 201\"."),
+        new("SeveralOtherTables", "True when there is more than one other table (for \"table\" or \"tables\")."),
+        new("TableNumber", "The table's number."),
+        new("SeatNumber", "For a card per seat: the seat's number, counted around the table from the top left; otherwise empty."),
+        new("SeatNumbers", "The seats the card is for, e.g. \"3, 4, 5\" (one number for a card per seat)."),
+        new("FloorName", "The floor the table is on."),
+        new("Colour", "The group's colour, e.g. #4e79a7."),
+        new("ContactPerson", "The group's contact person."),
+        new("DietaryInfo", "The group's dietary info."),
+        new("Notes", "The group's notes."),
+    ];
+
+    public static TemplateData BuildData(string eventName, PrintedPlan plan, CardOptions? options = null)
     {
+        options ??= new CardOptions();
         var colours = GroupColours.For(plan.Setup);
-        var cards = plan.Parts.Select(part =>
+        var perSeat = options.For == CardsFor.Seat;
+        // A card per group part, or per seat: then each table's cards go around the table in seat order, so they
+        // can be laid out one after the other whichever group sits where.
+        var tableOrder = plan.Parts.Select(p => p.Table).Distinct().Select((table, i) => (table, i)).ToDictionary(x => x.table, x => x.i);
+        var items = perSeat
+            ? plan.Parts.SelectMany(part => part.SeatNumbers.Select(n => (Part: part, Seat: (int?)n)))
+                .OrderBy(x => tableOrder[x.Part.Table]).ThenBy(x => x.Seat)
+            : plan.Parts.Select(part => (Part: part, Seat: (int?)null));
+        var cards = items.Select(item =>
         {
+            var (part, seat) = item;
             var others = plan.Parts.Where(p => p.Group == part.Group && p.Table != part.Table).Select(p => p.Table.Number).Distinct().ToList();
             return new TemplateData
             {
@@ -52,6 +90,8 @@ public static class TableCards
                 ["OtherTables"] = string.Join(", ", others),
                 ["SeveralOtherTables"] = others.Count > 1,
                 ["TableNumber"] = part.Table.Number,
+                ["SeatNumber"] = seat?.ToString(CultureInfo.InvariantCulture) ?? "",
+                ["SeatNumbers"] = seat?.ToString(CultureInfo.InvariantCulture) ?? string.Join(", ", part.SeatNumbers),
                 ["FloorName"] = part.Floor.Name,
                 ["Colour"] = colours.GetValueOrDefault(part.Group.Id, "#cccccc"),
                 ["ContactPerson"] = part.Group.ContactPerson ?? "",
@@ -60,13 +100,30 @@ public static class TableCards
             };
         }).ToList();
 
+        // A tent card is the same card on both halves, the top one upside down.
+        var sheets = options.Folded
+            ? cards.Select(card => new TemplateData { ["Cards"] = new List<TemplateData> { WithFlipped(card, true), WithFlipped(card, false) } }).ToList()
+            : cards.Chunk(HalvesPerSheet).Select(sheet => new TemplateData { ["Cards"] = sheet.Select(c => WithFlipped(c, false)).ToList() }).ToList();
+
         return new TemplateData
         {
             ["EventName"] = eventName,
             ["CardCount"] = cards.Count,
-            ["Sheets"] = cards.Chunk(CardsPerSheet).Select(sheet => new TemplateData { ["Cards"] = sheet.ToList() }).ToList(),
+            ["SheetCount"] = sheets.Count,
+            ["PerSeat"] = perSeat,
+            ["Folded"] = options.Folded,
+            ["Sheets"] = sheets,
             ["Cards"] = cards,
         };
+    }
+
+    private static TemplateData WithFlipped(TemplateData card, bool flipped)
+    {
+        var copy = new TemplateData();
+        foreach (var (key, value) in card)
+            copy[key] = value;
+        copy["Flipped"] = flipped;
+        return copy;
     }
 }
 

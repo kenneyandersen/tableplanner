@@ -3,7 +3,9 @@
 <head>
 <meta charset="utf-8">
 <title>Table cards · {{EventName}}</title>
-{{! Table cards: A5, two to an A4 sheet. Cut along the dashed line. Placeholders are listed next to the editor. }}
+{{! Table cards: A5, two to an A4 sheet. Flat cards are cut apart along the dashed line; tent cards (Folded) have the
+    same card on both halves, the top one upside down, and are folded along the line to stand on the table.
+    Placeholders are listed next to the editor. }}
 <style>
   @page { size: A4 portrait; margin: 0; }
   * { box-sizing: border-box; }
@@ -27,6 +29,10 @@
     text-align: center;
   }
   .card + .card { border-top: 0.3mm dashed #bbb; }
+  .card + .card::before { content: "cut"; position: absolute; z-index: 1; top: 1mm; left: 4mm; font-size: 7pt; color: #999; }
+  .folded .card + .card::before { content: "fold"; }
+  .card.flipped { transform: rotate(180deg); }
+  .seat { position: absolute; bottom: 8mm; right: 10mm; font-size: 10pt; color: #999; }
   .stripe { position: absolute; left: 0; right: 0; top: 0; height: 7mm; }
   .event { position: absolute; top: 13mm; font-size: 11pt; color: #777; letter-spacing: 0.08em; text-transform: uppercase; }
   .group { font-size: 40pt; font-weight: 600; line-height: 1.1; overflow-wrap: anywhere; }
@@ -43,17 +49,20 @@
 </head>
 <body>
 {{#Sheets}}
-<section class="sheet">
+<section class="sheet{{#Folded}} folded{{/Folded}}">
   {{#Cards}}
-  <div class="card">
+  <div class="card{{#Flipped}} flipped{{/Flipped}}">
     <div class="stripe" style="background: {{Colour}}"></div>
     {{#EventName}}<div class="event">{{EventName}}</div>{{/EventName}}
     <div class="group">{{GroupName}}</div>
+    {{^PerSeat}}
     <div class="count">
       {{#IsSplit}}{{PeopleHere}} of {{PeopleCount}} people · also at {{#SeveralOtherTables}}tables{{/SeveralOtherTables}}{{^SeveralOtherTables}}table{{/SeveralOtherTables}} {{OtherTables}}{{/IsSplit}}
       {{^IsSplit}}{{PeopleCount}} {{#OnePerson}}person{{/OnePerson}}{{^OnePerson}}people{{/OnePerson}}{{/IsSplit}}
     </div>
+    {{/PerSeat}}
     <div class="table">Table <strong>{{TableNumber}}</strong>{{#FloorName}} · {{FloorName}}{{/FloorName}}</div>
+    {{#SeatNumber}}<div class="seat">Seat {{SeatNumber}}</div>{{/SeatNumber}}
   </div>
   {{/Cards}}
 </section>

@@ -41,7 +41,7 @@
                 <MudIconButton Icon="@Icons.Material.Filled.Redo" Disabled="_redo.Count == 0" OnClick="Redo" aria-label="Redo design change" />
             </MudTooltip>
             <MudSelect T="string" Value="_design.Font" ValueChanged="@(v => Change(d => d.Font = v))" Label="Font" Dense="true" Margin="Margin.Dense"
-                       Variant="Variant.Outlined" Class="ml-3 print-option" Style="max-width: 160px">
+                       Variant="Variant.Outlined" Class="ml-3 print-option" Style="min-width: 150px">
                 @foreach (var (name, _) in CardDesign.Fonts)
                 {
                     <MudSelectItem Value="name">@name</MudSelectItem>

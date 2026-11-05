@@ -12,6 +12,7 @@
 <ProjectLoader Id="Id">
     @{ var project = Session.Project!; }
     <div class="editor-page">
+        @* Two rows: what is printed and the action, then the settings for it. *@
         <MudToolBar Dense="true" Class="editor-toolbar" WrapContent="true">
             <MudToggleGroup T="PrintKind" Value="_kind" ValueChanged="SetKind" Size="Size.Small" Color="Color.Primary">
                 <MudToggleItem Value="PrintKind.TableCards" Text="Table cards" />
@@ -19,8 +20,43 @@
                 <MudToggleItem Value="PrintKind.GuestPage" Text="Guest page" />
             </MudToggleGroup>
 
+            <MudSelect T="Guid" Value="SelectedId" ValueChanged="SelectTemplate" Label="Template" Dense="true" Margin="Margin.Dense"
+                       Variant="Variant.Outlined" Class="ml-3 print-option" Style="min-width: 180px; max-width: 240px">
+                <MudSelectItem Value="Guid.Empty">@TemplateLibrary.BuiltInName</MudSelectItem>
+                @foreach (var saved in _library.For(_kind))
+                {
+                    <MudSelectItem Value="saved.Id">@saved.Name</MudSelectItem>
+                }
+            </MudSelect>
+            @if (_kind == PrintKind.TableCards)
+            {
+                <MudTooltip Text="Place the name, table number, colours, a logo or the QR code on the card by dragging">
+                    <MudButton Variant="Variant.Text" StartIcon="@Icons.Material.Filled.Brush" Href="@($"project/{Id}/print/card-designer")">Design cards</MudButton>
+                </MudTooltip>
+            }
+            <MudButton Variant="@(_editing ? Variant.Filled : Variant.Text)" StartIcon="@Icons.Material.Filled.Code" OnClick="@(() => _editing = !_editing)">
+                @(_editing ? "Close template" : "Edit template")
+            </MudButton>
+
+            <MudSpacer />
+            @if (IsGuestPage)
+            {
+                <MudTooltip Text="Saves the page as one HTML file. Put it on any web host and share the link, e.g. as a QR code.">
+                    <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Download" Class="ml-2"
+                               Disabled="_html is null" OnClick="DownloadPage">Download page</MudButton>
+                </MudTooltip>
+            }
+            else
+            {
+                <MudTooltip Text="Opens the browser's print dialog. Choose your printer, or 'Save as PDF'.">
+                    <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Print" Class="ml-2"
+                               Disabled="_html is null" OnClick="PrintAsync">Print</MudButton>
+                </MudTooltip>
+            }
+        </MudToolBar>
+        <MudToolBar Dense="true" Class="editor-toolbar print-settings" WrapContent="true">
             <MudSelect T="Guid" Value="_planId" ValueChanged="SetPlan" Label="Plan" Dense="true" Margin="Margin.Dense"
-                       Variant="Variant.Outlined" Class="ml-3 print-option" Style="max-width: 220px">
+                       Variant="Variant.Outlined" Class="print-option" Style="min-width: 170px; max-width: 220px">
                 <MudSelectItem Value="Guid.Empty">Current plan</MudSelectItem>
                 @foreach (var saved in project.SavedAssignments)
                 {
@@ -31,12 +67,12 @@
             @if (_kind == PrintKind.TableCards)
             {
                 <MudSelect T="CardsFor" Value="_cards.For" ValueChanged="@(v => SetCards(_cards with { For = v }))" Label="One card per"
-                           Dense="true" Margin="Margin.Dense" Variant="Variant.Outlined" Class="ml-3 print-option" Style="max-width: 200px">
+                           Dense="true" Margin="Margin.Dense" Variant="Variant.Outlined" Class="ml-3 print-option" Style="min-width: 190px">
                     <MudSelectItem Value="CardsFor.GroupAtTable">Group at each table</MudSelectItem>
                     <MudSelectItem Value="CardsFor.Seat">Seat</MudSelectItem>
                 </MudSelect>
                 <MudSelect T="PaperSize" Value="_cards.Paper" ValueChanged="@(v => SetCards(_cards with { Paper = v }))" Label="Paper"
-                           Dense="true" Margin="Margin.Dense" Variant="Variant.Outlined" Class="ml-3 print-option" Style="max-width: 170px">
+                           Dense="true" Margin="Margin.Dense" Variant="Variant.Outlined" Class="ml-3 print-option" Style="min-width: 150px">
                     <MudSelectItem Value="PaperSize.A4">A4 (2 cards)</MudSelectItem>
                     <MudSelectItem Value="PaperSize.A5">A5 (1 card)</MudSelectItem>
                 </MudSelect>
@@ -44,16 +80,12 @@
                     <MudSwitch T="bool" Value="_cards.IsFolded" ValueChanged="@(v => SetCards(_cards with { Folded = v }))" Label="Folded tent cards" Color="Color.Primary" Class="ml-3"
                                Disabled="_cards.Paper == PaperSize.A5" />
                 </MudTooltip>
-                @if (_sheetCount > 0)
-                {
-                    <MudText Typo="Typo.caption" Class="ml-2 mud-text-secondary">@_cardCount cards · @_sheetCount @_cards.Paper @(_sheetCount == 1 ? "sheet" : "sheets")</MudText>
-                }
             }
 
             @if (_kind == PrintKind.Poster)
             {
                 <MudSelect T="PaperSize" Value="_poster.Paper" ValueChanged="@(v => SetPoster(_poster with { Paper = v }))" Label="Paper"
-                           Dense="true" Margin="Margin.Dense" Variant="Variant.Outlined" Class="ml-3 print-option" Style="max-width: 100px">
+                           Dense="true" Margin="Margin.Dense" Variant="Variant.Outlined" Class="ml-3 print-option" Style="min-width: 90px">
                     <MudSelectItem Value="PaperSize.A3">A3</MudSelectItem>
                     <MudSelectItem Value="PaperSize.A4">A4</MudSelectItem>
                 </MudSelect>
@@ -71,46 +103,19 @@
             }
 
             <MudSpacer />
+            @if (_kind == PrintKind.TableCards && _sheetCount > 0)
+            {
+                <MudText Typo="Typo.caption" Class="mr-3 mud-text-secondary">@_cardCount cards · @_sheetCount @_cards.Paper @(_sheetCount == 1 ? "sheet" : "sheets")</MudText>
+            }
             @if (!IsGuestPage)
             {
                 <MudSelect T="double" Value="Zoom" ValueChanged="@(v => _zoom[_kind] = v)" Label="Preview size" Dense="true" Margin="Margin.Dense"
-                           Variant="Variant.Outlined" Class="mr-2 print-option" Style="max-width: 120px">
+                           Variant="Variant.Outlined" Class="print-option" Style="min-width: 130px">
                     @foreach (var zoom in ZoomLevels)
                     {
                         <MudSelectItem Value="zoom">@($"{zoom:P0}")</MudSelectItem>
                     }
                 </MudSelect>
-            }
-            <MudSelect T="Guid" Value="SelectedId" ValueChanged="SelectTemplate" Label="Template" Dense="true" Margin="Margin.Dense"
-                       Variant="Variant.Outlined" Class="mr-2 print-option" Style="min-width: 180px; max-width: 240px">
-                <MudSelectItem Value="Guid.Empty">@TemplateLibrary.BuiltInName</MudSelectItem>
-                @foreach (var saved in _library.For(_kind))
-                {
-                    <MudSelectItem Value="saved.Id">@saved.Name</MudSelectItem>
-                }
-            </MudSelect>
-            @if (_kind == PrintKind.TableCards)
-            {
-                <MudTooltip Text="Place the name, table number, colours, a logo or the QR code on the card by dragging">
-                    <MudButton Variant="Variant.Text" StartIcon="@Icons.Material.Filled.Brush" Href="@($"project/{Id}/print/card-designer")">Design cards</MudButton>
-                </MudTooltip>
-            }
-            <MudButton Variant="@(_editing ? Variant.Filled : Variant.Text)" StartIcon="@Icons.Material.Filled.Code" OnClick="@(() => _editing = !_editing)">
-                @(_editing ? "Close template" : "Edit template")
-            </MudButton>
-            @if (IsGuestPage)
-            {
-                <MudTooltip Text="Saves the page as one HTML file. Put it on any web host and share the link, e.g. as a QR code.">
-                    <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Download" Class="ml-2"
-                               Disabled="_html is null" OnClick="DownloadPage">Download page</MudButton>
-                </MudTooltip>
-            }
-            else
-            {
-                <MudTooltip Text="Opens the browser's print dialog. Choose your printer, or 'Save as PDF'.">
-                    <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Print" Class="ml-2"
-                               Disabled="_html is null" OnClick="PrintAsync">Print</MudButton>
-                </MudTooltip>
             }
         </MudToolBar>
 

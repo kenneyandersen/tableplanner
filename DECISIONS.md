@@ -234,11 +234,12 @@ algorithm works on setup + assignment. UI code never goes into model or algorith
 
 ## Later
 
-- A **mobile page:** a generated, self-contained HTML page (like the poster) that can be hosted
-  separately, so guests can look up their group on their phone.
-- Round tables, free rotation angles, partial group moves, per-group priority overrides,
-  "should not sit near" rules, side-by-side plan comparison.
+- ~~A mobile page~~: done as the guest page (step 9).
 - ~~A drag-and-drop editor for the table cards~~: done, see "card designer" below.
+- Round tables, free rotation angles, partial group moves, per-group priority overrides,
+  "should not sit near" rules.
+- **Side-by-side comparison of saved plans:** postponed (2026-11-05); not sure it is needed, since each saved plan
+  already shows its key figures in the list.
 
 ## Defaults chosen without explicit discussion (change if wrong)
 
@@ -262,7 +263,7 @@ algorithm works on setup + assignment. UI code never goes into model or algorith
 8. **Background images**
 9. Later: the mobile page
 
-Status (2026-11-05): steps 1–9 done.
+Status (2026-11-05): steps 1–9 done, plus the extras noted after step 9. Postponed: side-by-side comparison.
 
 Notes from step 3:
 - Undo/redo stores a snapshot of the project before each edit (`EditHistory`); the edit logic itself lives in
@@ -306,6 +307,7 @@ Notes from step 6:
 - **Tables** tab: per table, seats taken and the groups sitting there.
 - Automatic colours now start with a 20-colour palette (Tableau 20) before falling back to the colour wheel.
 - Not done: drag and drop, side-by-side comparison of saved plans, presets/sliders for priorities.
+  *(Later: drag and drop and presets were added; side-by-side comparison is postponed.)*
 
 Notes from step 7:
 - **Print page** (Print in the top bar): Table cards or Poster, which plan (current or a saved one), poster paper
@@ -486,3 +488,9 @@ Notes: several named templates (2026-11-05):
   designed template whose HTML was edited by hand since is marked, and the designer says Save replaces those edits.
 - Templates from the earlier version (one per kind plus one card design) are moved into the library on first use as
   "My template" / "My card design", still selected; the old keys are removed. Tests cover the library logic.
+
+Notes: tidying (2026-11-05):
+- Print & share has two toolbar rows: what is printed and the action (kind, template, Design cards, Edit template,
+  Print / Download page), then its settings (plan, the kind's options, card count, preview size).
+- A MudSelect's outer wrapper grows to fill a toolbar, which spread toolbar items apart; toolbars now keep selects at
+  their own (minimum) width.

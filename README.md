@@ -9,6 +9,18 @@ static site host (e.g. GitHub Pages). Project data stays in the browser and in e
 
 Design decisions are recorded in [DECISIONS.md](DECISIONS.md).
 
+## What it does
+
+- **Layout:** floors with long tables (0–2 end seats), floor elements (bar, stage, …) and a background image of the
+  venue, with move, resize, rotate, snap to grid and undo.
+- **Groups:** a groups editor with up to 5 ranked preferences per group; CSV and Excel import/export.
+- **Plan:** the solver seats groups close together and near the groups they prefer, without leaving small parts of
+  a group alone at a table; priority presets; re-optimizing with few changes; manual moves and swaps (also by drag
+  and drop, from the plan or the group list), locks and pins, saved plans.
+- **Print & share:** table cards (per group at a table or per seat, flat or tent cards, A4 or A5), a poster with floor
+  plans and a "find your table" list, and a guest page for phones (search or explore the floor plan) with a QR code.
+  All are HTML templates: built-in ones, named copies, or table cards drawn in the card designer.
+
 ## Projects
 
 | Project | Contents |
@@ -19,7 +31,7 @@ Design decisions are recorded in [DECISIONS.md](DECISIONS.md).
 | `src/TablePlanner.Web` | Blazor UI (MudBlazor): projects, floor layout editor with background images, groups editor with import/export, plan page with manual edits, locks and saved plans, print and share page (cards, poster, guest page), card designer |
 | `tests/*` | xUnit tests per project |
 
-Dependencies point one way: Web → Solver/Export → Core.
+Dependencies point one way: Web → Solver/Export → Core. Besides MudBlazor, the only package is QRCoder (MIT) for QR codes.
 
 ## Build, test, run
 
@@ -35,6 +47,12 @@ Solver diagnostics for the benchmark setups (scores, preference fulfilment, iter
 
 ```sh
 dotnet test tests/TablePlanner.Solver.Tests -c Release --filter SolverDiagnostics --logger "console;verbosity=detailed"
+```
+
+and how many small parts (1–4 people of a group alone at a table) the solver leaves, over several seeds:
+
+```sh
+dotnet test tests/TablePlanner.Solver.Tests -c Release --filter FragmentDiagnostics --logger "console;verbosity=detailed"
 ```
 
 ## Publishing to GitHub Pages

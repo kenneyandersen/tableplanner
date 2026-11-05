@@ -301,3 +301,6 @@ code {
 .design-error { position: absolute; inset: 0; padding: 8mm; color: #c62828; font: 11pt sans-serif; }
 .colour-field { display: flex; align-items: center; gap: 8px; font-size: 0.875rem; }
 .colour-field input { width: 40px; height: 28px; border: 0; padding: 0; background: none; }
+.print-settings { background: var(--mud-palette-background-gray); }
+/* A MudSelect's outer wrapper grows to fill a toolbar; keep selects at their own width so items stay together. */
+.editor-toolbar .mud-select { flex-grow: 0; }

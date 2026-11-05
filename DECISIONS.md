@@ -411,5 +411,10 @@ Notes: drag and drop on the plan (2026-11-05):
 - A press becomes a drag only after 5 px of movement, so a click still selects. The pointer is then captured by the
   SVG, positions come from its own offsets (no JS call per move), and the canvas skips re-rendering unless the
   marker moved noticeably or the seat under the pointer changed (plain mouse moves over ~700 seats cost nothing).
-- Dragging is off while a proposed plan is shown, like the other edits. Dragging between floors is not possible
-  (a move never crosses floors); swap with a group on the other floor via Move instead.
+- Dragging is off while a proposed plan is shown, like the other edits. On the plan itself a group cannot be dragged
+  to another floor (only one floor is shown); drag it from the list instead (below).
+- **From the group list:** a row can be dragged onto a seat of the shown floor, with the same preview and result.
+  This also places groups that have no seats yet and moves a group to another floor. It uses the browser's own drag
+  and drop (built-in threshold and drag image, no page-wide pointer tracking); app.js sets the drag data some
+  browsers need. Positions come from the drag events' screen coordinates and the SVG's position, read when the drag
+  enters it; the drop position is used again on drop, since the last dragover can lag behind the pointer.

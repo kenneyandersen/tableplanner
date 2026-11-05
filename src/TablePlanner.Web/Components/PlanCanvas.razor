@@ -11,7 +11,8 @@
     _origin = new Point(extent.Left, extent.Top);
     <svg @ref="_svg" class="floor-canvas plan-canvas @(MoveMode ? "move-mode" : "") @(_drag is { Started: true } ? "dragging" : "")"
          width="@Svg(width * Scale)" height="@Svg(height * Scale)" viewBox="@Svg(extent.Left) @Svg(extent.Top) @Svg(width) @Svg(height)"
-         @onclick="OnBackgroundClick" @onpointermove="OnPointerMove" @onpointerup="OnPointerUp" @onpointercancel="CancelDrag">
+         @onclick="OnBackgroundClick" @onpointermove="OnPointerMove" @onpointerup="OnPointerUp" @onpointercancel="CancelDrag"
+         @ondragenter="OnListDragEnter" @ondragover="OnListDragOver" @ondragover:preventDefault="ListDrag is not null" @ondrop="OnListDrop">
         <defs>
             <pattern id="plan-grid" width="5" height="5" patternUnits="userSpaceOnUse">
                 <path d="M 5 0 L 0 0 0 5" class="grid-major" />
@@ -119,6 +120,9 @@
     /// <summary>A group was dragged onto a seat.</summary>
     [Parameter] public EventCallback<(Guid GroupId, SeatId Seat)> GroupDropped { get; set; }
 
+    /// <summary>A group being dragged from the group list (with the browser's drag and drop); the plan is its drop zone.</summary>
+    [Parameter] public Guid? ListDrag { get; set; }
+
     /// <summary>A press only becomes a drag after the pointer moves this far (pixels), so clicks still select.</summary>
     private const double DragThreshold = 5;
 
@@ -135,6 +139,7 @@
         public Point? At { get; set; }
         public SeatId? Target { get; set; }
         public HashSet<SeatId>? Preview { get; set; }
+        public bool IsListDrag { get; init; }
     }
 
     private ElementReference _svg;
@@ -144,10 +149,15 @@
     private bool _render = true;
     private List<(SeatId Id, Point Position)> _seats = [];
 
+    /// <summary>The SVG's top-left corner on the screen, read when a list drag enters it.</summary>
+    private (double Left, double Top)? _screenOrigin;
+
     private Floor? Floor => Setup.Floors.FirstOrDefault(f => f.Id == FloorId);
 
     protected override void OnParametersSet()
     {
+        if (ListDrag is null && _drag is { IsListDrag: true })
+            _drag = null;
         _groupAt = Assignment.Seats.GroupBy(s => s.Seat).ToDictionary(g => g.Key, g => g.First().GroupId);
         _seats = Floor?.Tables.SelectMany(TableGeometry.GetSeats).Where(s => !s.IsDisabled).Select(s => (s.Id, s.Position)).ToList() ?? [];
         _render = true;
@@ -192,7 +202,12 @@
             return;
         }
 
-        var at = new Point(_origin.X + e.OffsetX / Scale, _origin.Y + e.OffsetY / Scale);
+        _render = Track(drag, new Point(_origin.X + e.OffsetX / Scale, _origin.Y + e.OffsetY / Scale));
+    }
+
+    /// <summary>Follows the dragged group to <paramref name="at"/>. True when the plan should be drawn again.</summary>
+    private bool Track(DragState drag, Point at)
+    {
         var moved = drag.At is not { } last || Math.Abs(last.X - at.X) + Math.Abs(last.Y - at.Y) > 0.05;
         drag.At = at;
         var target = NearestSeat(at);
@@ -202,7 +217,38 @@
             drag.Preview = target is { } seat && DropPreview?.Invoke(drag.GroupId, seat) is { } seats ? [.. seats] : null;
             moved = true;
         }
-        _render = moved;
+        return moved;
+    }
+
+    // A group dragged from the list: drag events carry screen positions, converted with the SVG's position on screen.
+    private async Task OnListDragEnter(DragEventArgs e)
+    {
+        _render = false;
+        if (ListDrag is not { } groupId)
+            return;
+        if (_drag is not { IsListDrag: true })
+            _drag = new DragState(groupId, e.ClientX, e.ClientY, 0) { Started = true, IsListDrag = true };
+        var origin = await JS.InvokeAsync<double[]>("tablePlanner.elementOrigin", _svg);
+        _screenOrigin = (origin[0], origin[1]);
+    }
+
+    private void OnListDragOver(DragEventArgs e)
+    {
+        _render = false;
+        if (_drag is { IsListDrag: true } drag && ToFloor(e) is { } at)
+            _render = Track(drag, at);
+    }
+
+    private async Task OnListDrop(DragEventArgs e)
+    {
+        if (_drag is not { IsListDrag: true } drag)
+            return;
+        // The drop has its own position: the last dragover may be a little behind the pointer.
+        if (ToFloor(e) is { } at)
+            Track(drag, at);
+        _drag = null;
+        if (drag.Target is { } seat)
+            await GroupDropped.InvokeAsync((drag.GroupId, seat));
     }
 
     private async Task OnPointerUp(PointerEventArgs e)
@@ -236,6 +282,10 @@
         }
         await GroupClicked.InvokeAsync(null);
     }
+
+    private Point? ToFloor(DragEventArgs e) => _screenOrigin is { } screen
+        ? new Point(_origin.X + (e.ClientX - screen.Left) / Scale, _origin.Y + (e.ClientY - screen.Top) / Scale)
+        : null;
 
     private SeatId? NearestSeat(Point at)
     {

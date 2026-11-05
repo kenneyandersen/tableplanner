@@ -1,4 +1,14 @@
 // Small browser helpers called from Blazor through JS interop.
+
+// Rows marked data-drag-group (groups on the Plan page) are dragged with the browser's drag and drop. Some browsers
+// only start a drag when it carries data, which Blazor cannot set, so it is set here.
+document.addEventListener("dragstart", e => {
+    if (e.target instanceof Element && e.target.closest("[data-drag-group]")) {
+        e.dataTransfer.setData("text/plain", "");
+        e.dataTransfer.effectAllowed = "move";
+    }
+});
+
 window.tablePlanner = {
     /** Offers content (text, or bytes from a .NET byte[]) to the user as a file download. */
     downloadFile(fileName, contentType, content) {
@@ -31,6 +41,12 @@ window.tablePlanner = {
         context.drawImage(bitmap, 0, 0, width, height);
         bitmap.close();
         return { dataUrl: canvas.toDataURL("image/jpeg", 0.88), width, height };
+    },
+
+    /** The element's top-left corner on the screen, as [left, top]. */
+    elementOrigin(element) {
+        const rect = element.getBoundingClientRect();
+        return [rect.left, rect.top];
     },
 
     /** Converts a pointer position on the page to the SVG's own coordinates (metres on a floor). */

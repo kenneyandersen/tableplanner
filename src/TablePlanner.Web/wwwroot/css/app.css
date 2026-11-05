@@ -233,6 +233,7 @@ code {
 .plan-canvas .seat.drop-target { stroke: var(--mud-palette-primary); stroke-width: 0.1; }
 .plan-canvas .seat.drop-invalid { stroke: #d32f2f; stroke-width: 0.1; }
 .plan-canvas .drag-ghost { pointer-events: none; opacity: 0.85; }
+.group-row[draggable="true"] { user-select: none; cursor: grab; }
 .plan-canvas .drag-ghost circle { stroke: #000; stroke-width: 0.04; }
 .plan-canvas .drag-ghost text { font-weight: 600; fill: #111; paint-order: stroke; stroke: #fff; stroke-width: 0.08; text-anchor: start; dominant-baseline: central; }
 .plan-canvas.move-mode .seat:hover { stroke: var(--mud-palette-primary); stroke-width: 0.08; }

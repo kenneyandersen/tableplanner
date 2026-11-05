@@ -79,7 +79,7 @@
                     }
                     <PlanCanvas Setup="setup" FloorId="floor.Id" Assignment="DisplayedAssignment" Colours="_colours" Scale="_scale" BackgroundUrl="@Session.ImageUrl(floor.Background?.ImageId)"
                                 Selected="_highlight" Pinned="_pinned" MoveMode="_moving" SeatClicked="OnSeatClicked" GroupClicked="HighlightGroup"
-                                DragEnabled="_proposal is null" DropPreview="DropPreview" GroupDropped="OnGroupDropped" />
+                                DragEnabled="_proposal is null" DropPreview="DropPreview" GroupDropped="OnGroupDropped" ListDrag="_listDrag" />
                 </div>
                 <div class="editor-side">
                     @if (_failure is { } failure)
@@ -131,7 +131,8 @@
                     {
                         <MudTabs Elevation="0" Rounded="true" TabPanelsClass="pt-2" Class="side-tabs" MinimumTabWidth="70px" @bind-ActivePanelIndex="_tab">
                             <MudTabPanel Text="Groups">
-                                <PlanSummaryPanel Summary="summary" Colours="_colours" Pinned="_pinned" Highlight="_highlight" HighlightChanged="HighlightGroup" />
+                                <PlanSummaryPanel Summary="summary" Colours="_colours" Pinned="_pinned" Highlight="_highlight" HighlightChanged="HighlightGroup"
+                                                  DragEnabled="_proposal is null" DragStarted="@(id => _listDrag = id)" DragEnded="@(() => _listDrag = null)" />
                             </MudTabPanel>
                             <MudTabPanel Text="Tables">
                                 <TablesPanel Setup="setup" Assignment="DisplayedAssignment" GroupClicked="HighlightGroup" />
@@ -157,6 +158,9 @@
     private Guid? _highlight;
     private bool _moving;
     private SeatingProblem? _problem;
+
+    /// <summary>The group being dragged from the list, while it is.</summary>
+    private Guid? _listDrag;
     private int _tab;
     private IReadOnlySet<Guid> _pinned = new HashSet<Guid>();
     private IReadOnlyDictionary<Guid, string> _colours = new Dictionary<Guid, string>();

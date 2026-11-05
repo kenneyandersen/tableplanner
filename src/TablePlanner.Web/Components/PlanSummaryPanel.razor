@@ -41,7 +41,11 @@ else
     @foreach (var group in Summary.Groups.OrderBy(g => g.Name, StringComparer.CurrentCultureIgnoreCase))
     {
         var id = group.GroupId;
-        <div class="group-row @(Highlight == id ? "highlighted" : "")" @onclick="() => HighlightChanged.InvokeAsync(id)">
+        @* Rows can be dragged onto the floor plan (the browser's own drag and drop; see app.js for the drag data). *@
+        <div class="group-row @(Highlight == id ? "highlighted" : "")" @onclick="() => HighlightChanged.InvokeAsync(id)"
+             draggable="@(DragEnabled ? "true" : "false")" data-drag-group="@(DragEnabled ? "true" : null)"
+             @ondragstart="() => DragStarted.InvokeAsync(id)" @ondragend="() => DragEnded.InvokeAsync()"
+             title="@(DragEnabled ? "Click to select, or drag onto a seat of the floor plan" : null)">
             <span class="group-dot" style="background: @Colours.GetValueOrDefault(id, "#ccc")"></span>
             <span class="group-name">@group.Name <span class="group-count">(@group.PeopleCount)</span></span>
             @if (Pinned.Contains(id))
@@ -74,4 +78,12 @@ else
     [Parameter] public IReadOnlySet<Guid> Pinned { get; set; } = new HashSet<Guid>();
     [Parameter] public Guid? Highlight { get; set; }
     [Parameter] public EventCallback<Guid?> HighlightChanged { get; set; }
+
+    /// <summary>When on, groups can be dragged from the list onto the floor plan.</summary>
+    [Parameter] public bool DragEnabled { get; set; }
+
+    [Parameter] public EventCallback<Guid> DragStarted { get; set; }
+
+    /// <summary>The drag ended, dropped or not.</summary>
+    [Parameter] public EventCallback DragEnded { get; set; }
 }

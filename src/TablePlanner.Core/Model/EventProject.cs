@@ -10,6 +10,9 @@ public sealed class EventProject
     public string Name { get; set; } = "";
     public DateTimeOffset? LastExportedAt { get; set; }
 
+    /// <summary>Where the guest page is put online, for QR codes on the poster and cards. Null when not set.</summary>
+    public string? GuestPageUrl { get; set; }
+
     public EventSetup Setup { get; set; } = new();
     public SeatingPriorities Priorities { get; set; } = new();
     public SeatingAssignment CurrentAssignment { get; set; } = new();

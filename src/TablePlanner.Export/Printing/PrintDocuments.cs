@@ -21,10 +21,16 @@ public enum CardsFor
 /// <param name="Folded">
 /// Tent cards: one card per A4 sheet, printed twice with the top half upside down, so the sheet folded across the
 /// middle stands on the table and reads from both sides. Otherwise flat cards, two to a sheet, to cut apart.
+/// Only on A4: an A5 tent would make cards of A6.
 /// </param>
-public sealed record CardOptions(CardsFor For = CardsFor.GroupAtTable, bool Folded = false);
+/// <param name="Paper">A4 (two A5 cards per sheet) or A5 (one card per sheet, nothing to cut).</param>
+public sealed record CardOptions(CardsFor For = CardsFor.GroupAtTable, bool Folded = false, PaperSize Paper = PaperSize.A4)
+{
+    /// <summary>Whether tent cards are printed: they need A4 paper.</summary>
+    public bool IsFolded => Folded && Paper == PaperSize.A4;
+}
 
-/// <summary>Table cards: A5 cards, two to an A4 sheet, either cut apart or folded into a tent card.</summary>
+/// <summary>Table cards: A5 cards, two to an A4 sheet (cut apart or folded into a tent card) or one per A5 sheet.</summary>
 public static class TableCards
 {
     /// <summary>An A4 sheet holds two A5 halves.</summary>
@@ -34,15 +40,21 @@ public static class TableCards
     [
         new("EventName", "The project's name."),
         new("CardCount", "How many cards there are."),
-        new("SheetCount", "How many A4 sheets that takes."),
+        new("SheetCount", "How many sheets that takes."),
+        new("Paper", "A4 or A5."),
+        new("PageSize", "For @page { size: … }: \"A4 portrait\" or \"A5 landscape\"."),
+        new("SheetWidthMm", "The sheet's width in millimetres."),
+        new("SheetHeightMm", "The sheet's height in millimetres."),
+        new("CardHeightMm", "The height of one card (half an A4 sheet, or the whole A5 sheet)."),
         new("PerSeat", "True when there is a card for each seat (otherwise one per group at each table)."),
         new("Folded", "True for folded tent cards."),
-        new("Sheets", "The A4 sheets, each with two halves: two cards, or for tent cards one card twice.",
+        new("Sheets", "The sheets: on A4 two halves (two cards, or for tent cards one card twice), on A5 one card.",
         [
             new("Cards", "The halves of this sheet, top first: everything listed under Cards, and Flipped.",
                 [new("Flipped", "True for the top half of a tent card, which is printed upside down."), .. CardItems]),
         ]),
         new("Cards", "All cards, by floor, table number and position along the table (for a card per seat: seat order).", CardItems),
+        .. QrCode.Placeholders,
     ];
 
     private static IReadOnlyList<Placeholder> CardItems =>
@@ -64,7 +76,8 @@ public static class TableCards
         new("Notes", "The group's notes."),
     ];
 
-    public static TemplateData BuildData(string eventName, PrintedPlan plan, CardOptions? options = null)
+    /// <param name="guestPageUrl">The guest page's web address, for a QR code; null or invalid gives none.</param>
+    public static TemplateData BuildData(string eventName, PrintedPlan plan, CardOptions? options = null, string? guestPageUrl = null)
     {
         options ??= new CardOptions();
         var colours = GroupColours.For(plan.Setup);
@@ -100,21 +113,29 @@ public static class TableCards
             };
         }).ToList();
 
-        // A tent card is the same card on both halves, the top one upside down.
-        var sheets = options.Folded
+        // A tent card is the same card on both halves, the top one upside down. An A5 sheet holds one card.
+        var a5 = options.Paper == PaperSize.A5;
+        var sheets = options.IsFolded
             ? cards.Select(card => new TemplateData { ["Cards"] = new List<TemplateData> { WithFlipped(card, true), WithFlipped(card, false) } }).ToList()
-            : cards.Chunk(HalvesPerSheet).Select(sheet => new TemplateData { ["Cards"] = sheet.Select(c => WithFlipped(c, false)).ToList() }).ToList();
+            : cards.Chunk(a5 ? 1 : HalvesPerSheet).Select(sheet => new TemplateData { ["Cards"] = sheet.Select(c => WithFlipped(c, false)).ToList() }).ToList();
 
-        return new TemplateData
+        var data = new TemplateData
         {
             ["EventName"] = eventName,
             ["CardCount"] = cards.Count,
             ["SheetCount"] = sheets.Count,
+            ["Paper"] = a5 ? "A5" : "A4",
+            ["PageSize"] = a5 ? "A5 landscape" : "A4 portrait",
+            ["SheetWidthMm"] = 210,
+            ["SheetHeightMm"] = a5 ? 148 : 297,
+            ["CardHeightMm"] = a5 ? 148 : 148.5,
             ["PerSeat"] = perSeat,
-            ["Folded"] = options.Folded,
+            ["Folded"] = options.IsFolded,
             ["Sheets"] = sheets,
             ["Cards"] = cards,
         };
+        QrCode.AddTo(data, guestPageUrl);
+        return data;
     }
 
     private static TemplateData WithFlipped(TemplateData card, bool flipped)
@@ -131,6 +152,7 @@ public enum PaperSize
 {
     A3,
     A4,
+    A5,
 }
 
 /// <summary>What the poster shows and the paper it is printed on.</summary>
@@ -162,6 +184,7 @@ public static class Poster
             new("Letter", "The first letter, or # for names that start with something else."),
             new("Groups", "The groups starting with this letter.", GroupItems),
         ]),
+        .. QrCode.Placeholders,
     ];
 
     internal static IReadOnlyList<Placeholder> GroupItems =>
@@ -175,13 +198,15 @@ public static class Poster
     ];
 
     /// <param name="images">The project's images by ID (data URLs), for floor backgrounds shown on the poster.</param>
-    public static TemplateData BuildData(string eventName, PrintedPlan plan, PosterOptions options, IReadOnlyDictionary<Guid, string>? images = null)
+    /// <param name="guestPageUrl">The guest page's web address, for a QR code; null or invalid gives none.</param>
+    public static TemplateData BuildData(string eventName, PrintedPlan plan, PosterOptions options, IReadOnlyDictionary<Guid, string>? images = null,
+        string? guestPageUrl = null)
     {
         var colours = GroupColours.For(plan.Setup);
         var (shortSide, longSide) = options.Paper == PaperSize.A3 ? (297, 420) : (210, 297);
         var groups = GroupList(plan, colours);
 
-        return new TemplateData
+        var data = new TemplateData
         {
             ["EventName"] = eventName,
             ["PaperSize"] = options.Paper.ToString(),
@@ -200,6 +225,8 @@ public static class Poster
                 .Select(l => new TemplateData { ["Letter"] = l.Key, ["Groups"] = l.Select(g => g.Data).ToList() })
                 .ToList(),
         };
+        QrCode.AddTo(data, guestPageUrl);
+        return data;
     }
 
     /// <summary>The seated groups by name, each with its first letter.</summary>

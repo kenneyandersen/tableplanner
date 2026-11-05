@@ -28,6 +28,29 @@ public class EditHistoryTests
     }
 
     [Fact]
+    public void Undo_restores_the_guest_page_address()
+    {
+        var (history, _) = NewHistory();
+        history.Execute("Set address", p => p.GuestPageUrl = "https://example.org/");
+
+        history.Undo();
+
+        Assert.Null(history.Project.GuestPageUrl);
+    }
+
+    [Fact]
+    public void Undo_restores_every_project_property_except_the_export_time()
+    {
+        // When a property is added to EventProject, add it to EditHistory.Restore and then to this list.
+        string[] restored = ["Name", "GuestPageUrl", "Setup", "Priorities", "CurrentAssignment", "SavedAssignments"];
+        string[] notRestored = ["SchemaVersion", "Id", "LastExportedAt"];
+
+        var properties = typeof(EventProject).GetProperties().Where(p => p.CanWrite).Select(p => p.Name);
+
+        Assert.Equal(restored.Concat(notRestored).Order(), properties.Order());
+    }
+
+    [Fact]
     public void Undo_keeps_the_same_project_instance()
     {
         var (history, group) = NewHistory();

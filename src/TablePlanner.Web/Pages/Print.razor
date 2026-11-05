@@ -35,12 +35,18 @@
                     <MudSelectItem Value="CardsFor.GroupAtTable">Group at each table</MudSelectItem>
                     <MudSelectItem Value="CardsFor.Seat">Seat</MudSelectItem>
                 </MudSelect>
-                <MudTooltip Text="Each A4 sheet is one card, printed twice with the top half upside down: fold it across the middle and it stands on the table.">
-                    <MudSwitch T="bool" Value="_cards.Folded" ValueChanged="@(v => SetCards(_cards with { Folded = v }))" Label="Folded tent cards" Color="Color.Primary" Class="ml-3" />
+                <MudSelect T="PaperSize" Value="_cards.Paper" ValueChanged="@(v => SetCards(_cards with { Paper = v }))" Label="Paper"
+                           Dense="true" Margin="Margin.Dense" Variant="Variant.Outlined" Class="ml-3 print-option" Style="max-width: 170px">
+                    <MudSelectItem Value="PaperSize.A4">A4 (2 cards)</MudSelectItem>
+                    <MudSelectItem Value="PaperSize.A5">A5 (1 card)</MudSelectItem>
+                </MudSelect>
+                <MudTooltip Text="@(_cards.Paper == PaperSize.A5 ? "Tent cards are printed on A4, folded to A5." : "Each A4 sheet is one card, printed twice with the top half upside down: fold it across the middle and it stands on the table.")">
+                    <MudSwitch T="bool" Value="_cards.IsFolded" ValueChanged="@(v => SetCards(_cards with { Folded = v }))" Label="Folded tent cards" Color="Color.Primary" Class="ml-3"
+                               Disabled="_cards.Paper == PaperSize.A5" />
                 </MudTooltip>
                 @if (_sheetCount > 0)
                 {
-                    <MudText Typo="Typo.caption" Class="ml-2 mud-text-secondary">@_cardCount cards · @_sheetCount A4 @(_sheetCount == 1 ? "sheet" : "sheets")</MudText>
+                    <MudText Typo="Typo.caption" Class="ml-2 mud-text-secondary">@_cardCount cards · @_sheetCount @_cards.Paper @(_sheetCount == 1 ? "sheet" : "sheets")</MudText>
                 }
             }
 
@@ -54,6 +60,14 @@
                 <MudSwitch T="bool" Value="_poster.Landscape" ValueChanged="@(v => SetPoster(_poster with { Landscape = v }))" Label="Landscape" Color="Color.Primary" Class="ml-3" />
                 <MudCheckBox T="bool" Value="_poster.ShowFloorPlans" ValueChanged="@(v => SetPoster(_poster with { ShowFloorPlans = v }))" Label="Floor plans" Dense="true" />
                 <MudCheckBox T="bool" Value="_poster.ShowGroupList" ValueChanged="@(v => SetPoster(_poster with { ShowGroupList = v }))" Label="Group list" Dense="true" />
+            }
+
+            @if (IsGuestPage)
+            {
+                <MudTextField T="string" Value="project.GuestPageUrl" ValueChanged="SetGuestPageUrl" Label="Web address of the guest page"
+                              Placeholder="https://…" Margin="Margin.Dense" Variant="Variant.Outlined" Class="ml-3 print-option"
+                              Style="min-width: 320px" Error="@(!string.IsNullOrWhiteSpace(project.GuestPageUrl) && !QrCode.IsWebAddress(project.GuestPageUrl))"
+                              ErrorText="Use a full address starting with https://" />
             }
 
             <MudSpacer />
@@ -135,6 +149,30 @@
                 @if (IsGuestPage)
                 {
                     <iframe @key="PrintKind.GuestPage" class="print-preview" title="Guest page preview" sandbox="allow-scripts" srcdoc="@(_html ?? "")"></iframe>
+                    <MudPaper Class="qr-panel pa-3" Outlined="true">
+                        <MudText Typo="Typo.subtitle2" GutterBottom="true">QR code</MudText>
+                        @if (QrCode.IsWebAddress(project.GuestPageUrl))
+                        {
+                            @* Our own SVG made from the address, not template content, so it can go in the page as is. *@
+                            <div class="qr-preview">@((MarkupString)QrCode.Svg(project.GuestPageUrl!.Trim()))</div>
+                            <MudText Typo="Typo.caption" Class="qr-url">@project.GuestPageUrl!.Trim()</MudText>
+                            <MudStack Row="true" Spacing="1" Class="mt-2">
+                                <MudButton Size="Size.Small" Variant="Variant.Outlined" StartIcon="@Icons.Material.Filled.Download" OnClick="@(() => DownloadQr(svg: true))">SVG</MudButton>
+                                <MudButton Size="Size.Small" Variant="Variant.Outlined" StartIcon="@Icons.Material.Filled.Download" OnClick="@(() => DownloadQr(svg: false))">PNG</MudButton>
+                            </MudStack>
+                            <MudText Typo="Typo.caption" Class="mud-text-secondary mt-2">
+                                The poster shows it on the "Find your table" page; templates can use {{GuestPageQr}}.
+                                Scan it with a phone to check it before printing.
+                            </MudText>
+                        }
+                        else
+                        {
+                            <MudText Typo="Typo.body2" Class="mud-text-secondary">
+                                Put the downloaded page online, then enter its web address above. You get a QR code to download,
+                                and the poster shows it.
+                            </MudText>
+                        }
+                    </MudPaper>
                 }
                 else
                 {
@@ -213,8 +251,8 @@
         _notSeated = project.Setup.Groups.Count(g => g.PeopleCount > 0 && plan.Seated(g) < g.PeopleCount);
         var data = _kind switch
         {
-            PrintKind.TableCards => TableCards.BuildData(project.Name, plan, _cards),
-            PrintKind.Poster => Poster.BuildData(project.Name, plan, _poster, Session.Images),
+            PrintKind.TableCards => TableCards.BuildData(project.Name, plan, _cards, project.GuestPageUrl),
+            PrintKind.Poster => Poster.BuildData(project.Name, plan, _poster, Session.Images, project.GuestPageUrl),
             _ => GuestPage.BuildData(project.Name, plan, Session.Images),
         };
         (_cardCount, _sheetCount) = _kind == PrintKind.TableCards ? ((int)data["CardCount"]!, (int)data["SheetCount"]!) : (0, 0);
@@ -326,11 +364,33 @@
         await JS.InvokeVoidAsync("tablePlanner.downloadFile", fileName, "text/html", Template);
     }
 
+    private void SetGuestPageUrl(string? url)
+    {
+        var value = string.IsNullOrWhiteSpace(url) ? null : url.Trim();
+        if (value != Session.Project!.GuestPageUrl)
+            Session.History!.Execute("Set guest page address", p => p.GuestPageUrl = value);
+    }
+
+    private async Task DownloadQr(bool svg)
+    {
+        var url = Session.Project!.GuestPageUrl!.Trim();
+        var name = $"{GuestPageSlug()}-qr-code";
+        if (svg)
+            await JS.InvokeVoidAsync("tablePlanner.downloadFile", $"{name}.svg", "image/svg+xml", QrCode.Svg(url));
+        else
+            await JS.InvokeVoidAsync("tablePlanner.downloadFile", $"{name}.png", "image/png", QrCode.Png(url));
+    }
+
+    /// <summary>The project's name without spaces or capitals, since file names become part of web addresses.</summary>
+    private string GuestPageSlug()
+    {
+        var slug = System.Text.RegularExpressions.Regex.Replace(Session.Project!.Name.ToLowerInvariant(), @"[^\p{L}\p{N}]+", "-").Trim('-');
+        return slug.Length == 0 ? "event" : slug;
+    }
+
     private async Task DownloadPage()
     {
-        // A name without spaces or capitals, since it becomes part of the page's web address.
-        var slug = System.Text.RegularExpressions.Regex.Replace(Session.Project!.Name.ToLowerInvariant(), @"[^\p{L}\p{N}]+", "-").Trim('-');
-        var fileName = $"{(slug.Length == 0 ? "event" : slug)}-find-your-table.html";
+        var fileName = $"{GuestPageSlug()}-find-your-table.html";
         await JS.InvokeVoidAsync("tablePlanner.downloadFile", fileName, "text/html", _html);
     }
 

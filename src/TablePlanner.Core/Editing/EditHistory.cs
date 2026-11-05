@@ -75,7 +75,9 @@ public sealed class EditHistory
         var saved = ProjectSerializer.Deserialize(snapshot).Project
                     ?? throw new InvalidOperationException("Undo snapshot could not be read.");
         // LastExportedAt is not part of the undo history: undoing an edit doesn't un-export the file.
+        // A new project property must be added here (EditHistoryTests checks the list).
         Project.Name = saved.Name;
+        Project.GuestPageUrl = saved.GuestPageUrl;
         Project.Setup = saved.Setup;
         Project.Priorities = saved.Priorities;
         Project.CurrentAssignment = saved.CurrentAssignment;

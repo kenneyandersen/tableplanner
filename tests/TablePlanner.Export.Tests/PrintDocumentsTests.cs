@@ -125,6 +125,22 @@ public class PrintDocumentsTests
     }
 
     [Fact]
+    public void On_A5_paper_each_card_is_its_own_sheet_and_cannot_be_folded()
+    {
+        var (project, _, _, _, _) = Setup();
+        var plan = new PrintedPlan(project.Setup, project.CurrentAssignment);
+
+        var data = TableCards.BuildData(project.Name, plan, new CardOptions(Folded: true, Paper: PaperSize.A5));
+        var html = HtmlTemplate.Render(DefaultTemplates.For(PrintKind.TableCards), data).Html;
+
+        Assert.Equal([1, 1, 1], List(data, "Sheets").Select(s => List(s, "Cards").Count));
+        Assert.Equal(false, data["Folded"]);
+        Assert.Contains("@page { size: A5 landscape; margin: 0; }", html);
+        Assert.Contains("height: 148mm;", html);
+        Assert.DoesNotContain("flipped", html.Split("<body>")[1]);
+    }
+
+    [Fact]
     public void The_built_in_card_template_turns_the_top_half_of_tent_cards_and_shows_seat_numbers()
     {
         var (project, _, _, _, _) = Setup();

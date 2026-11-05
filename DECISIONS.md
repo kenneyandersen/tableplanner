@@ -238,6 +238,8 @@ algorithm works on setup + assignment. UI code never goes into model or algorith
   separately, so guests can look up their group on their phone.
 - Round tables, free rotation angles, partial group moves, per-group priority overrides,
   "should not sit near" rules, side-by-side plan comparison.
+- A **drag-and-drop editor for the table cards** (place and size the name, table number, QR code etc. on the card
+  without writing HTML), producing a card template. Wanted, but deliberately left for later (2026-11-05).
 
 ## Defaults chosen without explicit discussion (change if wrong)
 
@@ -385,3 +387,17 @@ Notes after step 9 (table card options):
 - The data gives the halves of each sheet (`Sheets` → `Cards`, with `Flipped`), so a template never repeats its card
   markup for tents. New placeholders: `PerSeat`, `Folded`, `SheetCount`, `SeatNumber`, `SeatNumbers`, `Flipped`.
   The page shows how many cards and sheets the choice takes.
+
+Notes: A5 card paper and QR codes (2026-11-05):
+- **Card paper:** A4 (two A5 cards per sheet, cut or folded) or **A5** (one card per A5 sheet, landscape, nothing to
+  cut). Tent cards need A4 (an A5 tent would make A6 cards), so the switch is off on A5. The template gets the page
+  size from the data (`PageSize`, `SheetWidthMm`, `SheetHeightMm`, `CardHeightMm`) instead of fixed A4 sizes.
+- **QR code for the guest page:** the guest page's web address is entered on the Guest page tab and saved in the
+  project (`EventProject.GuestPageUrl`, undoable; only http/https addresses with a host count). The tab then shows
+  the QR code with SVG and PNG downloads, and the poster's "Find your table" page shows it. Every template gets
+  `{{GuestPageUrl}}` and `{{GuestPageQr}}` (an SVG to size with CSS), e.g. for cards.
+- The QR code is made with **QRCoder** (MIT, pure C#, works in WebAssembly): writing a QR encoder (Reed-Solomon,
+  masks, versions) is not worth the risk. The SVG is drawn from its module matrix (one path, crisp edges); the PNG
+  is QRCoder's own. Error correction level M.
+- Found while testing: undo did not restore the new address, because `EditHistory.Restore` copies the project's
+  properties one by one. Fixed, and a test now lists every `EventProject` property, so a new one cannot be missed.

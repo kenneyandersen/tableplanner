@@ -3,11 +3,12 @@
 <head>
 <meta charset="utf-8">
 <title>Table cards · {{EventName}}</title>
-{{! Table cards: A5, two to an A4 sheet. Flat cards are cut apart along the dashed line; tent cards (Folded) have the
-    same card on both halves, the top one upside down, and are folded along the line to stand on the table.
+{{! Table cards: A5, two to an A4 sheet or one per A5 sheet. Flat A4 cards are cut apart along the dashed line;
+    tent cards (Folded, A4 only) have the same card on both halves, the top one upside down, and are folded along
+    the line to stand on the table.
     Placeholders are listed next to the editor. }}
 <style>
-  @page { size: A4 portrait; margin: 0; }
+  @page { size: {{PageSize}}; margin: 0; }
   * { box-sizing: border-box; }
   html, body { margin: 0; padding: 0; }
   body {
@@ -16,11 +17,11 @@
     -webkit-print-color-adjust: exact;
     print-color-adjust: exact;
   }
-  .sheet { width: 210mm; height: 297mm; overflow: hidden; break-after: page; }
+  .sheet { width: {{SheetWidthMm}}mm; height: {{SheetHeightMm}}mm; overflow: hidden; break-after: page; }
   .sheet:last-child { break-after: auto; }
   .card {
     position: relative;
-    height: 148.5mm;
+    height: {{CardHeightMm}}mm;
     padding: 24mm 20mm;
     display: flex;
     flex-direction: column;

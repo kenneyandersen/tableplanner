@@ -43,6 +43,8 @@
   .name { flex: 1; }
   .where { white-space: nowrap; font-weight: 600; }
   .where small { font-weight: 400; color: #666; }
+  .scan { margin-left: auto; display: flex; align-items: center; gap: 3mm; font-size: 11pt; color: #444; text-align: right; }
+  .scan .qr-code { width: 28mm; height: 28mm; }
   @media screen {
     body { background: #d9d9d9; padding: 8mm 0; }
     .page {
@@ -68,7 +70,9 @@
 {{/ShowFloorPlans}}
 {{#ShowGroupList}}
 <section class="page list-page">
-  <header>{{#EventName}}<h1>{{EventName}}</h1>{{/EventName}}<h2>Find your table</h2></header>
+  <header>{{#EventName}}<h1>{{EventName}}</h1>{{/EventName}}<h2>Find your table</h2>
+    {{#GuestPageUrl}}<div class="scan"><span>Or scan to look it up<br>on your phone</span>{{GuestPageQr}}</div>{{/GuestPageUrl}}
+  </header>
   <div class="list">
     {{#Letters}}
     <div class="letter-block">

@@ -17,7 +17,9 @@ public sealed class ImageStore(IJSRuntime js)
 
     private static string Prefix(Guid projectId) => $"{projectId}/";
 
-    public Task<PreparedImage> PrepareAsync(byte[] bytes) => js.InvokeAsync<PreparedImage>("tablePlanner.prepareImage", bytes, MaxImageSize).AsTask();
+    /// <summary>Downscales an uploaded picture to at most <paramref name="maxSize"/> pixels on its longest side.</summary>
+    public Task<PreparedImage> PrepareAsync(byte[] bytes, int maxSize = MaxImageSize) =>
+        js.InvokeAsync<PreparedImage>("tablePlanner.prepareImage", bytes, maxSize).AsTask();
 
     public Task SaveAsync(Guid projectId, ProjectImage image) =>
         js.InvokeVoidAsync("tablePlanner.images.put", Prefix(projectId) + image.Id, image.DataUrl).AsTask();

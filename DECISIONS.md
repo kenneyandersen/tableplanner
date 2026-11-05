@@ -238,8 +238,7 @@ algorithm works on setup + assignment. UI code never goes into model or algorith
   separately, so guests can look up their group on their phone.
 - Round tables, free rotation angles, partial group moves, per-group priority overrides,
   "should not sit near" rules, side-by-side plan comparison.
-- A **drag-and-drop editor for the table cards** (place and size the name, table number, QR code etc. on the card
-  without writing HTML), producing a card template. Wanted, but deliberately left for later (2026-11-05).
+- ~~A drag-and-drop editor for the table cards~~: done, see "card designer" below.
 
 ## Defaults chosen without explicit discussion (change if wrong)
 
@@ -418,3 +417,23 @@ Notes: drag and drop on the plan (2026-11-05):
   and drop (built-in threshold and drag image, no page-wide pointer tracking); app.js sets the drag data some
   browsers need. Positions come from the drag events' screen coordinates and the SVG's position, read when the drag
   enters it; the drop position is used again on drop, since the last dragover can lag behind the pointer.
+
+Notes: card designer (2026-11-05):
+- **Design cards** (Print & share → Table cards) opens a designer: the A5 card (210 × 148 mm) with items that are
+  dragged into place and resized by a corner handle (1 mm snap, Alt for 0.1 mm), nudged with the arrow keys, and
+  set in a properties panel. Items: **text** (with placeholders, e.g. "Welcome, {{GroupName}}!"; size, bold,
+  italic, capitals, alignment, colour or the group's colour), **colour boxes** (fixed or group colour, rounded
+  corners), the guest page **QR code** and an **image** (logo, downscaled to 800 px). Ready-made fields (group name,
+  table, floor, seat number, people, dietary info) and a placeholder menu help with the texts. One font per design.
+- The card shows **real cards from the plan** (step through them), so long names and split groups are visible while
+  designing; a made-up card when nothing is seated. The designer has its own undo/redo.
+- **Save and use** turns the design into an ordinary table-card template (`CardDesign.ToTemplate`) and makes it the
+  table-card template, so printing is unchanged: paper, tent cards and a card per seat still apply. The design is
+  stored separately (localStorage, `tableplanner:carddesign`), so it opens again for changes. The template editor
+  shows "From the card designer" while the template is the design's; editing the HTML by hand is still possible, but
+  saving the design again replaces it (the designer says so).
+- Literal text is HTML-escaped (placeholders are left as they are), colours must be hex, images must be
+  `data:image/…` URLs, so a design cannot inject markup or load anything from elsewhere.
+- The designer lays the card out in real millimetres and points, like the print, and scales it with CSS; transparent
+  hit areas on top of the rendered items take the mouse.
+- Not done: snapping to other items / guides, rotating items, several designs to choose from, poster designer.

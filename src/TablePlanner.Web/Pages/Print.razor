@@ -81,6 +81,12 @@
                     }
                 </MudSelect>
             }
+            @if (_kind == PrintKind.TableCards)
+            {
+                <MudTooltip Text="Place the name, table number, colours, a logo or the QR code on the card by dragging">
+                    <MudButton Variant="Variant.Text" StartIcon="@Icons.Material.Filled.Brush" Href="@($"project/{Id}/print/card-designer")">Design cards</MudButton>
+                </MudTooltip>
+            }
             <MudButton Variant="@(_editing ? Variant.Filled : Variant.Text)" StartIcon="@Icons.Material.Filled.Code" OnClick="@(() => _editing = !_editing)">
                 @(_editing ? "Close template" : "Edit template")
             </MudButton>
@@ -117,7 +123,7 @@
                     <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="1" Wrap="Wrap.Wrap">
                         <MudText Typo="Typo.subtitle2" Style="flex: 1">
                             @(_kind switch { PrintKind.TableCards => "Table card template", PrintKind.Poster => "Poster template", _ => "Guest page template" })
-                            <MudChip T="string" Size="Size.Small" Color="@(IsCustom ? Color.Primary : Color.Default)">@(IsCustom ? "Your own" : "Built-in")</MudChip>
+                            <MudChip T="string" Size="Size.Small" Color="@(IsCustom ? Color.Primary : Color.Default)">@(!IsCustom ? "Built-in" : IsFromDesigner ? "From the card designer" : "Your own")</MudChip>
                         </MudText>
                         <MudButton HtmlTag="label" Size="Size.Small" Variant="Variant.Outlined" StartIcon="@Icons.Material.Filled.Upload" for="template-file">Load</MudButton>
                         <InputFile id="template-file" accept=".html,.htm,text/html" OnChange="LoadTemplate" hidden @key="_fileKey" />
@@ -216,11 +222,17 @@
 
     private bool IsCustom => _custom.GetValueOrDefault(_kind) is not null;
 
+    /// <summary>The template made from the saved card design, to tell it apart from one edited by hand.</summary>
+    private string? _designTemplate;
+
+    private bool IsFromDesigner => _kind == PrintKind.TableCards && _designTemplate is not null && _custom.GetValueOrDefault(_kind) == _designTemplate;
+
     protected override async Task OnInitializedAsync()
     {
         Session.Changed += OnSessionChanged;
         foreach (var kind in Enum.GetValues<PrintKind>())
             _custom[kind] = await Templates.LoadAsync(kind);
+        _designTemplate = (await Templates.LoadDesignAsync())?.ToTemplate();
         Rebuild();
     }
 

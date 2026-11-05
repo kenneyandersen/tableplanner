@@ -1,0 +1,486 @@
+@page "/project/{Id:guid}/print/card-designer"
+@implements IDisposable
+@inject ProjectSession Session
+@inject TemplateStore Templates
+@inject ImageStore Images
+@inject IDialogService Dialogs
+@inject ISnackbar Snackbar
+@inject NavigationManager Navigation
+@inject IJSRuntime JS
+@using TablePlanner.Export.Printing
+
+<PageTitle>Card designer · Table Planner</PageTitle>
+
+<ProjectLoader Id="Id">
+    <div class="editor-page">
+        <MudToolBar Dense="true" Class="editor-toolbar" WrapContent="true">
+            <MudButton Variant="Variant.Text" StartIcon="@Icons.Material.Filled.ArrowBack" Href="@($"project/{Id}/print")">Print &amp; share</MudButton>
+            <MudDivider Vertical="true" FlexItem="true" Class="mx-2" />
+
+            <MudMenu Label="Add" StartIcon="@Icons.Material.Filled.Add" Variant="Variant.Outlined" Size="Size.Small">
+                <MudMenuItem OnClick="@(() => Add(new CardItem { Text = "Text", X = 70, Y = 60, Width = 70, Height = 14 }))">Text</MudMenuItem>
+                @foreach (var (label, text) in Fields)
+                {
+                    <MudMenuItem OnClick="@(() => Add(new CardItem { Text = text, X = 55, Y = 60, Width = 100, Height = 14 }))">@label</MudMenuItem>
+                }
+                <MudMenuItem OnClick="@(() => Add(new CardItem { Kind = CardItemKind.Box, X = 0, Y = 141, Width = CardDesign.CardWidth, Height = 7, UseGroupColour = true }))">Colour band</MudMenuItem>
+                <MudMenuItem OnClick="@(() => Add(new CardItem { Kind = CardItemKind.QrCode, X = 172, Y = 110, Width = 30, Height = 30 }))">QR code (guest page)</MudMenuItem>
+                <MudMenuItem OnClick="PickImage">Image (logo)</MudMenuItem>
+            </MudMenu>
+            <InputFile id="design-image" accept="image/png,image/jpeg,.png,.jpg,.jpeg" OnChange="AddImage" hidden @key="_fileKey" />
+            <MudTooltip Text="Duplicate (Ctrl+D)">
+                <MudIconButton Icon="@Icons.Material.Filled.ContentCopy" Disabled="Selected is null" OnClick="Duplicate" aria-label="Duplicate" />
+            </MudTooltip>
+            <MudTooltip Text="Delete (Delete)">
+                <MudIconButton Icon="@Icons.Material.Filled.Delete" Disabled="Selected is null" OnClick="DeleteSelected" aria-label="Delete item" />
+            </MudTooltip>
+            <MudTooltip Text="Undo (Ctrl+Z)">
+                <MudIconButton Icon="@Icons.Material.Filled.Undo" Disabled="_undo.Count == 0" OnClick="Undo" aria-label="Undo design change" />
+            </MudTooltip>
+            <MudTooltip Text="Redo (Ctrl+Y)">
+                <MudIconButton Icon="@Icons.Material.Filled.Redo" Disabled="_redo.Count == 0" OnClick="Redo" aria-label="Redo design change" />
+            </MudTooltip>
+            <MudSelect T="string" Value="_design.Font" ValueChanged="@(v => Change(d => d.Font = v))" Label="Font" Dense="true" Margin="Margin.Dense"
+                       Variant="Variant.Outlined" Class="ml-3 print-option" Style="max-width: 160px">
+                @foreach (var (name, _) in CardDesign.Fonts)
+                {
+                    <MudSelectItem Value="name">@name</MudSelectItem>
+                }
+            </MudSelect>
+
+            <MudSpacer />
+            @if (_cards.Count > 1)
+            {
+                <MudIconButton Icon="@Icons.Material.Filled.ChevronLeft" Size="Size.Small" OnClick="@(() => _sample = (_sample + _cards.Count - 1) % _cards.Count)" aria-label="Previous card" />
+                <MudText Typo="Typo.caption">Card @(_sample + 1) of @_cards.Count</MudText>
+                <MudIconButton Icon="@Icons.Material.Filled.ChevronRight" Size="Size.Small" OnClick="@(() => _sample = (_sample + 1) % _cards.Count)" aria-label="Next card" />
+            }
+            <MudButton Variant="Variant.Text" StartIcon="@Icons.Material.Filled.RestartAlt" Class="ml-2" OnClick="ResetDesign">Start over</MudButton>
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Save" Class="ml-2" OnClick="Save">Save and use</MudButton>
+        </MudToolBar>
+
+        @if (_replacesOwnTemplate)
+        {
+            <div class="print-messages">
+                <MudAlert Severity="Severity.Info" Dense="true">Your table cards use a template you edited by hand. Saving the design replaces it.</MudAlert>
+            </div>
+        }
+
+        <div class="editor-body">
+            <div class="editor-canvas design-area" tabindex="0" @ref="_host" @onkeydown="OnKeyDown"
+                 @onpointermove="OnPointerMove" @onpointerup="OnPointerUp" @onpointercancel="OnPointerUp" @onpointerdown="OnBackgroundDown">
+                @* The card is laid out in real millimetres (like the printed one) and scaled to the screen. *@
+                <div class="design-card-frame" style="@FormattableString.Invariant($"width: {CardDesign.CardWidth * PixelsPerMm * Zoom:0}px; height: {CardDesign.CardHeight * PixelsPerMm * Zoom:0}px")">
+                    <div class="design-card" style="@FormattableString.Invariant($"transform: scale({Zoom}); font-family: {_design.FontCss}")">
+                        @((MarkupString)PreviewMarkup())
+                        @foreach (var shown in _design.Items)
+                        {
+                            var id = shown.Id;
+                            <div class="design-hit @(id == _selectedId ? "selected" : "")" style="@Box(shown)"
+                                 @onpointerdown="e => OnItemDown(e, id, resize: false)" @onpointerdown:stopPropagation="true">
+                                @if (id == _selectedId)
+                                {
+                                    <div class="design-handle" @onpointerdown="e => OnItemDown(e, id, resize: true)" @onpointerdown:stopPropagation="true"></div>
+                                }
+                            </div>
+                        }
+                    </div>
+                </div>
+                <MudText Typo="Typo.caption" Class="mud-text-secondary mt-2 d-block" Style="text-align: center">
+                    A5 card, 210 × 148 mm. Drag to move (snaps to 1 mm; Alt moves freely), drag the corner to resize. Arrows nudge, Delete removes.
+                </MudText>
+            </div>
+
+            <div class="editor-side">
+                @if (Selected is { } item)
+                {
+                    <MudPaper Outlined="true" Class="pa-3">
+                        <MudText Typo="Typo.h6" GutterBottom="true">@KindName(item.Kind)</MudText>
+                        <MudStack Spacing="2">
+                            @if (item.Kind == CardItemKind.Text)
+                            {
+                                <MudTextField T="string" Label="Text" Value="item.Text" ValueChanged="@(v => Edit(i => i.Text = v))" Lines="3" Sizing="InputSizing.Auto"
+                                              Variant="Variant.Outlined" Immediate="true" DebounceInterval="300" />
+                                <MudMenu Label="Insert placeholder" Size="Size.Small" Variant="Variant.Text" EndIcon="@Icons.Material.Filled.ArrowDropDown" Dense="true">
+                                    @foreach (var placeholder in TableCards.Placeholders.Where(p => p.Items is null).Concat(TableCards.Placeholders.First(p => p.Name == "Cards").Items!))
+                                    {
+                                        <MudMenuItem OnClick="@(() => Edit(i => i.Text += "{{" + placeholder.Name + "}}"))">@placeholder.Name <span class="mud-text-secondary"> · @placeholder.Description</span></MudMenuItem>
+                                    }
+                                </MudMenu>
+                                <MudNumericField T="double" Label="Size (pt)" Value="item.FontSize" Min="4" Max="200" Step="1" Variant="Variant.Outlined" Margin="Margin.Dense"
+                                                 ValueChanged="@(v => Edit(i => i.FontSize = v))" />
+                                <MudStack Row="true" Spacing="1" Wrap="Wrap.Wrap">
+                                    <MudToggleIconButton Toggled="item.Bold" ToggledChanged="@(v => Edit(i => i.Bold = v))" Icon="@Icons.Material.Filled.FormatBold" ToggledColor="Color.Primary" aria-label="Bold" />
+                                    <MudToggleIconButton Toggled="item.Italic" ToggledChanged="@(v => Edit(i => i.Italic = v))" Icon="@Icons.Material.Filled.FormatItalic" ToggledColor="Color.Primary" aria-label="Italic" />
+                                    <MudToggleIconButton Toggled="item.Uppercase" ToggledChanged="@(v => Edit(i => i.Uppercase = v))" Icon="@Icons.Material.Filled.TextFields" ToggledColor="Color.Primary" aria-label="Capitals" />
+                                </MudStack>
+                                <MudToggleGroup T="TextAlign" Value="item.Align" ValueChanged="@(v => Edit(i => i.Align = v))" Size="Size.Small" Color="Color.Primary">
+                                    <MudToggleItem Value="TextAlign.Left" Text="Left" />
+                                    <MudToggleItem Value="TextAlign.Center" Text="Centre" />
+                                    <MudToggleItem Value="TextAlign.Right" Text="Right" />
+                                </MudToggleGroup>
+                                <MudToggleGroup T="VerticalAlign" Value="item.VerticalAlign" ValueChanged="@(v => Edit(i => i.VerticalAlign = v))" Size="Size.Small" Color="Color.Primary">
+                                    <MudToggleItem Value="VerticalAlign.Top" Text="Top" />
+                                    <MudToggleItem Value="VerticalAlign.Middle" Text="Middle" />
+                                    <MudToggleItem Value="VerticalAlign.Bottom" Text="Bottom" />
+                                </MudToggleGroup>
+                            }
+                            @if (item.Kind is CardItemKind.Text or CardItemKind.Box)
+                            {
+                                <MudSwitch T="bool" Value="item.UseGroupColour" ValueChanged="@(v => Edit(i => i.UseGroupColour = v))" Color="Color.Primary" Label="Group's colour" />
+                                @if (!item.UseGroupColour)
+                                {
+                                    <label class="colour-field">
+                                        <input type="color" value="@CardDesign.SafeColour(item.Colour)" @onchange="@(e => Edit(i => i.Colour = e.Value?.ToString() ?? i.Colour))" />
+                                        <span>Colour</span>
+                                    </label>
+                                }
+                            }
+                            @if (item.Kind == CardItemKind.Box)
+                            {
+                                <MudNumericField T="double" Label="Rounded corners (mm)" Value="item.CornerRadius" Min="0" Max="50" Variant="Variant.Outlined" Margin="Margin.Dense"
+                                                 ValueChanged="@(v => Edit(i => i.CornerRadius = v))" />
+                            }
+                            @if (item.Kind == CardItemKind.QrCode)
+                            {
+                                <MudText Typo="Typo.body2">
+                                    The QR code for the guest page. It is printed when the page's web address is set on the Guest page tab@(QrCode.IsWebAddress(Session.Project?.GuestPageUrl) ? "." : " (not set yet).")
+                                </MudText>
+                            }
+                            @if (item.Kind == CardItemKind.Image)
+                            {
+                                <MudButton HtmlTag="label" Size="Size.Small" Variant="Variant.Outlined" StartIcon="@Icons.Material.Filled.Image" for="design-image-replace">Replace image</MudButton>
+                                <InputFile id="design-image-replace" accept="image/png,image/jpeg,.png,.jpg,.jpeg" OnChange="ReplaceImage" hidden @key="_fileKey" />
+                            }
+                            <MudStack Row="true">
+                                <MudNumericField T="double" Label="Left (mm)" Value="Math.Round(item.X, 1)" Step="1" Variant="Variant.Outlined" Margin="Margin.Dense" ValueChanged="@(v => Edit(i => i.X = v))" />
+                                <MudNumericField T="double" Label="Top (mm)" Value="Math.Round(item.Y, 1)" Step="1" Variant="Variant.Outlined" Margin="Margin.Dense" ValueChanged="@(v => Edit(i => i.Y = v))" />
+                            </MudStack>
+                            <MudStack Row="true">
+                                <MudNumericField T="double" Label="Width (mm)" Value="Math.Round(item.Width, 1)" Min="1" Step="1" Variant="Variant.Outlined" Margin="Margin.Dense" ValueChanged="@(v => Edit(i => i.Width = v))" />
+                                <MudNumericField T="double" Label="Height (mm)" Value="Math.Round(item.Height, 1)" Min="1" Step="1" Variant="Variant.Outlined" Margin="Margin.Dense" ValueChanged="@(v => Edit(i => i.Height = v))" />
+                            </MudStack>
+                            <MudButton Size="Size.Small" Variant="Variant.Text" StartIcon="@Icons.Material.Filled.CenterFocusStrong" OnClick="@(() => Edit(i => i.X = (CardDesign.CardWidth - i.Width) / 2))">Centre across the card</MudButton>
+                        </MudStack>
+                    </MudPaper>
+                }
+                else
+                {
+                    <MudPaper Outlined="true" Class="pa-3">
+                        <MudText Typo="Typo.h6" GutterBottom="true">Card design</MudText>
+                        <MudText Typo="Typo.body2" Class="mb-2">
+                            Click an item to change it, or add text, fields, a colour band, the guest page QR code or a logo.
+                            Texts can hold placeholders like {{GroupName}}; the card shows them for a real card from your plan.
+                        </MudText>
+                        <MudText Typo="Typo.body2">
+                            Save and use makes this the table card template. Paper, tent cards and a card per seat are chosen when printing, as before.
+                        </MudText>
+                    </MudPaper>
+                }
+            </div>
+        </div>
+    </div>
+</ProjectLoader>
+
+@code {
+    /// <summary>CSS pixels per millimetre.</summary>
+    private const double PixelsPerMm = 96 / 25.4;
+
+    private const double Zoom = 1.35;
+    private const long MaxImageBytes = 20_000_000;
+    private const int MaxLogoSize = 800;
+
+    private static readonly (string Label, string Text)[] Fields =
+    [
+        ("Group name", "{{GroupName}}"),
+        ("Table number", "Table {{TableNumber}}"),
+        ("Floor", "{{FloorName}}"),
+        ("Seat number", "{{#SeatNumber}}Seat {{SeatNumber}}{{/SeatNumber}}"),
+        ("Event name", "{{EventName}}"),
+        ("People", "{{PeopleCount}} {{#OnePerson}}person{{/OnePerson}}{{^OnePerson}}people{{/OnePerson}}"),
+        ("Dietary info", "{{DietaryInfo}}"),
+    ];
+
+    private CardDesign _design = CardDesign.Default();
+    private readonly List<string> _undo = [], _redo = [];
+    private Guid? _selectedId;
+    private List<TemplateData> _cards = [];
+    private int _sample;
+    private bool _replacesOwnTemplate;
+    private int _fileKey;
+    private ElementReference _host;
+    private bool _keysHooked;
+
+    // Dragging: the item, where the pointer started, and the item's box then.
+    private Guid? _dragId;
+    private bool _resizing, _dragMoved;
+    private double _startX, _startY;
+    private (double X, double Y, double W, double H) _startBox;
+    private string? _beforeDrag;
+
+    [Parameter] public Guid Id { get; set; }
+
+    private CardItem? Selected => _design.Items.FirstOrDefault(i => i.Id == _selectedId);
+
+    protected override async Task OnInitializedAsync()
+    {
+        Session.Changed += OnSessionChanged;
+        _design = await Templates.LoadDesignAsync() ?? CardDesign.Default();
+        var own = await Templates.LoadAsync(PrintKind.TableCards);
+        _replacesOwnTemplate = own is not null && own != _design.ToTemplate();
+        LoadCards();
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!_keysHooked && _host.Context is not null)
+        {
+            _keysHooked = true;
+            await JS.InvokeVoidAsync("tablePlanner.preventEditorKeys", _host);
+        }
+    }
+
+    public void Dispose() => Session.Changed -= OnSessionChanged;
+
+    private void OnSessionChanged()
+    {
+        LoadCards();
+        InvokeAsync(StateHasChanged);
+    }
+
+    /// <summary>The cards of the current plan, as sample data for the preview; a made-up one when nothing is seated.</summary>
+    private void LoadCards()
+    {
+        if (Session.Project is not { } project || project.Id != Id)
+            return;
+        var data = TableCards.BuildData(project.Name, new PrintedPlan(project.Setup, project.CurrentAssignment), guestPageUrl: project.GuestPageUrl);
+        var root = data.Where(kv => kv.Key is not ("Cards" or "Sheets")).ToList();
+        var cards = ((IEnumerable<TemplateData>)data["Cards"]!).ToList();
+        if (cards.Count == 0)
+            cards.Add(new TemplateData
+            {
+                ["GroupName"] = "Sample group", ["PeopleCount"] = 8, ["PeopleHere"] = 8, ["OnePerson"] = false, ["IsSplit"] = false,
+                ["OtherTables"] = "", ["SeveralOtherTables"] = false, ["TableNumber"] = 101, ["SeatNumber"] = "", ["SeatNumbers"] = "1, 2, 3",
+                ["FloorName"] = "Ground floor", ["Colour"] = "#4e79a7", ["ContactPerson"] = "", ["DietaryInfo"] = "", ["Notes"] = "",
+            });
+        // Each sample card sees the card's values and the shared ones, as inside {{#Cards}} in the template.
+        _cards = cards.Select(card =>
+        {
+            var merged = new TemplateData();
+            foreach (var (key, value) in root.Concat(card))
+                merged[key] = value;
+            merged["Flipped"] = false;
+            return merged;
+        }).ToList();
+        _sample = Math.Min(_sample, _cards.Count - 1);
+    }
+
+    private string PreviewMarkup()
+    {
+        // The first render can come before the project and its cards are loaded.
+        if (_cards.Count == 0)
+            return "";
+        try
+        {
+            return HtmlTemplate.Render(_design.ItemsMarkup(forPreview: true), _cards[_sample]).Html;
+        }
+        catch (TemplateFormatException ex)
+        {
+            return $"<div class=\"design-error\">{HtmlTemplate.Escape(ex.Message)}</div>";
+        }
+    }
+
+    private static string Box(CardItem item) =>
+        FormattableString.Invariant($"left: {item.X:0.##}mm; top: {item.Y:0.##}mm; width: {Math.Max(1, item.Width):0.##}mm; height: {Math.Max(1, item.Height):0.##}mm");
+
+    private static string KindName(CardItemKind kind) => kind switch
+    {
+        CardItemKind.Box => "Colour box",
+        CardItemKind.QrCode => "QR code",
+        CardItemKind.Image => "Image",
+        _ => "Text",
+    };
+
+    // ---- Changes, with the designer's own undo ----
+
+    private void Change(Action<CardDesign> change)
+    {
+        _undo.Add(_design.ToJson());
+        _redo.Clear();
+        change(_design);
+    }
+
+    private void Edit(Action<CardItem> edit)
+    {
+        if (Selected is { } item)
+            Change(_ => edit(item));
+    }
+
+    private void Undo() => Step(_undo, _redo);
+
+    private void Redo() => Step(_redo, _undo);
+
+    private void Step(List<string> from, List<string> to)
+    {
+        if (from.Count == 0)
+            return;
+        to.Add(_design.ToJson());
+        _design = CardDesign.FromJson(from[^1])!;
+        from.RemoveAt(from.Count - 1);
+        if (Selected is null)
+            _selectedId = null;
+    }
+
+    private void Add(CardItem item)
+    {
+        Change(d => d.Items.Add(item));
+        _selectedId = item.Id;
+    }
+
+    private void Duplicate()
+    {
+        if (Selected is not { } item)
+            return;
+        var copy = CardDesign.FromJson(new CardDesign { Items = [item] }.ToJson())!.Items[0];
+        copy.Id = Guid.NewGuid();
+        copy.X += 5;
+        copy.Y += 5;
+        Add(copy);
+    }
+
+    private void DeleteSelected()
+    {
+        if (Selected is { } item)
+        {
+            Change(d => d.Items.Remove(item));
+            _selectedId = null;
+        }
+    }
+
+    private async Task ResetDesign()
+    {
+        var confirmed = await Dialogs.ShowMessageBoxAsync("Start over?", "Go back to the built-in card design? You can undo this until you leave the page.",
+            yesText: "Start over", cancelText: "Cancel");
+        if (confirmed != true)
+            return;
+        Change(d => (d.Font, d.Items) = (CardDesign.Fonts[0].Name, CardDesign.Default().Items));
+        _selectedId = null;
+    }
+
+    private async Task Save()
+    {
+        try
+        {
+            await Templates.SaveDesignAsync(_design);
+        }
+        catch (JSException)
+        {
+            Snackbar.Add("The design could not be saved: browser storage is full. Use a smaller image.", Severity.Error);
+            return;
+        }
+        Snackbar.Add("Saved. The table cards now use this design.", Severity.Success);
+        Navigation.NavigateTo($"project/{Id}/print");
+    }
+
+    // ---- Images ----
+
+    private async Task PickImage() => await JS.InvokeVoidAsync("tablePlanner.clickElement", "design-image");
+
+    private async Task<string?> ReadImage(InputFileChangeEventArgs e)
+    {
+        _fileKey++;
+        try
+        {
+            using var stream = new MemoryStream();
+            await e.File.OpenReadStream(MaxImageBytes).CopyToAsync(stream);
+            // Images are kept in the design (in browser storage), so they are made small.
+            var image = await Images.PrepareAsync(stream.ToArray(), MaxLogoSize);
+            return image.DataUrl;
+        }
+        catch (Exception ex) when (ex is IOException or JSException)
+        {
+            Snackbar.Add("The file could not be used as an image. Use a PNG or JPG file.", Severity.Error);
+            return null;
+        }
+    }
+
+    private async Task AddImage(InputFileChangeEventArgs e)
+    {
+        if (await ReadImage(e) is { } url)
+            Add(new CardItem { Kind = CardItemKind.Image, ImageUrl = url, X = 8, Y = 108, Width = 40, Height = 30 });
+    }
+
+    private async Task ReplaceImage(InputFileChangeEventArgs e)
+    {
+        if (await ReadImage(e) is { } url)
+            Edit(i => i.ImageUrl = url);
+    }
+
+    // ---- Mouse and keys ----
+
+    private void OnBackgroundDown(PointerEventArgs e)
+    {
+        if (e.Button == 0)
+            _selectedId = null;
+    }
+
+    private async Task OnItemDown(PointerEventArgs e, Guid id, bool resize)
+    {
+        if (e.Button != 0 || _design.Items.FirstOrDefault(i => i.Id == id) is not { } item)
+            return;
+        _selectedId = id;
+        _dragId = id;
+        _resizing = resize;
+        _dragMoved = false;
+        (_startX, _startY) = (e.ClientX, e.ClientY);
+        _startBox = (item.X, item.Y, item.Width, item.Height);
+        _beforeDrag = _design.ToJson();
+        await JS.InvokeVoidAsync("tablePlanner.capturePointer", _host, e.PointerId);
+    }
+
+    private void OnPointerMove(PointerEventArgs e)
+    {
+        if (_dragId is not { } id || _design.Items.FirstOrDefault(i => i.Id == id) is not { } item)
+            return;
+        var dx = (e.ClientX - _startX) / (PixelsPerMm * Zoom);
+        var dy = (e.ClientY - _startY) / (PixelsPerMm * Zoom);
+        double Snap(double v) => e.AltKey ? Math.Round(v, 1) : Math.Round(v);
+        if (_resizing)
+            (item.Width, item.Height) = (Math.Max(2, Snap(_startBox.W + dx)), Math.Max(2, Snap(_startBox.H + dy)));
+        else
+            (item.X, item.Y) = (Snap(_startBox.X + dx), Snap(_startBox.Y + dy));
+        _dragMoved = true;
+    }
+
+    private void OnPointerUp(PointerEventArgs e)
+    {
+        if (_dragId is null)
+            return;
+        if (_dragMoved && _beforeDrag is not null)
+        {
+            _undo.Add(_beforeDrag);
+            _redo.Clear();
+        }
+        _dragId = null;
+        _beforeDrag = null;
+    }
+
+    private void OnKeyDown(KeyboardEventArgs e)
+    {
+        var ctrl = e.CtrlKey || e.MetaKey;
+        var step = e.ShiftKey ? 5 : e.AltKey ? 0.5 : 1;
+        switch (e.Key)
+        {
+            case "Delete" or "Backspace": DeleteSelected(); break;
+            case "Escape": _selectedId = null; break;
+            case "ArrowLeft": Edit(i => i.X -= step); break;
+            case "ArrowRight": Edit(i => i.X += step); break;
+            case "ArrowUp": Edit(i => i.Y -= step); break;
+            case "ArrowDown": Edit(i => i.Y += step); break;
+            case "d" or "D" when ctrl: Duplicate(); break;
+            case "z" or "Z" when ctrl && e.ShiftKey: Redo(); break;
+            case "z" or "Z" when ctrl: Undo(); break;
+            case "y" or "Y" when ctrl: Redo(); break;
+        }
+    }
+}

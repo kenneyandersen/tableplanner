@@ -43,6 +43,11 @@ window.tablePlanner = {
         return { dataUrl: canvas.toDataURL("image/jpeg", 0.88), width, height };
     },
 
+    /** Clicks an element by ID, e.g. a hidden file input opened from a menu. */
+    clickElement(id) {
+        document.getElementById(id)?.click();
+    },
+
     /** The element's top-left corner on the screen, as [left, top]. */
     elementOrigin(element) {
         const rect = element.getBoundingClientRect();

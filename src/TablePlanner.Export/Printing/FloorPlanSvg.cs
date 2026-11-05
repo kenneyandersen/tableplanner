@@ -16,7 +16,12 @@ public static class FloorPlanSvg
     /// <summary>Space around the drawn tables and elements, in metres.</summary>
     private const double Margin = 1;
 
-    public static string Render(Floor floor, PrintedPlan plan, IReadOnlyDictionary<Guid, string> colours)
+    /// <summary>A background image is printed fainter than on screen, so the seating stays easy to read.</summary>
+    private const double PosterImageFade = 0.6;
+
+    /// <param name="backgroundUrl">The floor's background image as a data URL; drawn only when the floor's
+    /// background is set to show on the poster.</param>
+    public static string Render(Floor floor, PrintedPlan plan, IReadOnlyDictionary<Guid, string> colours, string? backgroundUrl = null)
     {
         var bounds = floor.Tables.Select(TableGeometry.GetBounds).Concat(floor.Elements.Select(FloorElementGeometry.GetBounds)).ToList();
         // Seats stick out from the table top by about a chair's depth.
@@ -28,6 +33,12 @@ public static class FloorPlanSvg
 
         var svg = new StringBuilder();
         svg.Append($"<svg xmlns=\"http://www.w3.org/2000/svg\" class=\"floor-plan\" viewBox=\"{N(left)} {N(top)} {N(width)} {N(height)}\" preserveAspectRatio=\"xMidYMid meet\" font-family=\"inherit\" text-anchor=\"middle\" dominant-baseline=\"central\">");
+
+        if (floor.Background is { ShowOnPoster: true } background && backgroundUrl is not null)
+        {
+            svg.Append($"<image class=\"background-image\" href=\"{HtmlTemplate.Escape(backgroundUrl)}\" preserveAspectRatio=\"none\" x=\"{N(background.X)}\" y=\"{N(background.Y)}\" ");
+            svg.Append($"width=\"{N(background.Width)}\" height=\"{N(background.Height)}\" opacity=\"{N(background.Opacity * PosterImageFade)}\"/>");
+        }
 
         foreach (var element in floor.Elements)
         {

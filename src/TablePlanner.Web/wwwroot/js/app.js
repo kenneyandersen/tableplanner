@@ -13,6 +13,59 @@ window.tablePlanner = {
         URL.revokeObjectURL(url);
     },
 
+    /**
+     * Reads an uploaded picture and makes it at most maxSize pixels on its longest side, as a JPEG data URL
+     * (on white, for pictures with transparency). Returns { dataUrl, width, height }.
+     */
+    async prepareImage(bytes, maxSize) {
+        const bitmap = await createImageBitmap(new Blob([bytes]));
+        const scale = Math.min(1, maxSize / Math.max(bitmap.width, bitmap.height));
+        const width = Math.max(1, Math.round(bitmap.width * scale));
+        const height = Math.max(1, Math.round(bitmap.height * scale));
+        const canvas = document.createElement("canvas");
+        canvas.width = width;
+        canvas.height = height;
+        const context = canvas.getContext("2d");
+        context.fillStyle = "#ffffff";
+        context.fillRect(0, 0, width, height);
+        context.drawImage(bitmap, 0, 0, width, height);
+        bitmap.close();
+        return { dataUrl: canvas.toDataURL("image/jpeg", 0.88), width, height };
+    },
+
+    /** Converts a pointer position on the page to the SVG's own coordinates (metres on a floor). */
+    svgPoint(svg, clientX, clientY) {
+        const point = new DOMPoint(clientX, clientY).matrixTransform(svg.getScreenCTM().inverse());
+        return [point.x, point.y];
+    },
+
+    /** Images kept in IndexedDB (they are too large for localStorage), keyed by "projectId/imageId". */
+    images: {
+        open() {
+            this._db ??= new Promise((resolve, reject) => {
+                const request = indexedDB.open("tableplanner", 1);
+                request.onupgradeneeded = () => request.result.createObjectStore("images");
+                request.onsuccess = () => resolve(request.result);
+                request.onerror = () => reject(request.error);
+            });
+            return this._db;
+        },
+        async run(mode, action) {
+            const db = await this.open();
+            return new Promise((resolve, reject) => {
+                const store = db.transaction("images", mode).objectStore("images");
+                const request = action(store);
+                request.onsuccess = () => resolve(request.result ?? null);
+                request.onerror = () => reject(request.error);
+            });
+        },
+        put(key, dataUrl) { return this.run("readwrite", s => s.put(dataUrl, key)); },
+        get(key) { return this.run("readonly", s => s.get(key)); },
+        remove(key) { return this.run("readwrite", s => s.delete(key)); },
+        keys(prefix) { return this.run("readonly", s => s.getAllKeys(IDBKeyRange.bound(prefix, prefix + "\uffff"))); },
+        removeAll(prefix) { return this.run("readwrite", s => s.delete(IDBKeyRange.bound(prefix, prefix + "\uffff"))); },
+    },
+
     /** Opens the browser's print dialog for the document in an iframe (the print preview). */
     printFrame(frame) {
         frame.contentWindow.focus();

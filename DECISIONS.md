@@ -259,7 +259,7 @@ algorithm works on setup + assignment. UI code never goes into model or algorith
 8. **Background images**
 9. Later: the mobile page
 
-Status (2026-11-05): steps 1–7 done.
+Status (2026-11-05): steps 1–8 done.
 
 Notes from step 3:
 - Undo/redo stores a snapshot of the project before each edit (`EditHistory`); the edit logic itself lives in
@@ -331,3 +331,25 @@ Notes from step 7:
 - Printing reads the plan leniently (`PrintedPlan`): seats that no longer exist and deleted groups are left out;
   the page warns when groups are not fully seated.
 - Not done: folded tent cards, a fit-to-width preview, the mobile page (step 9).
+
+Notes from step 8:
+- **Background image per floor**, in the floor's panel of the layout editor (nothing selected): Add image, Set scale,
+  opacity, Left/Top, Locked, Show on the poster, Replace, Remove. It is drawn under the floor in the layout editor and
+  on the Plan page, and (faded to 60 % of its opacity) on the poster when chosen.
+- **Model:** `Floor.Background` holds only settings (image ID, pixel size, top-left position, metres per pixel,
+  opacity, locked, show on poster), edited through `BackgroundOperations` and undoable. The **image itself is not in
+  the model**, because every undo step serializes the whole project; images are `ProjectImage(Id, DataUrl)`.
+- **Storage:** images are in **IndexedDB** (`tableplanner` / `images`, key `projectId/imageId`), the project stays in
+  localStorage. Deleting a project deletes its images. Images no longer used are deleted when the project is next
+  opened (not during editing, since undo may bring a removed background back).
+- **Project file:** `ProjectSerializer.SerializeFile` adds an `images` array (ID + data URL) for the images in use;
+  `Deserialize` returns them and accepts only `data:image/…` URLs. Older files simply have no images. Undo snapshots
+  and the localStorage copy use `Serialize`, without images.
+- **Upload:** PNG or JPG (up to 30 MB), downscaled in the browser to at most 2,000 px on the longest side and stored
+  as JPEG (quality 0.88, transparency on white). A new image is placed at the top left, as wide as the floor's
+  contents (at least 30 m). A replaced image of the same pixel width keeps position, scale and settings.
+- **Set scale:** click two points on the floor, enter their real distance; the image is scaled around the first point.
+  The canvas now extends up/left when something (such as a scaled image) lies at negative coordinates.
+- **Moving:** drag the image when it is unlocked (or type Left/Top); a locked image ignores the mouse, so clicks go to
+  the floor as before.
+- Not done: rotating the image, cropping, several images per floor.

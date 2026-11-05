@@ -1,13 +1,14 @@
-@* Draws one floor as SVG and lets the user select, drag and resize its tables and elements.
-   Coordinates in the SVG are metres; Scale is pixels per metre. All changes go through History. *@
+@* Draws one floor as SVG and lets the user select, drag and resize its tables and elements, and drag an unlocked
+   background image. Coordinates in the SVG are metres; Scale is pixels per metre. All changes go through History. *@
 @inject IJSRuntime JS
 @using static TablePlanner.Web.Formatting
 @using TablePlanner.Core.Graph
 
 @if (Floor is { } floor)
 {
-    var (width, height) = Extent(floor);
-    <svg @ref="_svg" class="floor-canvas" width="@Svg(width * Scale)" height="@Svg(height * Scale)" viewBox="0 0 @Svg(width) @Svg(height)"
+    var extent = CanvasExtent.Of(floor);
+    var (width, height) = (extent.Width, extent.Height);
+    <svg @ref="_svg" class="floor-canvas @(Calibrating ? "calibrating" : "")" width="@Svg(width * Scale)" height="@Svg(height * Scale)" viewBox="@Svg(extent.Left) @Svg(extent.Top) @Svg(width) @Svg(height)"
          @onpointerdown="OnBackgroundDown" @onpointermove="OnPointerMove" @onpointerup="OnPointerUp" @onpointercancel="OnPointerUp">
         <defs>
             <pattern id="grid-minor" width="@Svg(Grid.DefaultStep)" height="@Svg(Grid.DefaultStep)" patternUnits="userSpaceOnUse">
@@ -18,7 +19,16 @@
                 <path d="M 5 0 L 0 0 0 5" class="grid-major" />
             </pattern>
         </defs>
-        <rect width="@Svg(width)" height="@Svg(height)" fill="url(#grid-major)" />
+        <rect x="@Svg(extent.Left)" y="@Svg(extent.Top)" width="@Svg(width)" height="@Svg(height)" fill="url(#grid-major)" />
+
+        @if (floor.Background is { } background && BackgroundUrl is { } url)
+        {
+            <image class="background-image @(background.Locked ? "locked" : "")" href="@url" preserveAspectRatio="none"
+                   x="@Svg(background.X)" y="@Svg(background.Y)" width="@Svg(background.Width)" height="@Svg(background.Height)" opacity="@Svg(background.Opacity)"
+                   @onpointerdown="OnBackgroundImageDown" @onpointerdown:stopPropagation="!background.Locked">
+                <title>Background image: drag to move it, or lock it in the panel</title>
+            </image>
+        }
 
         @foreach (var element in floor.Elements)
         {
@@ -72,11 +82,21 @@
                 <title>Drag to add or remove seats</title>
             </rect>
         }
+
+        @* While setting the image scale, a layer on top takes the clicks: first and second point. *@
+        @if (Calibrating)
+        {
+            <rect class="calibration-layer" x="@Svg(extent.Left)" y="@Svg(extent.Top)" width="@Svg(width)" height="@Svg(height)" @onpointerdown="OnCalibrationDown" @onpointerdown:stopPropagation="true" />
+            @if (_calibrationStart is { } start)
+            {
+                <circle class="calibration-point" cx="@Svg(start.X)" cy="@Svg(start.Y)" r="0.15" />
+            }
+        }
     </svg>
 }
 
 @code {
-    private enum DragMode { None, Move, Resize }
+    private enum DragMode { None, Move, Resize, MoveBackground }
 
     private ElementReference _svg;
     private DragMode _mode;
@@ -84,6 +104,8 @@
     private Dictionary<Guid, (double X, double Y)> _startPositions = [];
     private Guid _resizeTableId;
     private int _startSeatsPerSide;
+    private (double X, double Y) _startBackground;
+    private Point? _calibrationStart;
     private PendingEdit? _pending;
 
     [Parameter, EditorRequired] public EditHistory History { get; set; } = default!;
@@ -100,16 +122,16 @@
     /// <summary>Draws lines between tables that count as adjacent (for keeping groups close).</summary>
     [Parameter] public bool ShowAdjacency { get; set; }
 
-    private Floor? Floor => History.Project.Setup.Floors.FirstOrDefault(f => f.Id == FloorId);
+    /// <summary>The floor's background image as a data URL, or null when there is none.</summary>
+    [Parameter] public string? BackgroundUrl { get; set; }
 
-    /// <summary>The drawing area: the floor's contents plus a margin, at least 30 × 20 m.</summary>
-    private static (double Width, double Height) Extent(Floor floor)
-    {
-        var bounds = floor.Tables.Select(TableGeometry.GetBounds).Concat(floor.Elements.Select(FloorElementGeometry.GetBounds)).ToList();
-        var right = bounds.Count == 0 ? 0 : bounds.Max(b => b.Right);
-        var bottom = bounds.Count == 0 ? 0 : bounds.Max(b => b.Bottom);
-        return (Math.Max(30, Math.Ceiling(right) + 5), Math.Max(20, Math.Ceiling(bottom) + 5));
-    }
+    /// <summary>When on, the next two clicks pick the points for setting the background image's scale.</summary>
+    [Parameter] public bool Calibrating { get; set; }
+
+    /// <summary>Raised with the two points (in metres, as drawn now) picked while <see cref="Calibrating"/>.</summary>
+    [Parameter] public EventCallback<(Point First, Point Second)> CalibrationPicked { get; set; }
+
+    private Floor? Floor => History.Project.Setup.Floors.FirstOrDefault(f => f.Id == FloorId);
 
     private const double HandleSize = 0.3;
 
@@ -169,6 +191,37 @@
         await JS.InvokeVoidAsync("tablePlanner.capturePointer", _svg, e.PointerId);
     }
 
+    protected override void OnParametersSet()
+    {
+        if (!Calibrating)
+            _calibrationStart = null;
+    }
+
+    private async Task OnBackgroundImageDown(PointerEventArgs e)
+    {
+        if (e.Button != 0 || Floor?.Background is not { Locked: false } background)
+            return;
+        if (Selection.Count > 0)
+            await SelectionChanged.InvokeAsync(new HashSet<Guid>());
+        _startBackground = (background.X, background.Y);
+        await BeginDrag(e, DragMode.MoveBackground);
+    }
+
+    private async Task OnCalibrationDown(PointerEventArgs e)
+    {
+        if (e.Button != 0)
+            return;
+        var xy = await JS.InvokeAsync<double[]>("tablePlanner.svgPoint", _svg, e.ClientX, e.ClientY);
+        var point = new Point(xy[0], xy[1]);
+        if (_calibrationStart is not { } start)
+        {
+            _calibrationStart = point;
+            return;
+        }
+        _calibrationStart = null;
+        await CalibrationPicked.InvokeAsync((start, point));
+    }
+
     private async Task OnBackgroundDown(PointerEventArgs e)
     {
         if (e.Button == 0 && !e.ShiftKey && !e.CtrlKey && Selection.Count > 0)
@@ -196,6 +249,11 @@
             foreach (var element in floor.Elements.Where(el => _startPositions.ContainsKey(el.Id)))
                 (element.X, element.Y) = (_startPositions[element.Id].X + dx, _startPositions[element.Id].Y + dy);
         }
+        else if (_mode == DragMode.MoveBackground)
+        {
+            if (floor.Background is { } background)
+                (background.X, background.Y) = (_startBackground.X + dx, _startBackground.Y + dy);
+        }
         else if (History.Project.Setup.FindTable(_resizeTableId) is { } table)
         {
             var axis = new Point(1, 0).Rotate(table.Rotation);
@@ -209,7 +267,12 @@
     {
         if (_mode == DragMode.None)
             return;
-        var description = _mode == DragMode.Move ? (_startPositions.Count == 1 ? "Move item" : "Move items") : "Resize table";
+        var description = _mode switch
+        {
+            DragMode.Move => _startPositions.Count == 1 ? "Move item" : "Move items",
+            DragMode.MoveBackground => "Move background image",
+            _ => "Resize table",
+        };
         _mode = DragMode.None;
         _pending?.Commit(description);
         _pending = null;

@@ -168,7 +168,7 @@
 
         var plan = new PrintedPlan(project.Setup, assignment);
         _notSeated = project.Setup.Groups.Count(g => g.PeopleCount > 0 && plan.Seated(g) < g.PeopleCount);
-        var data = _kind == PrintKind.TableCards ? TableCards.BuildData(project.Name, plan) : Poster.BuildData(project.Name, plan, _poster);
+        var data = _kind == PrintKind.TableCards ? TableCards.BuildData(project.Name, plan) : Poster.BuildData(project.Name, plan, _poster, Session.Images);
         try
         {
             var result = HtmlTemplate.Render(Template, data);

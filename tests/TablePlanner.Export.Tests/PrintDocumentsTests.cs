@@ -127,6 +127,25 @@ public class PrintDocumentsTests
         Assert.Equal(16, svg.Split("class=\"seat\"").Length - 1);
     }
 
+    [Theory]
+    [InlineData(true, true)]
+    [InlineData(false, false)]
+    public void The_background_image_is_on_the_poster_only_when_wanted(bool showOnPoster, bool expected)
+    {
+        var (project, _, _, _, _) = Setup();
+        var floor = project.Setup.Floors[0];
+        var imageId = Guid.NewGuid();
+        floor.Background = new FloorBackground { ImageId = imageId, PixelWidth = 100, PixelHeight = 50, MetresPerPixel = 0.2, ShowOnPoster = showOnPoster };
+        var images = new Dictionary<Guid, string> { [imageId] = "data:image/jpeg;base64,AAAA" };
+
+        var data = Poster.BuildData(project.Name, new PrintedPlan(project.Setup, project.CurrentAssignment), new PosterOptions(), images);
+        var svg = ((RawHtml)List(data, "Floors")[0]["FloorPlan"]!).Html;
+
+        Assert.Equal(expected, svg.Contains("<image class=\"background-image\" href=\"data:image/jpeg;base64,AAAA\""));
+        if (expected)
+            Assert.Contains("width=\"20\" height=\"10\" opacity=\"0.3\"", svg);
+    }
+
     /// <summary>A plan that seats every group of the example project, table by table.</summary>
     private static EventProject SeatedExample()
     {

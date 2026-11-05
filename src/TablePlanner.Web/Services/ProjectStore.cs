@@ -12,8 +12,11 @@ public sealed record ProjectSummary(Guid Id, string Name, DateTimeOffset Updated
 [JsonSerializable(typeof(List<ProjectSummary>))]
 internal sealed partial class StoreJsonContext : JsonSerializerContext;
 
-/// <summary>Keeps projects in the browser's localStorage: one entry per project plus an index for the project list.</summary>
-public sealed class ProjectStore(IJSRuntime js)
+/// <summary>
+/// Keeps projects in the browser's localStorage: one entry per project plus an index for the project list.
+/// Their images are in <see cref="ImageStore"/>.
+/// </summary>
+public sealed class ProjectStore(IJSRuntime js, ImageStore images)
 {
     private const string IndexKey = "tableplanner:index";
 
@@ -60,6 +63,7 @@ public sealed class ProjectStore(IJSRuntime js)
     public async Task DeleteAsync(Guid id)
     {
         await js.InvokeVoidAsync("localStorage.removeItem", ProjectKey(id));
+        await images.DeleteAllAsync(id);
         var index = await ListAsync();
         index.RemoveAll(p => p.Id == id);
         await WriteIndexAsync(index);

@@ -134,7 +134,8 @@
                 return;
         }
 
-        await OpenNew(project);
+        await Session.OpenNewAsync(project, result.Images);
+        Open(project.Id);
     }
 
     private async Task Delete(ProjectSummary project)

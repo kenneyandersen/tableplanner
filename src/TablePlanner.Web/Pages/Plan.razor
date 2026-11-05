@@ -77,7 +77,7 @@
                             Click a seat to move @moving.Name there, or another group's seat to swap. Esc cancels.
                         </MudChip>
                     }
-                    <PlanCanvas Setup="setup" FloorId="floor.Id" Assignment="DisplayedAssignment" Colours="_colours" Scale="_scale"
+                    <PlanCanvas Setup="setup" FloorId="floor.Id" Assignment="DisplayedAssignment" Colours="_colours" Scale="_scale" BackgroundUrl="@Session.ImageUrl(floor.Background?.ImageId)"
                                 Selected="_highlight" Pinned="_pinned" MoveMode="_moving" SeatClicked="OnSeatClicked" GroupClicked="HighlightGroup" />
                 </div>
                 <div class="editor-side">

@@ -5,15 +5,22 @@
 
 @if (Floor is { } floor)
 {
-    var (width, height) = Extent(floor);
-    <svg class="floor-canvas plan-canvas @(MoveMode ? "move-mode" : "")" width="@Svg(width * Scale)" height="@Svg(height * Scale)" viewBox="0 0 @Svg(width) @Svg(height)"
+    var extent = CanvasExtent.Of(floor);
+    var (width, height) = (extent.Width, extent.Height);
+    <svg class="floor-canvas plan-canvas @(MoveMode ? "move-mode" : "")" width="@Svg(width * Scale)" height="@Svg(height * Scale)" viewBox="@Svg(extent.Left) @Svg(extent.Top) @Svg(width) @Svg(height)"
          @onclick="() => GroupClicked.InvokeAsync(null)">
         <defs>
             <pattern id="plan-grid" width="5" height="5" patternUnits="userSpaceOnUse">
                 <path d="M 5 0 L 0 0 0 5" class="grid-major" />
             </pattern>
         </defs>
-        <rect width="@Svg(width)" height="@Svg(height)" fill="url(#plan-grid)" />
+        <rect x="@Svg(extent.Left)" y="@Svg(extent.Top)" width="@Svg(width)" height="@Svg(height)" fill="url(#plan-grid)" />
+
+        @if (floor.Background is { } background && BackgroundUrl is { } url)
+        {
+            <image class="background-image locked" href="@url" preserveAspectRatio="none" opacity="@Svg(background.Opacity)"
+                   x="@Svg(background.X)" y="@Svg(background.Y)" width="@Svg(background.Width)" height="@Svg(background.Height)" />
+        }
 
         @foreach (var element in floor.Elements)
         {
@@ -67,6 +74,9 @@
     [Parameter, EditorRequired] public SeatingAssignment Assignment { get; set; } = default!;
     [Parameter, EditorRequired] public IReadOnlyDictionary<Guid, string> Colours { get; set; } = default!;
 
+    /// <summary>The floor's background image as a data URL, or null when there is none.</summary>
+    [Parameter] public string? BackgroundUrl { get; set; }
+
     /// <summary>Pixels per metre.</summary>
     [Parameter] public double Scale { get; set; } = 40;
 
@@ -88,12 +98,4 @@
 
     protected override void OnParametersSet() =>
         _groupAt = Assignment.Seats.GroupBy(s => s.Seat).ToDictionary(g => g.Key, g => g.First().GroupId);
-
-    private static (double Width, double Height) Extent(Floor floor)
-    {
-        var bounds = floor.Tables.Select(TableGeometry.GetBounds).Concat(floor.Elements.Select(FloorElementGeometry.GetBounds)).ToList();
-        var right = bounds.Count == 0 ? 0 : bounds.Max(b => b.Right);
-        var bottom = bounds.Count == 0 ? 0 : bounds.Max(b => b.Bottom);
-        return (Math.Max(30, Math.Ceiling(right) + 5), Math.Max(20, Math.Ceiling(bottom) + 5));
-    }
 }

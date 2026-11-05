@@ -116,7 +116,8 @@ public static class Poster
         new("Colour", "The group's colour."),
     ];
 
-    public static TemplateData BuildData(string eventName, PrintedPlan plan, PosterOptions options)
+    /// <param name="images">The project's images by ID (data URLs), for floor backgrounds shown on the poster.</param>
+    public static TemplateData BuildData(string eventName, PrintedPlan plan, PosterOptions options, IReadOnlyDictionary<Guid, string>? images = null)
     {
         var colours = GroupColours.For(plan.Setup);
         var (shortSide, longSide) = options.Paper == PaperSize.A3 ? (297, 420) : (210, 297);
@@ -151,7 +152,9 @@ public static class Poster
             {
                 ["FloorName"] = f.Name,
                 // Drawing is the slow part; skip it when the pages are not wanted.
-                ["FloorPlan"] = new RawHtml(options.ShowFloorPlans ? FloorPlanSvg.Render(f, plan, colours) : ""),
+                ["FloorPlan"] = new RawHtml(options.ShowFloorPlans
+                    ? FloorPlanSvg.Render(f, plan, colours, f.Background is { } b ? images?.GetValueOrDefault(b.ImageId) : null)
+                    : ""),
             }).ToList(),
             ["Groups"] = groups.Select(g => g.Data).ToList(),
             ["Letters"] = groups.GroupBy(g => g.Letter)

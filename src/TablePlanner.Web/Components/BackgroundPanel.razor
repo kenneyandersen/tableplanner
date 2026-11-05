@@ -1,0 +1,102 @@
+@* The floor's background image: upload or replace it, set its scale, opacity and position, lock or remove it. *@
+@inject ProjectSession Session
+@inject ImageStore Images
+@inject ISnackbar Snackbar
+
+<MudText Typo="Typo.h6" Class="mt-4" GutterBottom="true">Background image</MudText>
+@if (Floor?.Background is not { } background)
+{
+    <MudText Typo="Typo.body2" Class="mb-2">Put the venue's floor plan (PNG or JPG) under the floor to place the tables on it.</MudText>
+    <MudButton HtmlTag="label" Size="Size.Small" Variant="Variant.Outlined" StartIcon="@Icons.Material.Filled.Image" for="background-file"
+               Disabled="_loading">@(_loading ? "Loading…" : "Add image")</MudButton>
+}
+else
+{
+    <MudStack Spacing="2">
+        @if (Session.ImageUrl(background.ImageId) is { } url)
+        {
+            <img class="background-thumb" src="@url" alt="Background image of @Floor.Name" />
+        }
+        else
+        {
+            <MudAlert Severity="Severity.Warning" Dense="true">The image is missing in this browser. Add it again.</MudAlert>
+        }
+        <MudText Typo="Typo.body2">
+            @Formatting.Svg(Math.Round(background.Width, 1)) × @Formatting.Svg(Math.Round(background.Height, 1)) m
+            (@background.PixelWidth × @background.PixelHeight pixels)
+        </MudText>
+        <MudButton Size="Size.Small" Variant="Variant.Outlined" StartIcon="@Icons.Material.Filled.Straighten" OnClick="OnCalibrate">Set scale</MudButton>
+        <MudText Typo="Typo.caption" Class="mud-text-secondary">Click two points with a known distance, e.g. the ends of a wall, and enter how far apart they are.</MudText>
+        <div>
+            <MudText Typo="Typo.caption">Opacity @((int)Math.Round(background.Opacity * 100)) %</MudText>
+            <MudSlider T="double" Value="background.Opacity" Min="0.1" Max="1" Step="0.05" Color="Color.Primary"
+                       ValueChanged="@(v => Edit("Change image opacity", p => BackgroundOperations.SetOpacity(p, FloorId, v)))" />
+        </div>
+        <MudStack Row="true">
+            <MudNumericField T="double" Label="Left (m)" Value="Math.Round(background.X, 2)" Step="0.5" Variant="Variant.Outlined" Margin="Margin.Dense" Disabled="background.Locked"
+                             ValueChanged="@(v => Edit("Move background image", p => BackgroundOperations.Move(p, FloorId, v, background.Y)))" />
+            <MudNumericField T="double" Label="Top (m)" Value="Math.Round(background.Y, 2)" Step="0.5" Variant="Variant.Outlined" Margin="Margin.Dense" Disabled="background.Locked"
+                             ValueChanged="@(v => Edit("Move background image", p => BackgroundOperations.Move(p, FloorId, background.X, v)))" />
+        </MudStack>
+        <MudSwitch T="bool" Value="background.Locked" Color="Color.Primary" Label="Locked (can't be dragged)"
+                   ValueChanged="@(v => Edit(v ? "Lock background image" : "Unlock background image", p => FloorOf(p).Background!.Locked = v))" />
+        <MudSwitch T="bool" Value="background.ShowOnPoster" Color="Color.Primary" Label="Show on the poster"
+                   ValueChanged="@(v => Edit("Change poster image", p => FloorOf(p).Background!.ShowOnPoster = v))" />
+        <MudStack Row="true" Spacing="1">
+            <MudButton HtmlTag="label" Size="Size.Small" Variant="Variant.Outlined" StartIcon="@Icons.Material.Filled.Image" for="background-file"
+                       Disabled="_loading">@(_loading ? "Loading…" : "Replace")</MudButton>
+            <MudButton Size="Size.Small" Variant="Variant.Outlined" Color="Color.Error" StartIcon="@Icons.Material.Filled.Delete"
+                       OnClick="@(() => Edit("Remove background image", p => BackgroundOperations.Remove(p, FloorId)))">Remove</MudButton>
+        </MudStack>
+    </MudStack>
+}
+<InputFile id="background-file" accept="image/png,image/jpeg,.png,.jpg,.jpeg" OnChange="Upload" hidden @key="_fileKey" />
+
+@code {
+    private const long MaxUploadBytes = 30_000_000;
+
+    private bool _loading;
+    private int _fileKey;
+
+    [Parameter, EditorRequired] public EditHistory History { get; set; } = default!;
+    [Parameter, EditorRequired] public Guid FloorId { get; set; }
+
+    /// <summary>Raised when the user wants to set the scale by picking two points on the floor.</summary>
+    [Parameter] public EventCallback OnCalibrate { get; set; }
+
+    private Floor? Floor => History.Project.Setup.Floors.FirstOrDefault(f => f.Id == FloorId);
+
+    private Floor FloorOf(EventProject project) => project.Setup.Floors.First(f => f.Id == FloorId);
+
+    private void Edit(string description, Action<EventProject> edit) => History.Execute(description, edit);
+
+    private async Task Upload(InputFileChangeEventArgs e)
+    {
+        _fileKey++;
+        _loading = true;
+        try
+        {
+            using var stream = new MemoryStream();
+            await e.File.OpenReadStream(MaxUploadBytes).CopyToAsync(stream);
+            var image = await Images.PrepareAsync(stream.ToArray());
+            var imageId = await Session.AddImageAsync(image.DataUrl);
+            var replacing = Floor?.Background is not null;
+            Edit(replacing ? "Replace background image" : "Add background image",
+                p => BackgroundOperations.SetImage(p, FloorId, imageId, image.Width, image.Height));
+            if (!replacing)
+                Snackbar.Add("Image added. Use Set scale so its distances match the tables, then lock it.", Severity.Info);
+        }
+        catch (IOException ex)
+        {
+            Snackbar.Add($"Could not read the file: {ex.Message}", Severity.Error);
+        }
+        catch (JSException)
+        {
+            Snackbar.Add("The file could not be used as an image, or there is no room left in the browser. Use a PNG or JPG file.", Severity.Error);
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+}

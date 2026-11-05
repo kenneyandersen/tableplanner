@@ -19,7 +19,7 @@ public static class SetupOperations
         return floor;
     }
 
-    /// <summary>Copies a floor with all its tables and elements as a new floor. Tables get the new floor's numbers.</summary>
+    /// <summary>Copies a floor with all its tables, elements and background image as a new floor. Tables get the new floor's numbers.</summary>
     public static Floor DuplicateFloor(EventProject project, Guid floorId)
     {
         var source = GetFloor(project, floorId);
@@ -31,6 +31,7 @@ public static class SetupOperations
             copy.Tables.Add(clone);
         }
         copy.Elements.AddRange(source.Elements.Select(CloneElement));
+        copy.Background = source.Background is { } b ? BackgroundOperations.Clone(b) : null;
         return copy;
     }
 

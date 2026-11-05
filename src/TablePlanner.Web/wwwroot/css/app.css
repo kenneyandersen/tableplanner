@@ -237,6 +237,14 @@ code {
 .table-list-row .groups { color: var(--mud-palette-text-secondary); }
 .link-like { cursor: pointer; text-decoration: underline dotted; }
 
+/* ---- Background images ---- */
+
+.background-image { cursor: move; }
+.background-image.locked { pointer-events: none; }
+.floor-canvas.calibrating .calibration-layer { fill: transparent; cursor: crosshair; }
+.calibration-point { fill: #e53935; stroke: #fff; stroke-width: 0.04; pointer-events: none; }
+.background-thumb { width: 100%; max-height: 120px; object-fit: contain; border: 1px solid var(--mud-palette-lines-default); border-radius: 4px; background: #fafafa; }
+
 /* ---- Print ---- */
 
 .print-messages { padding: 8px 12px 0; flex: none; }

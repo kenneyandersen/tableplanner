@@ -2,6 +2,7 @@
 @implements IDisposable
 @inject ProjectSession Session
 @inject IJSRuntime JS
+@inject IDialogService Dialogs
 
 <PageTitle>Layout · Table Planner</PageTitle>
 
@@ -72,12 +73,20 @@
     
             <div class="editor-body">
                 <div class="editor-canvas" tabindex="0" @ref="_canvasHost" @onkeydown="OnKeyDown">
+                    @if (_calibrating)
+                    {
+                        <MudChip T="string" Color="Color.Primary" Class="move-hint" OnClose="@(() => _calibrating = false)">
+                            Setting the scale: click the first point, then the second. Esc cancels.
+                        </MudChip>
+                    }
                     <FloorCanvas History="history" FloorId="floor.Id" Selection="_selection" SelectionChanged="SetSelection"
-                                 Scale="_scale" EditSeats="_editSeats" ShowAdjacency="_showAdjacency" />
+                                 Scale="_scale" EditSeats="_editSeats" ShowAdjacency="_showAdjacency"
+                                 BackgroundUrl="@Session.ImageUrl(floor.Background?.ImageId)"
+                                 Calibrating="_calibrating" CalibrationPicked="Calibrate" />
                 </div>
                 <div class="editor-side">
                     <PropertiesPanel History="history" FloorId="floor.Id" Selection="_selection"
-                                     @bind-EditSeats="_editSeats" FloorSelected="SelectFloor" />
+                                     @bind-EditSeats="_editSeats" FloorSelected="SelectFloor" CalibrateRequested="StartCalibrating" />
                     <IssuesPanel Setup="history.Project.Setup" />
                 </div>
             </div>
@@ -106,6 +115,7 @@
     private bool _editSeats;
     private double _scale = DefaultScale;
     private bool _showAdjacency;
+    private bool _calibrating;
 
     [Parameter] public Guid Id { get; set; }
 
@@ -143,6 +153,7 @@
     private void SelectFloor(Guid floorId)
     {
         _floorId = floorId;
+        _calibrating = false;
         _selection = [];
         _editSeats = false;
     }
@@ -217,6 +228,27 @@
             History.Execute("Move", p => SetupOperations.MoveItems(p, CurrentFloor!.Id, _selection, dx, dy));
     }
 
+    private async Task StartCalibrating()
+    {
+        _calibrating = true;
+        SetSelection(new HashSet<Guid>());
+        await _canvasHost.FocusAsync();
+    }
+
+    /// <summary>Asks for the real distance between the two picked points and scales the image to match.</summary>
+    private async Task Calibrate((Point First, Point Second) points)
+    {
+        _calibrating = false;
+        var (a, b) = points;
+        var drawn = Math.Sqrt(Math.Pow(b.X - a.X, 2) + Math.Pow(b.Y - a.Y, 2));
+        if (drawn < 0.05 || CurrentFloor?.Background is null)
+            return;
+        var dialog = await Dialogs.ShowAsync<ScaleDialog>("Set the image scale",
+            new DialogParameters<ScaleDialog> { { x => x.DrawnDistance, drawn } }, new DialogOptions { MaxWidth = MaxWidth.ExtraSmall, FullWidth = true });
+        if (await dialog.Result is { Canceled: false, Data: double metres } && metres > 0)
+            History.Execute("Set image scale", p => BackgroundOperations.Calibrate(p, CurrentFloor!.Id, a, b, metres));
+    }
+
     private void Zoom(double delta) => _scale = Math.Clamp(_scale + delta, MinScale, MaxScale);
 
     private void OnKeyDown(KeyboardEventArgs e)
@@ -227,7 +259,10 @@
         {
             case "r" or "R" when !ctrl: RotateSelected(); break;
             case "Delete" or "Backspace": DeleteSelected(); break;
-            case "Escape": SetSelection(new HashSet<Guid>()); break;
+            case "Escape":
+                _calibrating = false;
+                SetSelection(new HashSet<Guid>());
+                break;
             case "ArrowLeft": Nudge(-step, 0); break;
             case "ArrowRight": Nudge(step, 0); break;
             case "ArrowUp": Nudge(0, -step); break;

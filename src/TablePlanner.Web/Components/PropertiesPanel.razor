@@ -83,6 +83,8 @@
             </MudStack>
         </MudStack>
 
+        <BackgroundPanel History="History" FloorId="floor.Id" OnCalibrate="CalibrateRequested" />
+
         <MudText Typo="Typo.subtitle2" Class="mt-4">Tips</MudText>
         <MudText Typo="Typo.body2">
             Drag to move (snaps to 0.5 m; hold Alt to move freely). Shift-click to select several.
@@ -98,6 +100,9 @@
     [Parameter, EditorRequired] public IReadOnlySet<Guid> Selection { get; set; } = default!;
     [Parameter] public bool EditSeats { get; set; }
     [Parameter] public EventCallback<bool> EditSeatsChanged { get; set; }
+
+    /// <summary>Raised when the user wants to set the background image's scale by picking two points.</summary>
+    [Parameter] public EventCallback CalibrateRequested { get; set; }
 
     /// <summary>Raised with the floor to show after a floor is duplicated or deleted.</summary>
     [Parameter] public EventCallback<Guid> FloorSelected { get; set; }

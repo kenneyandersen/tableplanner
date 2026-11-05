@@ -1,0 +1,27 @@
+@* Asks for the real distance between the two points picked on the background image. Returns it in metres. *@
+
+<MudDialog>
+    <DialogContent>
+        <MudText Typo="Typo.body2" Class="mb-3">
+            The two points are @Formatting.Svg(Math.Round(DrawnDistance, 2)) m apart as the image is drawn now.
+            How far apart are they in reality? The image is resized to match, around the first point.
+        </MudText>
+        <MudNumericField T="double" Label="Real distance (m)" @bind-Value="_metres" Min="0.1" Step="0.5" Variant="Variant.Outlined"
+                         Margin="Margin.Dense" AutoFocus="true" />
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="() => Dialog.Cancel()">Cancel</MudButton>
+        <MudButton Color="Color.Primary" Variant="Variant.Filled" Disabled="_metres <= 0" OnClick="() => Dialog.Close(DialogResult.Ok(_metres))">Set scale</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    private double _metres;
+
+    [CascadingParameter] private IMudDialogInstance Dialog { get; set; } = null!;
+
+    /// <summary>The distance between the points as the image is drawn now, in metres.</summary>
+    [Parameter] public double DrawnDistance { get; set; }
+
+    protected override void OnInitialized() => _metres = Math.Round(DrawnDistance, 1);
+}

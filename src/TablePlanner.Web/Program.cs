@@ -9,6 +9,7 @@ builder.RootComponents.Add<App>("#app");
 builder.RootComponents.Add<HeadOutlet>("head::after");
 
 builder.Services.AddMudServices();
+builder.Services.AddScoped<ImageStore>();
 builder.Services.AddScoped<ProjectStore>();
 builder.Services.AddScoped<ProjectSession>();
 builder.Services.AddScoped<TemplateStore>();

@@ -38,7 +38,7 @@
             <PriorityField Label="Per extra table" @bind-Value="_p.TableSplitPenalty" />
             <PriorityField Label="Per part not next to the rest" @bind-Value="_p.DistantTableSplitPenalty" />
             <PriorityField Label="Per extra floor" @bind-Value="_p.FloorSplitPenalty" />
-            <PriorityField Label="Per small part" @bind-Value="_p.SmallFragmentPenalty" />
+            <PriorityField Label="Small part: per person it is short" @bind-Value="_p.SmallFragmentPenalty" />
             <MudItem xs="6" sm="4">
                 <MudNumericField T="int" Label="Small part: fewer than" @bind-Value="_p.MinimumFragmentSize" Min="1" Max="20"
                                  Variant="Variant.Outlined" Margin="Margin.Dense" />

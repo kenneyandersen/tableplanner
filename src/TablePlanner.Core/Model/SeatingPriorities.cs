@@ -28,11 +28,14 @@ public sealed class SeatingPriorities
     /// <summary>Makes splitting across floors a hard rule rather than a penalty.</summary>
     public bool NeverSplitAcrossFloors { get; set; }
 
-    /// <summary>Avoid leaving fewer than this many people of a group alone at a table.</summary>
-    public int MinimumFragmentSize { get; set; } = 4;
+    /// <summary>Avoid leaving fewer than this many people of a group alone at a table (so 1–4 with the default).</summary>
+    public int MinimumFragmentSize { get; set; } = 5;
 
-    /// <summary>Per part of a split group with fewer than <see cref="MinimumFragmentSize"/> people.</summary>
-    public double SmallFragmentPenalty { get; set; } = 30;
+    /// <summary>
+    /// For each part of a split group with fewer than <see cref="MinimumFragmentSize"/> people: per person it is short.
+    /// So 4 people at a separate table cost this once, 1 person alone four times: the smaller the part, the worse.
+    /// </summary>
+    public double SmallFragmentPenalty { get; set; } = 150;
 
     /// <summary>Per empty seat between two occupied seats on the same side of a table. Empty seats belong at the table ends.</summary>
     public double EmptySeatGapPenalty { get; set; } = 5;

@@ -16,7 +16,7 @@ public static class PriorityPresets
         {
             Weights(p, new SeatingPriorities());
             (p.TableSplitPenalty, p.DistantTableSplitPenalty, p.FloorSplitPenalty) = (150, 300, 3000);
-            p.SmallFragmentPenalty = 150;
+            p.SmallFragmentPenalty = 400;
             p.PreferenceRankWeights = [100, 30, 10, 3, 1];
             p.MutualPreferenceBonus = 25;
         }),

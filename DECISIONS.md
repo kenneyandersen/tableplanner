@@ -458,3 +458,17 @@ Notes: priority presets (2026-11-05):
   it says "Custom".
 - A preset sets only the weights; the time limit, "never split across floors" and the small-part size stay as the
   user set them. "Balanced" replaces the former "Reset to defaults" button.
+
+Notes: no small parts of large groups (2026-11-05):
+- Problem: a large group was often split into full tables plus a remainder, e.g. Marketing (24) as 20 + 4, and in the
+  large benchmark a group of 41 as 20 + 20 + 1 (one person alone). Packing tightly gives more "same table" pair
+  points than an even split (20 + 4 beats 12 + 12 by about 116), and the old small-part penalty was a flat 30 per
+  part, only for parts under 4.
+- Now a part counts as small below **5** people (`MinimumFragmentSize` = 5, so 1–4), and the penalty grows with how
+  far short it is: **150 per missing person** (`SmallFragmentPenalty`), so 4 people cost 150 and one person alone
+  600. "Keep groups together" uses 400.
+- Measured over 5 seeds each (FragmentDiagnostics): small parts 5 → 0 (example), 5 → 0 (nearly full),
+  10 → 0 (large); first choices unchanged or better (large 251 → 254 of 290; example 40/40). The big groups now take
+  even blocks over adjacent tables (Marketing 104 + 105 instead of 20 + 4). A solver test checks this.
+- Saved projects keep the priorities they were saved with (old numbers show as "Custom"); choose a preset such as
+  Balanced to get the new values.

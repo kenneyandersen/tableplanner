@@ -177,12 +177,16 @@ public sealed class PlanEvaluator
             var tables = _tablesOf[g];
             var minimumPart = Math.Min(p.MinimumFragmentSize, size);
             var smallParts = 0;
+            var shortBy = 0;
             for (var i = 0; i < tables.Count; i++)
             {
                 var c = _tableCount2D[g * _tableCount + tables[i]];
                 score += p.SameTableWeight * c * (c - 1) / 2;
                 if (tables.Count > 1 && c < minimumPart)
+                {
                     smallParts++;
+                    shortBy += minimumPart - c;
+                }
                 for (var j = i + 1; j < tables.Count; j++)
                     if (graph.AreAdjacent(tables[i], tables[j]))
                         score += p.AdjacentTableWeight * c * _tableCount2D[g * _tableCount + tables[j]];
@@ -190,7 +194,7 @@ public sealed class PlanEvaluator
             var parts = Components(tables);
             score -= (tables.Count - 1) * p.TableSplitPenalty;
             score -= (parts - 1) * p.DistantTableSplitPenalty;
-            score -= smallParts * p.SmallFragmentPenalty;
+            score -= shortBy * p.SmallFragmentPenalty;
 
             var floors = _floorsOf[g].Count;
             score -= (floors - 1) * p.FloorSplitPenalty;

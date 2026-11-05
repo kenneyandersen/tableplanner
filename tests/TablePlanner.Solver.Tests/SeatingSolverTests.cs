@@ -53,6 +53,22 @@ public class SeatingSolverTests
         Assert.DoesNotContain(summary.Groups, g => g.HasDistantParts);
     }
 
+    [Theory]
+    [InlineData("example", 1)]
+    [InlineData("example", 2)]
+    [InlineData("large", 1)]
+    [InlineData("large", 2)]
+    public async Task A_split_group_leaves_no_small_part_alone_at_a_table(string name, int seed)
+    {
+        // Before, Marketing (24) became 20 + 4 at 20-seat tables, and a group of 41 even 20 + 20 + 1.
+        var project = name == "example" ? Benchmarks.Example() : Benchmarks.Large();
+
+        var result = await SeatingSolver.SolveAsync(project, new SolverOptions { TimeBudget = TimeSpan.FromSeconds(2), Seed = seed, Yield = _ => Task.CompletedTask });
+
+        Assert.Empty(FragmentDiagnostics.SmallParts(project, result.Assignment!));
+        Assert.All(result.Summary!.Groups, g => Assert.Equal(0, g.SmallParts));
+    }
+
     [Fact]
     public async Task Groups_that_fit_at_one_table_are_not_split()
     {

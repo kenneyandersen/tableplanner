@@ -7,7 +7,7 @@
 @inject IJSRuntime JS
 @using TablePlanner.Export.Printing
 
-<PageTitle>Print · Table Planner</PageTitle>
+<PageTitle>Print and share · Table Planner</PageTitle>
 
 <ProjectLoader Id="Id">
     @{ var project = Session.Project!; }
@@ -16,6 +16,7 @@
             <MudToggleGroup T="PrintKind" Value="_kind" ValueChanged="SetKind" Size="Size.Small" Color="Color.Primary">
                 <MudToggleItem Value="PrintKind.TableCards" Text="Table cards" />
                 <MudToggleItem Value="PrintKind.Poster" Text="Poster" />
+                <MudToggleItem Value="PrintKind.GuestPage" Text="Guest page" />
             </MudToggleGroup>
 
             <MudSelect T="Guid" Value="_planId" ValueChanged="SetPlan" Label="Plan" Dense="true" Margin="Margin.Dense"
@@ -40,20 +41,33 @@
             }
 
             <MudSpacer />
-            <MudSelect T="double" Value="Zoom" ValueChanged="@(v => _zoom[_kind] = v)" Label="Preview size" Dense="true" Margin="Margin.Dense"
-                       Variant="Variant.Outlined" Class="mr-2 print-option" Style="max-width: 120px">
-                @foreach (var zoom in ZoomLevels)
-                {
-                    <MudSelectItem Value="zoom">@($"{zoom:P0}")</MudSelectItem>
-                }
-            </MudSelect>
+            @if (!IsGuestPage)
+            {
+                <MudSelect T="double" Value="Zoom" ValueChanged="@(v => _zoom[_kind] = v)" Label="Preview size" Dense="true" Margin="Margin.Dense"
+                           Variant="Variant.Outlined" Class="mr-2 print-option" Style="max-width: 120px">
+                    @foreach (var zoom in ZoomLevels)
+                    {
+                        <MudSelectItem Value="zoom">@($"{zoom:P0}")</MudSelectItem>
+                    }
+                </MudSelect>
+            }
             <MudButton Variant="@(_editing ? Variant.Filled : Variant.Text)" StartIcon="@Icons.Material.Filled.Code" OnClick="@(() => _editing = !_editing)">
                 @(_editing ? "Close template" : "Edit template")
             </MudButton>
-            <MudTooltip Text="Opens the browser's print dialog. Choose your printer, or 'Save as PDF'.">
-                <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Print" Class="ml-2"
-                           Disabled="_html is null" OnClick="PrintAsync">Print</MudButton>
-            </MudTooltip>
+            @if (IsGuestPage)
+            {
+                <MudTooltip Text="Saves the page as one HTML file. Put it on any web host and share the link, e.g. as a QR code.">
+                    <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Download" Class="ml-2"
+                               Disabled="_html is null" OnClick="DownloadPage">Download page</MudButton>
+                </MudTooltip>
+            }
+            else
+            {
+                <MudTooltip Text="Opens the browser's print dialog. Choose your printer, or 'Save as PDF'.">
+                    <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Print" Class="ml-2"
+                               Disabled="_html is null" OnClick="PrintAsync">Print</MudButton>
+                </MudTooltip>
+            }
         </MudToolBar>
 
         @if (Messages().ToList() is { Count: > 0 } messages)
@@ -72,7 +86,7 @@
                 <div class="template-side">
                     <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="1" Wrap="Wrap.Wrap">
                         <MudText Typo="Typo.subtitle2" Style="flex: 1">
-                            @(_kind == PrintKind.TableCards ? "Table card template" : "Poster template")
+                            @(_kind switch { PrintKind.TableCards => "Table card template", PrintKind.Poster => "Poster template", _ => "Guest page template" })
                             <MudChip T="string" Size="Size.Small" Color="@(IsCustom ? Color.Primary : Color.Default)">@(IsCustom ? "Your own" : "Built-in")</MudChip>
                         </MudText>
                         <MudButton HtmlTag="label" Size="Size.Small" Variant="Variant.Outlined" StartIcon="@Icons.Material.Filled.Upload" for="template-file">Load</MudButton>
@@ -87,21 +101,30 @@
                                   Immediate="true" DebounceInterval="500" Class="template-editor" spellcheck="false" aria-label="Template" />
                     <MudExpansionPanels Dense="true" Outlined="true">
                         <MudExpansionPanel Text="Placeholders">
-                            @PlaceholderList(_kind == PrintKind.TableCards ? TableCards.Placeholders : Poster.Placeholders)
+                            @PlaceholderList(_kind switch { PrintKind.TableCards => TableCards.Placeholders, PrintKind.Poster => Poster.Placeholders, _ => GuestPage.Placeholders })
                             <MudText Typo="Typo.caption" Class="mud-text-secondary mt-2">
                                 {{#List}}…{{/List}} repeats for each item; {{#Flag}}…{{/Flag}} shows only when it is true or not empty,
-                                {{^Flag}}…{{/Flag}} only when it is not. {{! … }} is a comment. Scripts do not run in the preview.
+                                {{^Flag}}…{{/Flag}} only when it is not. {{! … }} is a comment. Scripts run only in the guest page preview.
                             </MudText>
                         </MudExpansionPanel>
                     </MudExpansionPanels>
                 </div>
             }
-            @* No scripts: templates may come from other people. allow-same-origin lets the page call print() on the frame;
-               allow-modals lets the frame open the print dialog. The preview size scales the frame, not the document,
-               so it does not change what is printed. *@
-            <div class="print-preview-box">
-                <iframe @ref="_frame" class="print-preview" title="Print preview" sandbox="allow-same-origin allow-modals" srcdoc="@(_html ?? "")"
-                        style="@FormattableString.Invariant($"width: {100 / Zoom:0.##}%; height: {100 / Zoom:0.##}%; transform: scale({Zoom})")"></iframe>
+            @* Templates may come from other people. Prints: no scripts; allow-same-origin lets the page call print() on the
+               frame and allow-modals lets the frame open the print dialog. The preview size scales the frame, not the
+               document, so it does not change what is printed. The guest page needs its script for the search, so it
+               runs with scripts but without same-origin: it cannot reach the app or its data. A new frame (@key) is
+               made when switching, as a frame keeps its sandbox until it loads a new document. *@
+            <div class="print-preview-box @(IsGuestPage ? "phone-preview" : "")">
+                @if (IsGuestPage)
+                {
+                    <iframe @key="PrintKind.GuestPage" class="print-preview" title="Guest page preview" sandbox="allow-scripts" srcdoc="@(_html ?? "")"></iframe>
+                }
+                else
+                {
+                    <iframe @key="PrintKind.TableCards" @ref="_frame" class="print-preview" title="Print preview" sandbox="allow-same-origin allow-modals" srcdoc="@(_html ?? "")"
+                            style="@FormattableString.Invariant($"width: {100 / Zoom:0.##}%; height: {100 / Zoom:0.##}%; transform: scale({Zoom})")"></iframe>
+                }
             </div>
         </div>
     </div>
@@ -112,7 +135,7 @@
     private static readonly double[] ZoomLevels = [0.25, 0.5, 0.75, 1];
 
     // An A3 poster page is about 1,600 pixels wide, so it starts at half size.
-    private readonly Dictionary<PrintKind, double> _zoom = new() { [PrintKind.TableCards] = 0.75, [PrintKind.Poster] = 0.5 };
+    private readonly Dictionary<PrintKind, double> _zoom = new() { [PrintKind.TableCards] = 0.75, [PrintKind.Poster] = 0.5, [PrintKind.GuestPage] = 1 };
 
     private readonly Dictionary<PrintKind, string?> _custom = [];
     private PrintKind _kind = PrintKind.TableCards;
@@ -132,6 +155,8 @@
     private string Template => _custom.GetValueOrDefault(_kind) ?? DefaultTemplates.For(_kind);
 
     private double Zoom => _zoom[_kind];
+
+    private bool IsGuestPage => _kind == PrintKind.GuestPage;
 
     private bool IsCustom => _custom.GetValueOrDefault(_kind) is not null;
 
@@ -168,7 +193,12 @@
 
         var plan = new PrintedPlan(project.Setup, assignment);
         _notSeated = project.Setup.Groups.Count(g => g.PeopleCount > 0 && plan.Seated(g) < g.PeopleCount);
-        var data = _kind == PrintKind.TableCards ? TableCards.BuildData(project.Name, plan) : Poster.BuildData(project.Name, plan, _poster, Session.Images);
+        var data = _kind switch
+        {
+            PrintKind.TableCards => TableCards.BuildData(project.Name, plan),
+            PrintKind.Poster => Poster.BuildData(project.Name, plan, _poster, Session.Images),
+            _ => GuestPage.BuildData(project.Name, plan, Session.Images),
+        };
         try
         {
             var result = HtmlTemplate.Render(Template, data);
@@ -267,8 +297,16 @@
 
     private async Task DownloadTemplate()
     {
-        var fileName = _kind == PrintKind.TableCards ? "table-cards-template.html" : "poster-template.html";
+        var fileName = _kind switch { PrintKind.TableCards => "table-cards-template.html", PrintKind.Poster => "poster-template.html", _ => "guest-page-template.html" };
         await JS.InvokeVoidAsync("tablePlanner.downloadFile", fileName, "text/html", Template);
+    }
+
+    private async Task DownloadPage()
+    {
+        // A name without spaces or capitals, since it becomes part of the page's web address.
+        var slug = System.Text.RegularExpressions.Regex.Replace(Session.Project!.Name.ToLowerInvariant(), @"[^\p{L}\p{N}]+", "-").Trim('-');
+        var fileName = $"{(slug.Length == 0 ? "event" : slug)}-find-your-table.html";
+        await JS.InvokeVoidAsync("tablePlanner.downloadFile", fileName, "text/html", _html);
     }
 
     private async Task PrintAsync() => await JS.InvokeVoidAsync("tablePlanner.printFrame", _frame);

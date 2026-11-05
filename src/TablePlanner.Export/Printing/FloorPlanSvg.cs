@@ -9,7 +9,9 @@ namespace TablePlanner.Export.Printing;
 /// Draws one floor of a seating plan as an SVG for the poster: floor elements, tables, seats in their group's
 /// colour, table numbers and group names. Coordinates are metres; the SVG has no fixed size, so the template's
 /// CSS decides how large it is. Colours are presentation attributes, so template CSS can override them by class
-/// (<c>element</c>, <c>table</c>, <c>seat</c>, <c>table-number</c>, <c>group-label</c>).
+/// (<c>element</c>, <c>table</c>, <c>seat</c>, <c>table-number</c>, <c>group-label</c>). Tables carry
+/// <c>data-table</c> (the number) and taken seats and group names <c>data-group</c> (see <see cref="GroupKey"/>),
+/// so a page script can highlight a group.
 /// </summary>
 public static class FloorPlanSvg
 {
@@ -18,6 +20,9 @@ public static class FloorPlanSvg
 
     /// <summary>A background image is printed fainter than on screen, so the seating stays easy to read.</summary>
     private const double PosterImageFade = 0.6;
+
+    /// <summary>The short ID of a group used in <c>data-group</c> attributes and the <c>GroupKey</c> placeholder.</summary>
+    public static string GroupKey(Guid groupId) => groupId.ToString("N");
 
     /// <param name="backgroundUrl">The floor's background image as a data URL; drawn only when the floor's
     /// background is set to show on the poster.</param>
@@ -54,20 +59,21 @@ public static class FloorPlanSvg
         {
             var b = TableGeometry.GetBounds(table);
             var seats = TableGeometry.GetSeats(table);
-            svg.Append("<g class=\"table\">");
+            svg.Append($"<g class=\"table\" data-table=\"{table.Number}\">");
             svg.Append($"<rect x=\"{N(b.Left)}\" y=\"{N(b.Top)}\" width=\"{N(b.Width)}\" height=\"{N(b.Height)}\" rx=\"0.05\" fill=\"#f6eedf\" stroke=\"#8d6e45\" stroke-width=\"0.03\"/>");
             foreach (var seat in seats)
             {
-                var fill = plan.GroupAt.TryGetValue(seat.Id, out var groupId) ? colours.GetValueOrDefault(groupId, "#cccccc")
-                    : seat.IsDisabled ? "#d0d0d0" : "#ffffff";
-                svg.Append($"<circle class=\"seat\" cx=\"{N(seat.Position.X)}\" cy=\"{N(seat.Position.Y)}\" r=\"0.22\" fill=\"{HtmlTemplate.Escape(fill)}\" stroke=\"#6b5638\" stroke-width=\"0.03\"/>");
+                var taken = plan.GroupAt.TryGetValue(seat.Id, out var groupId);
+                var fill = taken ? colours.GetValueOrDefault(groupId, "#cccccc") : seat.IsDisabled ? "#d0d0d0" : "#ffffff";
+                var group = taken ? $" data-group=\"{GroupKey(groupId)}\"" : "";
+                svg.Append($"<circle class=\"seat\"{group} cx=\"{N(seat.Position.X)}\" cy=\"{N(seat.Position.Y)}\" r=\"0.22\" fill=\"{HtmlTemplate.Escape(fill)}\" stroke=\"#6b5638\" stroke-width=\"0.03\"/>");
             }
             var number = GroupLabels.TableNumberPosition(table);
             svg.Append($"<text class=\"table-number\" x=\"{N(number.X)}\" y=\"{N(number.Y)}\" font-size=\"{N(GroupLabels.TableNumberFontSize)}\" font-weight=\"700\" fill=\"#6d5534\">{table.Number}</text>");
             foreach (var label in GroupLabels.For(table, seats, plan.GroupAt, plan.Setup))
             {
                 var turn = label.Vertical ? $" transform=\"rotate(90 {N(label.Position.X)} {N(label.Position.Y)})\"" : "";
-                svg.Append($"<text class=\"group-label\" x=\"{N(label.Position.X)}\" y=\"{N(label.Position.Y)}\" font-size=\"{N(label.FontSize)}\" font-weight=\"600\" fill=\"#222222\"{turn}>{HtmlTemplate.Escape(label.Text)}</text>");
+                svg.Append($"<text class=\"group-label\" data-group=\"{GroupKey(label.GroupId)}\" x=\"{N(label.Position.X)}\" y=\"{N(label.Position.Y)}\" font-size=\"{N(label.FontSize)}\" font-weight=\"600\" fill=\"#222222\"{turn}>{HtmlTemplate.Escape(label.Text)}</text>");
             }
             svg.Append("</g>");
         }

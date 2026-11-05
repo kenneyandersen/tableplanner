@@ -107,9 +107,10 @@ public static class Poster
         ]),
     ];
 
-    private static IReadOnlyList<Placeholder> GroupItems =>
+    internal static IReadOnlyList<Placeholder> GroupItems =>
     [
         new("GroupName", "The group's name."),
+        new("GroupKey", "A short ID of the group, as in the floor plans' data-group attributes."),
         new("PeopleCount", "How many people are in the group."),
         new("Tables", "The group's table numbers, e.g. \"104, 105\"."),
         new("FloorName", "The floor (or floors) the group sits on."),
@@ -121,20 +122,7 @@ public static class Poster
     {
         var colours = GroupColours.For(plan.Setup);
         var (shortSide, longSide) = options.Paper == PaperSize.A3 ? (297, 420) : (210, 297);
-        var floors = plan.Setup.Floors.Where(f => f.Tables.Count > 0).ToList();
-
-        var comparer = StringComparer.Create(CultureInfo.InvariantCulture, ignoreCase: true);
-        var groups = plan.Parts.GroupBy(p => p.Group)
-            .OrderBy(g => g.Key.Name, comparer)
-            .Select(g => (Letter: LetterOf(g.Key.Name), Data: new TemplateData
-            {
-                ["GroupName"] = g.Key.Name,
-                ["PeopleCount"] = g.Key.PeopleCount,
-                ["Tables"] = string.Join(", ", g.Select(p => p.Table.Number).Distinct()),
-                ["FloorName"] = string.Join(", ", g.Select(p => p.Floor.Name).Distinct()),
-                ["Colour"] = colours.GetValueOrDefault(g.Key.Id, "#cccccc"),
-            }))
-            .ToList();
+        var groups = GroupList(plan, colours);
 
         return new TemplateData
         {
@@ -145,17 +133,11 @@ public static class Poster
             ["PageHeightMm"] = options.Landscape ? shortSide : longSide,
             ["ShowFloorPlans"] = options.ShowFloorPlans,
             ["ShowGroupList"] = options.ShowGroupList,
-            ["ShowFloorNames"] = floors.Count > 1,
+            ["ShowFloorNames"] = plan.Setup.Floors.Count(f => f.Tables.Count > 0) > 1,
             ["GroupCount"] = groups.Count,
             ["PeopleSeated"] = plan.Parts.Sum(p => p.People),
-            ["Floors"] = floors.Select(f => new TemplateData
-            {
-                ["FloorName"] = f.Name,
-                // Drawing is the slow part; skip it when the pages are not wanted.
-                ["FloorPlan"] = new RawHtml(options.ShowFloorPlans
-                    ? FloorPlanSvg.Render(f, plan, colours, f.Background is { } b ? images?.GetValueOrDefault(b.ImageId) : null)
-                    : ""),
-            }).ToList(),
+            // Drawing is the slow part; skip it when the pages are not wanted.
+            ["Floors"] = FloorList(plan, colours, images, options.ShowFloorPlans),
             ["Groups"] = groups.Select(g => g.Data).ToList(),
             ["Letters"] = groups.GroupBy(g => g.Letter)
                 .Select(l => new TemplateData { ["Letter"] = l.Key, ["Groups"] = l.Select(g => g.Data).ToList() })
@@ -163,9 +145,72 @@ public static class Poster
         };
     }
 
+    /// <summary>The seated groups by name, each with its first letter.</summary>
+    internal static List<(string Letter, TemplateData Data)> GroupList(PrintedPlan plan, IReadOnlyDictionary<Guid, string> colours)
+    {
+        var comparer = StringComparer.Create(CultureInfo.InvariantCulture, ignoreCase: true);
+        return plan.Parts.GroupBy(p => p.Group)
+            .OrderBy(g => g.Key.Name, comparer)
+            .Select(g => (LetterOf(g.Key.Name), new TemplateData
+            {
+                ["GroupName"] = g.Key.Name,
+                ["GroupKey"] = FloorPlanSvg.GroupKey(g.Key.Id),
+                ["PeopleCount"] = g.Key.PeopleCount,
+                ["Tables"] = string.Join(", ", g.Select(p => p.Table.Number).Distinct()),
+                ["FloorName"] = string.Join(", ", g.Select(p => p.Floor.Name).Distinct()),
+                ["Colour"] = colours.GetValueOrDefault(g.Key.Id, "#cccccc"),
+            }))
+            .ToList();
+    }
+
+    /// <summary>The floors with tables, with their floor plans (empty when <paramref name="draw"/> is false).</summary>
+    internal static List<TemplateData> FloorList(PrintedPlan plan, IReadOnlyDictionary<Guid, string> colours, IReadOnlyDictionary<Guid, string>? images, bool draw) =>
+        plan.Setup.Floors.Where(f => f.Tables.Count > 0).Select(f => new TemplateData
+        {
+            ["FloorName"] = f.Name,
+            ["FloorPlan"] = new RawHtml(draw
+                ? FloorPlanSvg.Render(f, plan, colours, f.Background is { } b ? images?.GetValueOrDefault(b.ImageId) : null)
+                : ""),
+        }).ToList();
+
     private static string LetterOf(string name)
     {
         var first = name.TrimStart().FirstOrDefault();
         return char.IsLetter(first) ? char.ToUpperInvariant(first).ToString() : "#";
+    }
+}
+
+/// <summary>
+/// The guest page: one self-contained HTML file to put on any web host, where guests search for their group on their
+/// phone and see their table on the floor plan. Its template has a small script for the search.
+/// </summary>
+public static class GuestPage
+{
+    public static readonly IReadOnlyList<Placeholder> Placeholders =
+    [
+        new("EventName", "The project's name."),
+        new("ShowFloorNames", "True when there is more than one floor with tables."),
+        new("GroupCount", "How many groups are seated."),
+        new("Floors", "The floors with tables.",
+        [
+            new("FloorName", "The floor's name."),
+            new("FloorPlan", "The floor plan as an SVG picture; tables have data-table and seats data-group attributes."),
+        ]),
+        new("Groups", "The seated groups, by name.", Poster.GroupItems),
+    ];
+
+    /// <param name="images">The project's images by ID, for floor backgrounds set to show on the poster.</param>
+    public static TemplateData BuildData(string eventName, PrintedPlan plan, IReadOnlyDictionary<Guid, string>? images = null)
+    {
+        var colours = GroupColours.For(plan.Setup);
+        var groups = Poster.GroupList(plan, colours);
+        return new TemplateData
+        {
+            ["EventName"] = eventName,
+            ["ShowFloorNames"] = plan.Setup.Floors.Count(f => f.Tables.Count > 0) > 1,
+            ["GroupCount"] = groups.Count,
+            ["Floors"] = Poster.FloorList(plan, colours, images, draw: true),
+            ["Groups"] = groups.Select(g => g.Data).ToList(),
+        };
     }
 }

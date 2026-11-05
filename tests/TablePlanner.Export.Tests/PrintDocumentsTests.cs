@@ -146,6 +146,34 @@ public class PrintDocumentsTests
             Assert.Contains("width=\"20\" height=\"10\" opacity=\"0.3\"", svg);
     }
 
+    [Fact]
+    public void The_guest_pages_floor_plans_mark_each_groups_seats_and_tables()
+    {
+        var (project, first, _, alpha, _) = Setup();
+
+        var data = GuestPage.BuildData(project.Name, new PrintedPlan(project.Setup, project.CurrentAssignment));
+
+        var key = (string)List(data, "Groups").Single(g => (string)g["GroupName"]! == "Alpha")["GroupKey"]!;
+        var svg = ((RawHtml)List(data, "Floors")[0]["FloorPlan"]!).Html;
+        Assert.Equal(alpha.Id.ToString("N"), key);
+        Assert.Equal(5, svg.Split($"<circle class=\"seat\" data-group=\"{key}\"").Length - 1);
+        Assert.Contains($"<g class=\"table\" data-table=\"{first.Number}\">", svg);
+    }
+
+    [Fact]
+    public void The_guest_page_has_its_search_script_and_a_button_per_group()
+    {
+        var project = SeatedExample();
+        var (data, _) = DataFor(PrintKind.GuestPage, project);
+
+        var html = HtmlTemplate.Render(DefaultTemplates.For(PrintKind.GuestPage), data).Html;
+
+        Assert.Contains("<script>", html);
+        Assert.Equal(1, html.Split("id=\"search\"").Length - 1);
+        Assert.Contains("<meta name=\"viewport\"", html);
+        Assert.Equal(project.Setup.Groups.Count, html.Split("<button type=\"button\" data-group=").Length - 1);
+    }
+
     /// <summary>A plan that seats every group of the example project, table by table.</summary>
     private static EventProject SeatedExample()
     {
@@ -158,14 +186,25 @@ public class PrintDocumentsTests
         return project;
     }
 
+    private static (TemplateData Data, IReadOnlyList<Placeholder> Help) DataFor(PrintKind kind, EventProject project)
+    {
+        var plan = new PrintedPlan(project.Setup, project.CurrentAssignment);
+        return kind switch
+        {
+            PrintKind.TableCards => (TableCards.BuildData(project.Name, plan), TableCards.Placeholders),
+            PrintKind.Poster => (Poster.BuildData(project.Name, plan, new PosterOptions()), Poster.Placeholders),
+            _ => (GuestPage.BuildData(project.Name, plan), GuestPage.Placeholders),
+        };
+    }
+
     [Theory]
     [InlineData(PrintKind.TableCards)]
     [InlineData(PrintKind.Poster)]
+    [InlineData(PrintKind.GuestPage)]
     public void The_built_in_templates_render_without_warnings(PrintKind kind)
     {
         var project = SeatedExample();
-        var plan = new PrintedPlan(project.Setup, project.CurrentAssignment);
-        var data = kind == PrintKind.TableCards ? TableCards.BuildData(project.Name, plan) : Poster.BuildData(project.Name, plan, new PosterOptions());
+        var (data, _) = DataFor(kind, project);
 
         var result = HtmlTemplate.Render(DefaultTemplates.For(kind), data);
 
@@ -177,13 +216,11 @@ public class PrintDocumentsTests
     [Theory]
     [InlineData(PrintKind.TableCards)]
     [InlineData(PrintKind.Poster)]
+    [InlineData(PrintKind.GuestPage)]
     public void The_placeholder_help_matches_the_data(PrintKind kind)
     {
         var project = SeatedExample();
-        var plan = new PrintedPlan(project.Setup, project.CurrentAssignment);
-        var (data, help) = kind == PrintKind.TableCards
-            ? (TableCards.BuildData(project.Name, plan), TableCards.Placeholders)
-            : (Poster.BuildData(project.Name, plan, new PosterOptions()), Poster.Placeholders);
+        var (data, help) = DataFor(kind, project);
 
         AssertMatches(help, data);
 

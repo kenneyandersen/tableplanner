@@ -259,7 +259,7 @@ algorithm works on setup + assignment. UI code never goes into model or algorith
 8. **Background images**
 9. Later: the mobile page
 
-Status (2026-11-05): steps 1–8 done.
+Status (2026-11-05): steps 1–9 done.
 
 Notes from step 3:
 - Undo/redo stores a snapshot of the project before each edit (`EditHistory`); the edit logic itself lives in
@@ -353,3 +353,20 @@ Notes from step 8:
 - **Moving:** drag the image when it is unlocked (or type Left/Top); a locked image ignores the mouse, so clicks go to
   the floor as before.
 - Not done: rotating the image, cropping, several images per floor.
+
+Notes from step 9:
+- **Guest page:** a third kind on the Print page (renamed **Print & share**). **Download page** saves one
+  self-contained HTML file (about 50 KB for the example; more with background images) to put on any web host,
+  e.g. GitHub Pages, and share as a link or QR code. Nothing is sent anywhere by the app.
+- On the page, guests type their group's name (case and accents ignored) and tap it: the table number(s), floor and
+  the floor plan with their tables and seats highlighted, zoomed to their tables ("Show the whole floor" to zoom out).
+  The group goes in the address (#…), so the phone's back button returns to the list and links can point at a group.
+- It is a **template** like the cards and poster (`Templates/guest.html`, user-editable, same placeholders as the
+  poster's group list plus `GroupKey`). The floor plan SVG now carries `data-table` on tables and `data-group` on
+  seats and group names, so a script can highlight a group.
+- **Preview sandbox:** the guest page needs its script, so its preview frame has `sandbox="allow-scripts"` *without*
+  `allow-same-origin`: the script runs but cannot reach the app or its data (checked in the browser test). The prints
+  keep the script-free sandbox. Switching kinds makes a new frame, as a frame keeps its sandbox until it reloads.
+- In the sandboxed preview `history.pushState` is not allowed; the page then works without the address change.
+- The downloaded file name is URL-friendly (e.g. `example-party-find-your-table.html`).
+- Not done: a QR code generator, a hosted version that updates itself.

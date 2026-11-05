@@ -6,12 +6,18 @@ public enum PrintKind
 {
     TableCards,
     Poster,
+    GuestPage,
 }
 
 /// <summary>The built-in templates, used until the user saves their own (Printing/Templates/*.html).</summary>
 public static class DefaultTemplates
 {
-    public static string For(PrintKind kind) => Read(kind == PrintKind.TableCards ? "cards.html" : "poster.html");
+    public static string For(PrintKind kind) => Read(kind switch
+    {
+        PrintKind.TableCards => "cards.html",
+        PrintKind.Poster => "poster.html",
+        _ => "guest.html",
+    });
 
     private static string Read(string fileName)
     {

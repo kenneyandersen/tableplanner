@@ -449,3 +449,12 @@ Notes: exploring the floor plan on the guest page (2026-11-05):
   pinch-zoom keeps working too.
 - Group pages and the plan tab share one set of floor plans: with a group, its tables are highlighted and zoomed
   in, as before.
+
+Notes: priority presets (2026-11-05):
+- The Priorities dialog starts with presets: **Balanced** (the defaults), **Keep groups together** (splitting costs
+  about three times as much, preferences half), **Preferences first** (preferences about twice as much, splitting a
+  little cheaper), **Few changes** (moving a person to another table costs 100 instead of 20, for re-optimizing a
+  plan that is already shared). The preset that matches the current numbers is highlighted; after a change by hand
+  it says "Custom".
+- A preset sets only the weights; the time limit, "never split across floors" and the small-part size stay as the
+  user set them. "Balanced" replaces the former "Reset to defaults" button.

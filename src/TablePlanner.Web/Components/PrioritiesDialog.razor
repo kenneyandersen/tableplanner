@@ -2,6 +2,22 @@
 
 <MudDialog>
     <DialogContent>
+        <MudText Typo="Typo.subtitle2">Start from a preset</MudText>
+        <MudStack Row="true" Wrap="Wrap.Wrap" Spacing="1" Class="mb-1">
+            @foreach (var preset in PriorityPresets.All)
+            {
+                var active = PriorityPresets.Matching(_p) == preset;
+                <MudTooltip Text="@preset.Description">
+                    <MudButton Size="Size.Small" Variant="@(active ? Variant.Filled : Variant.Outlined)" Color="Color.Primary"
+                               OnClick="@(() => preset.Apply(_p))">@preset.Name</MudButton>
+                </MudTooltip>
+            }
+        </MudStack>
+        <MudText Typo="Typo.caption" Class="mud-text-secondary d-block mb-3">
+            @(PriorityPresets.Matching(_p) is { } current ? current.Description : "Custom: the numbers below were changed by hand.")
+            A preset keeps your time limit and floor rule.
+        </MudText>
+
         <MudText Typo="Typo.body2" Class="mb-3">
             The solver adds up points for people of a group sitting close and for groups near the groups they prefer,
             and subtracts penalties. Higher numbers make a rule matter more.
@@ -50,7 +66,6 @@
         </MudGrid>
     </DialogContent>
     <DialogActions>
-        <MudButton OnClick="Reset" Class="mr-auto">Reset to defaults</MudButton>
         <MudButton OnClick="() => Dialog.Cancel()">Cancel</MudButton>
         <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="() => Dialog.Close(DialogResult.Ok(_p))">Save</MudButton>
     </DialogActions>
@@ -69,6 +84,4 @@
         while (_p.PreferenceRankWeights.Count < Group.MaxPreferences)
             _p.PreferenceRankWeights.Add(0);
     }
-
-    private void Reset() => _p = new SeatingPriorities();
 }

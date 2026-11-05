@@ -1,14 +1,17 @@
 @* Draws one floor with a seating plan: seats coloured by group and group names on their part of each table.
-   It does not change the plan itself: seat and label clicks are reported to the page, which selects or moves groups.
-   Coordinates are metres; Scale is pixels per metre. *@
+   It does not change the plan itself: seat and label clicks, and groups dragged onto a seat, are reported to the
+   page, which selects, moves or swaps groups. Coordinates are metres; Scale is pixels per metre. *@
+@inject IJSRuntime JS
 @using static TablePlanner.Web.Formatting
 
 @if (Floor is { } floor)
 {
     var extent = CanvasExtent.Of(floor);
     var (width, height) = (extent.Width, extent.Height);
-    <svg class="floor-canvas plan-canvas @(MoveMode ? "move-mode" : "")" width="@Svg(width * Scale)" height="@Svg(height * Scale)" viewBox="@Svg(extent.Left) @Svg(extent.Top) @Svg(width) @Svg(height)"
-         @onclick="() => GroupClicked.InvokeAsync(null)">
+    _origin = new Point(extent.Left, extent.Top);
+    <svg @ref="_svg" class="floor-canvas plan-canvas @(MoveMode ? "move-mode" : "") @(_drag is { Started: true } ? "dragging" : "")"
+         width="@Svg(width * Scale)" height="@Svg(height * Scale)" viewBox="@Svg(extent.Left) @Svg(extent.Top) @Svg(width) @Svg(height)"
+         @onclick="OnBackgroundClick" @onpointermove="OnPointerMove" @onpointerup="OnPointerUp" @onpointercancel="CancelDrag">
         <defs>
             <pattern id="plan-grid" width="5" height="5" patternUnits="userSpaceOnUse">
                 <path d="M 5 0 L 0 0 0 5" class="grid-major" />
@@ -41,12 +44,13 @@
                 {
                     var groupId = _groupAt.GetValueOrDefault(seat.Id);
                     var group = groupId == Guid.Empty ? null : Setup.FindGroup(groupId);
-                    var dimmed = Selected is { } h && h != groupId && !MoveMode;
+                    var dimmed = Selected is { } h && h != groupId && !MoveMode && _drag is not { Started: true };
                     var seatId = seat.Id;
                     <circle cx="@Svg(seat.Position.X)" cy="@Svg(seat.Position.Y)" r="0.22"
-                            class="seat @(seat.IsDisabled ? "disabled" : "") @(group is null ? "empty" : "taken") @(dimmed ? "dimmed" : "") @(Selected == groupId && group is not null ? "highlighted" : "") @(group is not null && Pinned.Contains(groupId) ? "pinned" : "")"
+                            class="seat @(seat.IsDisabled ? "disabled" : "") @(group is null ? "empty" : "taken") @(dimmed ? "dimmed" : "") @(Selected == groupId && group is not null ? "highlighted" : "") @(group is not null && Pinned.Contains(groupId) ? "pinned" : "") @DropClass(seatId)"
                             style="@(group is null ? null : $"fill: {Colours.GetValueOrDefault(groupId, "#ccc")}")"
-                            @onclick="() => SeatClicked.InvokeAsync(seatId)" @onclick:stopPropagation="true">
+                            @onclick="() => SeatClicked.InvokeAsync(seatId)" @onclick:stopPropagation="true"
+                            @onpointerdown="e => OnGroupPointerDown(e, group?.Id)">
                         <title>@(group is null ? $"Table {table.Number}, empty seat" : $"{group.Name} ({group.PeopleCount}) · table {table.Number}")</title>
                     </circle>
                 }
@@ -56,11 +60,21 @@
                 {
                     var dimmed = Selected is { } h && h != block.GroupId && !MoveMode;
                     @* Wrapped in <g>: a <text> element directly in a code block would be Razor's own <text> tag. *@
-                    <g class="group-label @(dimmed ? "dimmed" : "")" @onclick="() => GroupClicked.InvokeAsync(block.GroupId)" @onclick:stopPropagation="true">
+                    <g class="group-label @(dimmed ? "dimmed" : "")" @onclick="() => GroupClicked.InvokeAsync(block.GroupId)" @onclick:stopPropagation="true"
+                       @onpointerdown="e => OnGroupPointerDown(e, block.GroupId)">
                         <text x="@Svg(block.Position.X)" y="@Svg(block.Position.Y)" font-size="@Svg(block.FontSize)"
                               transform="@(block.Vertical ? $"rotate(90 {Svg(block.Position.X)} {Svg(block.Position.Y)})" : null)">@block.Text</text>
                     </g>
                 }
+            </g>
+        }
+
+        @* The dragged group follows the pointer; drawn last so it is on top. *@
+        @if (_drag is { Started: true, At: { } at } drag && Setup.FindGroup(drag.GroupId) is { } dragged)
+        {
+            <g class="drag-ghost">
+                <circle cx="@Svg(at.X)" cy="@Svg(at.Y)" r="0.3" style="fill: @Colours.GetValueOrDefault(dragged.Id, "#ccc")" />
+                <text x="@Svg(at.X + 0.45)" y="@Svg(at.Y)" font-size="0.32">@dragged.Name (@dragged.PeopleCount)</text>
             </g>
         }
     </svg>
@@ -94,8 +108,145 @@
     /// <summary>A group's label was clicked, or the background (null).</summary>
     [Parameter] public EventCallback<Guid?> GroupClicked { get; set; }
 
+    /// <summary>When on, groups can be dragged by a seat or their name onto another seat.</summary>
+    [Parameter] public bool DragEnabled { get; set; }
+
+    /// <summary>
+    /// Where a group would sit if dropped on a seat (shown while dragging), or null when it cannot go there.
+    /// </summary>
+    [Parameter] public Func<Guid, SeatId, IReadOnlyCollection<SeatId>?>? DropPreview { get; set; }
+
+    /// <summary>A group was dragged onto a seat.</summary>
+    [Parameter] public EventCallback<(Guid GroupId, SeatId Seat)> GroupDropped { get; set; }
+
+    /// <summary>A press only becomes a drag after the pointer moves this far (pixels), so clicks still select.</summary>
+    private const double DragThreshold = 5;
+
+    /// <summary>A drop counts on a seat when the pointer is within this distance of its centre (metres).</summary>
+    private const double DropRadius = 0.4;
+
+    private sealed class DragState(Guid groupId, double startX, double startY, long pointerId)
+    {
+        public Guid GroupId { get; } = groupId;
+        public double StartX { get; } = startX;
+        public double StartY { get; } = startY;
+        public long PointerId { get; } = pointerId;
+        public bool Started { get; set; }
+        public Point? At { get; set; }
+        public SeatId? Target { get; set; }
+        public HashSet<SeatId>? Preview { get; set; }
+    }
+
+    private ElementReference _svg;
+    private Point _origin;
+    private DragState? _drag;
+    private bool _justDropped;
+    private bool _render = true;
+    private List<(SeatId Id, Point Position)> _seats = [];
+
     private Floor? Floor => Setup.Floors.FirstOrDefault(f => f.Id == FloorId);
 
-    protected override void OnParametersSet() =>
+    protected override void OnParametersSet()
+    {
         _groupAt = Assignment.Seats.GroupBy(s => s.Seat).ToDictionary(g => g.Key, g => g.First().GroupId);
+        _seats = Floor?.Tables.SelectMany(TableGeometry.GetSeats).Where(s => !s.IsDisabled).Select(s => (s.Id, s.Position)).ToList() ?? [];
+        _render = true;
+    }
+
+    // Pointer moves arrive all the time; the floor is drawn again only when something on it changes.
+    protected override bool ShouldRender()
+    {
+        var render = _render;
+        _render = true;
+        return render;
+    }
+
+    private string DropClass(SeatId seat) => _drag switch
+    {
+        { Started: true, Preview: { } preview } when preview.Contains(seat) => "drop-target",
+        { Started: true, Preview: null, Target: { } target } when target == seat => "drop-invalid",
+        _ => "",
+    };
+
+    private void OnGroupPointerDown(PointerEventArgs e, Guid? groupId)
+    {
+        _render = false;
+        if (e.Button != 0 || !DragEnabled || groupId is not { } id)
+            return;
+        _drag = new DragState(id, e.ClientX, e.ClientY, e.PointerId);
+    }
+
+    private async Task OnPointerMove(PointerEventArgs e)
+    {
+        _render = false;
+        if (_drag is not { } drag)
+            return;
+        if (!drag.Started)
+        {
+            if (Math.Abs(e.ClientX - drag.StartX) < DragThreshold && Math.Abs(e.ClientY - drag.StartY) < DragThreshold)
+                return;
+            // From now on the SVG gets every move (so OffsetX/Y are relative to it), even outside its area.
+            drag.Started = true;
+            _render = true;
+            await JS.InvokeVoidAsync("tablePlanner.capturePointer", _svg, drag.PointerId);
+            return;
+        }
+
+        var at = new Point(_origin.X + e.OffsetX / Scale, _origin.Y + e.OffsetY / Scale);
+        var moved = drag.At is not { } last || Math.Abs(last.X - at.X) + Math.Abs(last.Y - at.Y) > 0.05;
+        drag.At = at;
+        var target = NearestSeat(at);
+        if (target != drag.Target)
+        {
+            drag.Target = target;
+            drag.Preview = target is { } seat && DropPreview?.Invoke(drag.GroupId, seat) is { } seats ? [.. seats] : null;
+            moved = true;
+        }
+        _render = moved;
+    }
+
+    private async Task OnPointerUp(PointerEventArgs e)
+    {
+        if (_drag is not { Started: true } drag)
+        {
+            _drag = null;
+            _render = false;
+            return;
+        }
+        _drag = null;
+        // The click that follows a drag lands on the SVG itself; it must not deselect.
+        _justDropped = true;
+        if (drag.Target is { } seat)
+            await GroupDropped.InvokeAsync((drag.GroupId, seat));
+    }
+
+    private void CancelDrag()
+    {
+        _render = _drag is { Started: true };
+        _drag = null;
+    }
+
+    private async Task OnBackgroundClick()
+    {
+        if (_justDropped)
+        {
+            _justDropped = false;
+            _render = false;
+            return;
+        }
+        await GroupClicked.InvokeAsync(null);
+    }
+
+    private SeatId? NearestSeat(Point at)
+    {
+        SeatId? best = null;
+        var bestDistance = DropRadius * DropRadius;
+        foreach (var (id, position) in _seats)
+        {
+            var d = (position.X - at.X) * (position.X - at.X) + (position.Y - at.Y) * (position.Y - at.Y);
+            if (d <= bestDistance)
+                (best, bestDistance) = (id, d);
+        }
+        return best;
+    }
 }

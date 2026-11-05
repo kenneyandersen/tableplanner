@@ -78,7 +78,8 @@
                         </MudChip>
                     }
                     <PlanCanvas Setup="setup" FloorId="floor.Id" Assignment="DisplayedAssignment" Colours="_colours" Scale="_scale" BackgroundUrl="@Session.ImageUrl(floor.Background?.ImageId)"
-                                Selected="_highlight" Pinned="_pinned" MoveMode="_moving" SeatClicked="OnSeatClicked" GroupClicked="HighlightGroup" />
+                                Selected="_highlight" Pinned="_pinned" MoveMode="_moving" SeatClicked="OnSeatClicked" GroupClicked="HighlightGroup"
+                                DragEnabled="_proposal is null" DropPreview="DropPreview" GroupDropped="OnGroupDropped" />
                 </div>
                 <div class="editor-side">
                     @if (_failure is { } failure)
@@ -155,6 +156,7 @@
     private double _scale = DefaultScale;
     private Guid? _highlight;
     private bool _moving;
+    private SeatingProblem? _problem;
     private int _tab;
     private IReadOnlySet<Guid> _pinned = new HashSet<Guid>();
     private IReadOnlyDictionary<Guid, string> _colours = new Dictionary<Guid, string>();
@@ -202,6 +204,7 @@
             return;
         _colours = GroupColours.For(project.Setup);
         _pinned = project.Setup.Pins.Select(p => p.GroupId).ToHashSet();
+        _problem = null;
         if (_highlight is { } id && project.Setup.FindGroup(id) is null)
             (_highlight, _moving) = (null, false);
         _currentSummary = Summarize(project.CurrentAssignment);
@@ -286,28 +289,59 @@
     /// <summary>Selects a group via a click on a seat or, while moving, moves or swaps the selected group there.</summary>
     private void OnSeatClicked(SeatId seat)
     {
-        var at = DisplayedAssignment.GroupAt(seat);
         if (!_moving || SelectedGroup is not { } group || _proposal is not null)
         {
-            HighlightGroup(at);
+            HighlightGroup(DisplayedAssignment.GroupAt(seat));
             return;
         }
+        if (PlaceGroup(group, seat))
+            _moving = false;
+    }
 
-        var project = Session.Project!;
-        var problem = SeatingProblem.Create(project.Setup, project.Priorities);
-        if (at is { } other && other != group.Id)
-        {
-            var swap = PlanEditing.SeatsForSwap(problem, project.CurrentAssignment, group.Id, other);
-            Edit("Swap groups", p => PlanOperations.SeatGroups(p, swap));
-        }
-        else if (PlanEditing.SeatsForMove(problem, project.CurrentAssignment, group.Id, seat) is { } seats)
-            Edit("Move group", p => PlanOperations.SeatGroups(p, new Dictionary<Guid, IReadOnlyList<SeatId>> { [group.Id] = seats }));
-        else
-        {
-            Snackbar.Add($"There are not enough free seats on this floor for {group.Name} ({group.PeopleCount}). Click a seat of another group to swap instead.", Severity.Warning);
+    /// <summary>A group dragged onto a seat: moved there, or swapped with the group sitting there.</summary>
+    private void OnGroupDropped((Guid GroupId, SeatId Seat) drop)
+    {
+        if (_proposal is not null || Session.Project!.Setup.FindGroup(drop.GroupId) is not { } group)
             return;
+        if (PlaceGroup(group, drop.Seat))
+        {
+            _highlight = group.Id;
+            _moving = false;
         }
-        _moving = false;
+    }
+
+    /// <summary>The seating problem for the current setup, made once per change: drag previews ask for it often.</summary>
+    private SeatingProblem Problem => _problem ??= SeatingProblem.Create(Session.Project!.Setup, Session.Project.Priorities);
+
+    /// <summary>
+    /// Where <paramref name="groupId"/> would sit if placed at <paramref name="seat"/>: the other group's seats (and more
+    /// or fewer) for a swap, a block of free seats from there for a move. Null when it does not fit.
+    /// </summary>
+    private IReadOnlyCollection<SeatId>? DropPreview(Guid groupId, SeatId seat)
+    {
+        var assignment = Session.Project!.CurrentAssignment;
+        if (assignment.GroupAt(seat) is { } other && other != groupId)
+            return PlanEditing.SeatsForSwap(Problem, assignment, groupId, other)[groupId];
+        return PlanEditing.SeatsForMove(Problem, assignment, groupId, seat);
+    }
+
+    /// <summary>Moves a group to a seat or swaps it with the group there, as one undoable step. False when it does not fit.</summary>
+    private bool PlaceGroup(Group group, SeatId seat)
+    {
+        var project = Session.Project!;
+        if (project.CurrentAssignment.GroupAt(seat) is { } other && other != group.Id)
+        {
+            var swap = PlanEditing.SeatsForSwap(Problem, project.CurrentAssignment, group.Id, other);
+            Edit("Swap groups", p => PlanOperations.SeatGroups(p, swap));
+            return true;
+        }
+        if (PlanEditing.SeatsForMove(Problem, project.CurrentAssignment, group.Id, seat) is { } seats)
+        {
+            Edit("Move group", p => PlanOperations.SeatGroups(p, new Dictionary<Guid, IReadOnlyList<SeatId>> { [group.Id] = seats }));
+            return true;
+        }
+        Snackbar.Add($"There are not enough free seats on this floor for {group.Name} ({group.PeopleCount}). Drop it on a seat of another group to swap instead.", Severity.Warning);
+        return false;
     }
 
     private void OnKeyDown(KeyboardEventArgs e)

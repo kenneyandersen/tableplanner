@@ -401,3 +401,15 @@ Notes: A5 card paper and QR codes (2026-11-05):
   is QRCoder's own. Error correction level M.
 - Found while testing: undo did not restore the new address, because `EditHistory.Restore` copies the project's
   properties one by one. Fixed, and a test now lists every `EventProject` property, so a new one cannot be missed.
+
+Notes: drag and drop on the plan (2026-11-05):
+- On the Plan page, a group can be **dragged by any of its seats or its name** onto a seat. It does exactly what
+  Move + click does: onto a free seat (or its own) it moves along the fill order from there on that floor, onto
+  another group's seat the two swap. One undoable step; the group stays selected. Move (M) + click still works.
+- While dragging, a small marker with the group's name follows the pointer and the seats it would take are ringed;
+  a seat where it does not fit is ringed red. Dropping away from a seat (or a refused move) changes nothing.
+- A press becomes a drag only after 5 px of movement, so a click still selects. The pointer is then captured by the
+  SVG, positions come from its own offsets (no JS call per move), and the canvas skips re-rendering unless the
+  marker moved noticeably or the seat under the pointer changed (plain mouse moves over ~700 seats cost nothing).
+- Dragging is off while a proposed plan is shown, like the other edits. Dragging between floors is not possible
+  (a move never crosses floors); swap with a group on the other floor via Move instead.

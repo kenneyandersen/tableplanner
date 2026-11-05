@@ -108,9 +108,9 @@ public sealed class CardDesign
             new()
             {
                 X = 20, Y = 84, Width = 170, Height = 12, FontSize = 16, Colour = "#444444",
-                Text = "{{^PerSeat}}{{#IsSplit}}{{PeopleHere}} of {{PeopleCount}} people · also at "
+                Text = "{{#IsSplit}}{{PeopleHere}} of {{PeopleCount}} people · also at "
                     + "{{#SeveralOtherTables}}tables{{/SeveralOtherTables}}{{^SeveralOtherTables}}table{{/SeveralOtherTables}} {{OtherTables}}{{/IsSplit}}"
-                    + "{{^IsSplit}}{{PeopleCount}} {{#OnePerson}}person{{/OnePerson}}{{^OnePerson}}people{{/OnePerson}}{{/IsSplit}}{{/PerSeat}}",
+                    + "{{^IsSplit}}{{PeopleCount}} {{#OnePerson}}person{{/OnePerson}}{{^OnePerson}}people{{/OnePerson}}{{/IsSplit}}",
             },
             new() { X = 20, Y = 124, Width = 170, Height = 12, Text = "Table {{TableNumber}} · {{FloorName}}", FontSize = 15, Colour = "#555555" },
             new() { X = 160, Y = 133, Width = 42, Height = 8, Text = "{{#SeatNumber}}Seat {{SeatNumber}}{{/SeatNumber}}", FontSize = 10, Align = TextAlign.Right, Colour = "#999999" },

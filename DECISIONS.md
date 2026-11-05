@@ -379,7 +379,8 @@ Notes after step 9 (table card options):
   their seat. Seat cards come per table in **seat order around the table**, so they can be laid out one after the
   other: numbered from 1 along the top side left to right, the right end, the bottom side right to left, the left end
   (in the table's own frame; every seat counts, taken or not, so numbers do not depend on the plan). The card shows
-  "Seat N" small in a corner, for the staff; the people count is left out on seat cards.
+  "Seat N" small in a corner, for the staff. *Changed:* seat cards show the group's people count too, like the
+  other cards (it was left out at first); a template can still hide it with `{{^PerSeat}}…{{/PerSeat}}`.
 - **Folded tent cards** (switch): each A4 sheet holds one card twice, the top half turned 180°; folded across the
   middle it stands on the table and reads from both sides. The group's colour stripes meet at the fold. Without it,
   cards are flat, two to a sheet, cut apart. Both options combine (231 seat tents = 231 sheets for the example).
@@ -437,3 +438,14 @@ Notes: card designer (2026-11-05):
 - The designer lays the card out in real millimetres and points, like the print, and scales it with CSS; transparent
   hit areas on top of the rendered items take the mouse.
 - Not done: snapping to other items / guides, rotating items, several designs to choose from, poster designer.
+
+Notes: exploring the floor plan on the guest page (2026-11-05):
+- The guest page has two tabs: **Find your group** (search, as before) and **Floor plan**: every floor, whole and in
+  full colour, without choosing a group first. Tapping a seat or a group name opens that group; tapping a table with
+  several groups shows a small chooser ("Table 101: Hansen family, Support"). Back returns to where the guest came
+  from (the list or the plan), also with the phone's back button (#plan in the address).
+- Each floor plan has **+ / −** and **Whole floor**; a zoomed plan can be dragged to look around. Only a zoomed plan
+  takes touch drags (touch-action: none), so at whole-floor size the page still scrolls normally. The page's own
+  pinch-zoom keeps working too.
+- Group pages and the plan tab share one set of floor plans: with a group, its tables are highlighted and zoomed
+  in, as before.

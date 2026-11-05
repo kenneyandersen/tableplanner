@@ -5,46 +5,68 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Find your table · {{EventName}}</title>
 {{! The guest page: put the downloaded file on any web host and share the link (or a QR code to it).
-    Guests type their group's name and see their table on the floor plan. Placeholders are listed next to the editor. }}
+    Guests type their group's name and see their table on the floor plan, or look around the floor plan and tap a
+    table to see who sits there. Placeholders are listed next to the editor. }}
 <style>
   * { box-sizing: border-box; }
   html { -webkit-text-size-adjust: 100%; }
   body { margin: 0; font-family: system-ui, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; color: #222; background: #f4f4f6; }
-  header { background: #3f3d9e; color: #fff; padding: 20px 16px 16px; }
+  header { background: #3f3d9e; color: #fff; padding: 20px 16px 0; }
   header h1 { margin: 0; font-size: 1.5rem; }
   header p { margin: 4px 0 0; opacity: 0.85; }
-  main, #detail { padding: 16px; max-width: 640px; margin: 0 auto; }
+  .tabs { display: flex; gap: 4px; margin-top: 12px; }
+  .tabs button {
+    flex: 1; border: 0; padding: 10px 8px; font: inherit; font-weight: 600; color: #fff; background: rgba(255, 255, 255, 0.12);
+    border-radius: 10px 10px 0 0; cursor: pointer;
+  }
+  .tabs button.active { background: #f4f4f6; color: #3f3d9e; }
+  main, #detail, #floors { padding: 16px; max-width: 640px; margin: 0 auto; }
+  #detail { padding-bottom: 0; }
   #search {
     width: 100%; font-size: 1.1rem; padding: 12px 14px; border: 1px solid #c8c8d0; border-radius: 10px;
     background: #fff; position: sticky; top: 8px; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
   }
   #groups { list-style: none; margin: 12px 0 0; padding: 0; }
-  #groups button {
+  #groups button, .chooser button {
     width: 100%; display: flex; align-items: center; gap: 10px; padding: 12px; margin: 0 0 6px;
     border: 0; border-radius: 10px; background: #fff; font: inherit; color: inherit; text-align: left; cursor: pointer;
   }
   .dot { width: 14px; height: 14px; border-radius: 50%; flex: none; }
   .name { flex: 1; font-weight: 500; }
   .where { color: #555; white-space: nowrap; }
-  .message { color: #555; text-align: center; padding: 16px; }
+  .message, .hint { color: #555; text-align: center; padding: 8px 16px; margin: 0; }
   #back { border: 0; background: none; font: inherit; color: #3f3d9e; padding: 4px 0; cursor: pointer; }
   #detail h2 { margin: 8px 0 0; font-size: 1.6rem; }
   .big { font-size: 2.6rem; font-weight: 700; margin: 8px 0 0; }
-  .floor-name { margin: 0 0 12px; color: #555; font-size: 1.1rem; }
+  .floor-name { margin: 0; color: #555; font-size: 1.1rem; }
   figure { margin: 0 0 16px; background: #fff; border-radius: 10px; padding: 8px; }
   figcaption { font-weight: 600; margin: 0 0 4px; }
-  figure svg { width: 100%; height: auto; display: block; }
-  .whole { border: 0; background: none; font: inherit; color: #3f3d9e; padding: 6px 0 0; cursor: pointer; }
-  /* The chosen group's tables stand out; the rest is faded. */
-  figure .table { opacity: 0.3; }
-  figure .table.mine { opacity: 1; }
+  figure svg { width: 100%; height: auto; display: block; user-select: none; -webkit-user-select: none; }
+  figure svg.zoomed { touch-action: none; cursor: grab; }
+  .controls { display: flex; gap: 6px; align-items: center; padding-top: 6px; }
+  .controls button {
+    border: 1px solid #c8c8d0; background: #fff; border-radius: 8px; font: inherit; color: #3f3d9e;
+    min-width: 40px; padding: 6px 10px; cursor: pointer;
+  }
+  .controls .spacer { flex: 1; }
+  .chooser { margin-top: 8px; }
+  .chooser p { margin: 0 0 6px; font-weight: 600; }
+  .chooser button { background: #f4f4f6; }
+  /* With a group chosen, its tables stand out and the rest is faded. */
+  .focus figure .table { opacity: 0.3; }
+  .focus figure .table.mine { opacity: 1; }
   figure .seat.mine { stroke: #000; stroke-width: 0.08; }
+  figure .seat[data-group], figure .group-label { cursor: pointer; }
 </style>
 </head>
 <body>
 <header>
   {{#EventName}}<h1>{{EventName}}</h1>{{/EventName}}
   <p>Find your table</p>
+  <nav class="tabs">
+    <button type="button" data-view="list" class="active">Find your group</button>
+    <button type="button" data-view="plan">Floor plan</button>
+  </nav>
 </header>
 
 <main id="list">
@@ -55,7 +77,7 @@
   <ul id="groups">
     {{#Groups}}
     <li>
-      <button type="button" data-group="{{GroupKey}}" data-name="{{GroupName}}" data-tables="{{Tables}}" data-floor="{{FloorName}}">
+      <button type="button" data-group="{{GroupKey}}" data-name="{{GroupName}}" data-tables="{{Tables}}" data-floor="{{FloorName}}" data-colour="{{Colour}}">
         <span class="dot" style="background: {{Colour}}"></span>
         <span class="name">{{GroupName}}</span>
         <span class="where">{{Tables}}</span>
@@ -68,15 +90,25 @@
 </main>
 
 <section id="detail" hidden>
-  <button type="button" id="back">‹ All groups</button>
+  <button type="button" id="back">‹ Back</button>
   <h2 id="detail-name"></h2>
   <p class="big" id="detail-tables"></p>
   <p class="floor-name" id="detail-floor"></p>
+</section>
+
+<section id="floors" hidden>
+  <p class="hint" id="plan-hint">Tap a table to see who sits there. Zoom in with +, then drag to look around.</p>
   {{#Floors}}
   <figure>
     {{#ShowFloorNames}}<figcaption>{{FloorName}}</figcaption>{{/ShowFloorNames}}
     {{FloorPlan}}
-    <button type="button" class="whole">Show the whole floor</button>
+    <div class="controls">
+      <button type="button" data-zoom="0.6" aria-label="Zoom in">+</button>
+      <button type="button" data-zoom="1.6" aria-label="Zoom out">−</button>
+      <span class="spacer"></span>
+      <button type="button" class="whole">Whole floor</button>
+    </div>
+    <div class="chooser" hidden></div>
   </figure>
   {{/Floors}}
 </section>
@@ -85,13 +117,18 @@
 (() => {
   const list = document.getElementById("list");
   const detail = document.getElementById("detail");
+  const floors = document.getElementById("floors");
+  const hint = document.getElementById("plan-hint");
   const search = document.getElementById("search");
   const nothing = document.getElementById("nothing");
+  const tabs = [...document.querySelectorAll(".tabs button")];
   const buttons = [...document.querySelectorAll("#groups button")];
-  // Searching ignores case and accents, so "rene" finds "René".
+  const groups = new Map(buttons.map(b => [b.dataset.group, b]));
+  const figures = [...floors.querySelectorAll("figure")];
+
+  // ---- Search: ignores case and accents, so "rene" finds "René" ----
   const fold = text => text.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase();
   buttons.forEach(b => b.dataset.search = fold(b.dataset.name));
-
   search?.addEventListener("input", () => {
     const query = fold(search.value.trim());
     let shown = 0;
@@ -103,20 +140,49 @@
     nothing.hidden = shown > 0;
   });
 
-  // Each floor plan is zoomed to the group's tables, with a button to see the whole floor.
-  const ZoomMargin = 3;
-  for (const figure of detail.querySelectorAll("figure")) {
+  // ---- Zooming and moving a floor plan (its viewBox) ----
+  const ZoomMargin = 3, MinWidth = 4;
+  const box = svg => svg.getAttribute("viewBox").split(" ").map(Number);
+  function setBox(svg, [x, y, w, h]) {
+    svg.setAttribute("viewBox", `${x} ${y} ${w} ${h}`);
+    svg.classList.toggle("zoomed", w < svg.dataset.wholeWidth - 0.01);
+  }
+  for (const figure of figures) {
     const svg = figure.querySelector("svg");
     if (!svg) continue;
     svg.dataset.whole = svg.getAttribute("viewBox");
-    figure.querySelector(".whole").addEventListener("click", e => {
-      const zoomed = svg.getAttribute("viewBox") !== svg.dataset.whole;
-      svg.setAttribute("viewBox", zoomed ? svg.dataset.whole : svg.dataset.zoom);
-      e.target.textContent = zoomed ? "Zoom in on the tables" : "Show the whole floor";
+    svg.dataset.wholeWidth = box(svg)[2];
+    figure.querySelector(".whole").addEventListener("click", () => setBox(svg, svg.dataset.whole.split(" ").map(Number)));
+    figure.querySelectorAll("[data-zoom]").forEach(b => b.addEventListener("click", () => {
+      const [x, y, w, h] = box(svg);
+      const whole = svg.dataset.whole.split(" ").map(Number);
+      const factor = Math.min(Math.max(Number(b.dataset.zoom), MinWidth / w), whole[2] / w);
+      setBox(svg, [x + w * (1 - factor) / 2, y + h * (1 - factor) / 2, w * factor, h * factor]);
+    }));
+
+    // Drag moves a zoomed plan; a tap without moving picks what is under it.
+    let press = null;
+    svg.addEventListener("pointerdown", e => {
+      press = { x: e.clientX, y: e.clientY, box: box(svg), moved: false, target: e.target, id: e.pointerId };
     });
+    svg.addEventListener("pointermove", e => {
+      if (!press || !svg.classList.contains("zoomed")) return;
+      const dx = e.clientX - press.x, dy = e.clientY - press.y;
+      if (!press.moved && Math.hypot(dx, dy) < 6) return;
+      if (!press.moved) svg.setPointerCapture(press.id);
+      press.moved = true;
+      const [x, y, w, h] = press.box;
+      const scale = w / svg.clientWidth;
+      setBox(svg, [x - dx * scale, y - dy * scale, w, h]);
+    });
+    svg.addEventListener("pointerup", () => {
+      if (press && !press.moved) tapped(figure, press.target);
+      press = null;
+    });
+    svg.addEventListener("pointercancel", () => press = null);
   }
 
-  function zoomTo(figure) {
+  function zoomToGroup(figure) {
     const svg = figure.querySelector("svg");
     const tables = [...figure.querySelectorAll(".table.mine")];
     if (!svg || tables.length === 0) return;
@@ -125,55 +191,113 @@
     const top = Math.min(...boxes.map(b => b.y)) - ZoomMargin;
     const right = Math.max(...boxes.map(b => b.x + b.width)) + ZoomMargin;
     const bottom = Math.max(...boxes.map(b => b.y + b.height)) + ZoomMargin;
-    svg.dataset.zoom = `${left} ${top} ${right - left} ${bottom - top}`;
-    svg.setAttribute("viewBox", svg.dataset.zoom);
-    figure.querySelector(".whole").textContent = "Show the whole floor";
+    setBox(svg, [left, top, right - left, bottom - top]);
   }
 
-  function show(key) {
-    const button = buttons.find(b => b.dataset.group === key);
-    if (!button) {
-      detail.hidden = true;
-      list.hidden = false;
+  // A seat or name opens its group; a table with several groups offers them to choose from.
+  function tapped(figure, target) {
+    const chooser = figure.querySelector(".chooser");
+    const key = target.closest("[data-group]")?.dataset.group;
+    if (key && groups.has(key)) {
+      open(key);
       return;
     }
-    document.getElementById("detail-name").textContent = button.dataset.name;
-    const tables = button.dataset.tables;
-    document.getElementById("detail-tables").textContent = (tables.includes(",") ? "Tables " : "Table ") + tables;
-    document.getElementById("detail-floor").textContent = button.dataset.floor;
-    for (const figure of detail.querySelectorAll("figure")) {
+    const table = target.closest(".table");
+    if (!table) {
+      chooser.hidden = true;
+      return;
+    }
+    const keys = [...new Set([...table.querySelectorAll("[data-group]")].map(e => e.dataset.group))].filter(k => groups.has(k));
+    if (keys.length === 1) {
+      open(keys[0]);
+      return;
+    }
+    chooser.replaceChildren();
+    const title = document.createElement("p");
+    title.textContent = keys.length === 0 ? `Table ${table.dataset.table} has no one seated.` : `Table ${table.dataset.table}`;
+    chooser.append(title);
+    for (const k of keys) {
+      const g = groups.get(k);
+      const choice = document.createElement("button");
+      choice.type = "button";
+      const dot = document.createElement("span");
+      dot.className = "dot";
+      dot.style.background = g.dataset.colour;
+      const name = document.createElement("span");
+      name.className = "name";
+      name.textContent = g.dataset.name;
+      choice.append(dot, name);
+      choice.addEventListener("click", () => open(k));
+      chooser.append(choice);
+    }
+    chooser.hidden = false;
+  }
+
+  // ---- Views: the group list, the floor plan, or one group. The view goes in the address (#plan, #group), so the
+  // phone's back button works and links can point at a group. Where that is not allowed (e.g. in a preview), the
+  // page works without it. ----
+  let view = "list", from = "list", inHistory = false;
+
+  function render(next) {
+    const group = groups.get(next);
+    view = group ? next : next === "plan" ? "plan" : "list";
+    list.hidden = view !== "list";
+    detail.hidden = !group;
+    floors.hidden = view === "list";
+    hint.hidden = !!group;
+    document.body.classList.toggle("focus", !!group);
+    tabs.forEach(t => t.classList.toggle("active", t.dataset.view === (group ? from : view)));
+
+    for (const figure of figures) {
+      figure.querySelector(".chooser").hidden = true;
       figure.querySelectorAll(".mine").forEach(e => e.classList.remove("mine"));
-      const seats = figure.querySelectorAll(`[data-group="${key}"]`);
+      const svg = figure.querySelector("svg");
+      if (!group) {
+        figure.hidden = false;
+        if (svg) setBox(svg, svg.dataset.whole.split(" ").map(Number));
+        continue;
+      }
+      const seats = figure.querySelectorAll(`[data-group="${next}"]`);
       seats.forEach(seat => {
         seat.classList.add("mine");
         seat.closest(".table")?.classList.add("mine");
       });
       figure.hidden = seats.length === 0;
     }
-    list.hidden = true;
-    detail.hidden = false;
-    // Sizes can only be measured once the plans are shown.
-    detail.querySelectorAll("figure:not([hidden])").forEach(zoomTo);
+    if (group) {
+      document.getElementById("detail-name").textContent = group.dataset.name;
+      const tables = group.dataset.tables;
+      document.getElementById("detail-tables").textContent = (tables.includes(",") ? "Tables " : "Table ") + tables;
+      document.getElementById("detail-floor").textContent = group.dataset.floor;
+      // Sizes can only be measured once the plans are shown.
+      figures.filter(f => !f.hidden).forEach(zoomToGroup);
+    }
     window.scrollTo(0, 0);
   }
 
-  // The group goes in the address (#…), so the phone's back button returns to the list and a link can point at a
-  // group. Where that is not allowed (e.g. in a preview), the page works without it.
-  let inHistory = false;
-  buttons.forEach(b => b.addEventListener("click", () => {
+  function go(next) {
+    if (!groups.has(next)) from = next;
     try {
-      history.pushState(null, "", "#" + b.dataset.group);
+      history.pushState(null, "", "#" + next);
       inHistory = true;
     } catch {
       inHistory = false;
     }
-    show(b.dataset.group);
-  }));
+    render(next);
+  }
+
+  function open(key) {
+    if (!groups.has(view)) from = view;
+    go(key);
+  }
+
+  buttons.forEach(b => b.addEventListener("click", () => open(b.dataset.group)));
+  tabs.forEach(t => t.addEventListener("click", () => go(t.dataset.view)));
   document.getElementById("back").addEventListener("click", () => {
-    if (inHistory) history.back(); else show("");
+    if (inHistory) history.back(); else render(from);
   });
-  window.addEventListener("popstate", () => show(location.hash.slice(1)));
-  show(location.hash.slice(1));
+  window.addEventListener("popstate", () => render(location.hash.slice(1) || "list"));
+  render(location.hash.slice(1) || "list");
 })();
 </script>
 </body>

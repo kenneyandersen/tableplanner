@@ -45,7 +45,7 @@ public class CardDesignTests
 
         Assert.Equal(3, html.Split("<div class=\"card flipped\">").Length - 1);
         Assert.Contains("<span>Seat 2</span>", html);
-        Assert.DoesNotContain("people", html.Split("<body>")[1]);
+        Assert.Contains("<span>3 people</span>", html);
     }
 
     [Fact]

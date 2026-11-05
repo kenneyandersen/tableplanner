@@ -152,7 +152,8 @@ public class PrintDocumentsTests
         Assert.Equal(7, tents.Html.Split("<div class=\"card flipped\">").Length - 1);
         Assert.Equal(7, tents.Html.Split("<section class=\"sheet folded\">").Length - 1);
         Assert.Contains("Seat 8", tents.Html);
-        Assert.DoesNotContain("people", tents.Html.Split("<body>")[1]);
+        // Seat cards show the group's count too, e.g. "3 of 5 people · also at table 102".
+        Assert.Contains("3 of 5 people", tents.Html);
     }
 
     [Fact]

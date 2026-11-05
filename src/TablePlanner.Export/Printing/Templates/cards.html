@@ -56,12 +56,10 @@
     <div class="stripe" style="background: {{Colour}}"></div>
     {{#EventName}}<div class="event">{{EventName}}</div>{{/EventName}}
     <div class="group">{{GroupName}}</div>
-    {{^PerSeat}}
     <div class="count">
       {{#IsSplit}}{{PeopleHere}} of {{PeopleCount}} people · also at {{#SeveralOtherTables}}tables{{/SeveralOtherTables}}{{^SeveralOtherTables}}table{{/SeveralOtherTables}} {{OtherTables}}{{/IsSplit}}
       {{^IsSplit}}{{PeopleCount}} {{#OnePerson}}person{{/OnePerson}}{{^OnePerson}}people{{/OnePerson}}{{/IsSplit}}
     </div>
-    {{/PerSeat}}
     <div class="table">Table <strong>{{TableNumber}}</strong>{{#FloorName}} · {{FloorName}}{{/FloorName}}</div>
     {{#SeatNumber}}<div class="seat">Seat {{SeatNumber}}</div>{{/SeatNumber}}
   </div>

@@ -16,9 +16,18 @@ public static class GroupColours
         return colours;
     }
 
-    /// <summary>The n-th automatic colour: hues stepped by the golden angle, light enough for dark text.</summary>
+    /// <summary>Clearly different colours for the first groups (based on the Tableau 20 palette, ordered so neighbours differ).</summary>
+    private static readonly string[] Palette =
+    [
+        "#4e79a7", "#f28e2b", "#59a14f", "#e15759", "#b07aa1", "#edc948", "#76b7b2", "#ff9da7", "#9c755f", "#bab0ac",
+        "#a0cbe8", "#ffbe7d", "#8cd17d", "#ff9d9a", "#d4a6c8", "#f1ce63", "#86bcb6", "#fabfd2", "#d7b5a6", "#79706e",
+    ];
+
+    /// <summary>The n-th automatic colour: from the palette, then hues stepped by the golden angle.</summary>
     public static string Automatic(int n)
     {
+        if (n < Palette.Length)
+            return Palette[n];
         var hue = n * 137.508 % 360;
         var lightness = n % 2 == 0 ? 0.68 : 0.58;
         return FromHsl(hue, 0.6, lightness);

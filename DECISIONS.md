@@ -259,7 +259,7 @@ algorithm works on setup + assignment. UI code never goes into model or algorith
 8. **Background images**
 9. Later: the mobile page
 
-Status (2026-11-04): steps 1–5 done.
+Status (2026-11-04): steps 1–6 done.
 
 Notes from step 3:
 - Undo/redo stores a snapshot of the project before each edit (`EditHistory`); the edit logic itself lives in
@@ -282,3 +282,24 @@ Notes from step 5:
 - The priorities dialog edits all weights as numbers; presets and sliders are not done yet.
 - The layout editor can show which tables count as adjacent ("Adjacent tables" switch).
 - Automatic group colours are spread around the colour wheel; with many groups some look alike.
+
+Notes from step 6:
+- **Manual edits** on the Plan page: click a seat or name to select a group, press **Move** (or M), then click a seat.
+  - An empty seat (or the group's own): the group takes free seats along the solver's fill order from that seat,
+    then the free seats just before it, **on that floor only**. If the floor lacks room, nothing changes and the
+    user is told to swap instead. (A first version wrapped around to other floors and split groups across floors.)
+  - A seat of another group: the two groups **swap**. Equal sizes trade places exactly; otherwise the moved group
+    starts where the other sat and the other takes the remaining seats of both, so the larger one ends up in two places.
+  - The seat choice lives in `Solver.PlanEditing` (it needs the fill order); the change itself is
+    `Core.Editing.PlanOperations.SeatGroups`, one undoable step. Score and warnings update immediately.
+- **Locks and pins:** Lock = a seat pin on the group's current seats (it follows the group when moved by hand).
+  Pin to table / floor from the group panel; Locks menu has "Lock all seated groups" and "Unlock all" (table and
+  floor pins stay). Locked or pinned groups have a dashed outline and a lock icon in the list.
+  "Take out" removes a group from the plan (and its lock).
+- Edits apply to the current plan only; while a proposed plan is shown, editing is disabled.
+- **Saved plans** tab: save the current plan with a name; each saved plan stores its priorities and key figures
+  (score, seated, split groups, 1st choices met), shown in the list. Restore makes it the current plan (undoable);
+  seats or groups that no longer exist are left out and reported, as are groups whose size changed.
+- **Tables** tab: per table, seats taken and the groups sitting there.
+- Automatic colours now start with a 20-colour palette (Tableau 20) before falling back to the colour wheel.
+- Not done: drag and drop, side-by-side comparison of saved plans, presets/sliders for priorities.

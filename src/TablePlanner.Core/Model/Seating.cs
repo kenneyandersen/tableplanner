@@ -37,6 +37,8 @@ public sealed class SeatingAssignment
     public Guid? GroupAt(SeatId seat) => Seats.FirstOrDefault(s => s.Seat == seat)?.GroupId;
 
     public IEnumerable<SeatId> SeatsOf(Guid groupId) => Seats.Where(s => s.GroupId == groupId).Select(s => s.Seat);
+
+    public SeatingAssignment Clone() => new() { Seats = [.. Seats] };
 }
 
 /// <summary>A named snapshot of an assignment, kept so it survives re-running the solver.</summary>
@@ -50,4 +52,10 @@ public sealed class SavedAssignment
     public SeatingPriorities Priorities { get; set; } = new();
 
     public SeatingAssignment Assignment { get; set; } = new();
+
+    /// <summary>How good the plan was when it was saved. Null for plans saved without statistics.</summary>
+    public PlanStats? Stats { get; set; }
 }
+
+/// <summary>Key figures of a plan, stored with a saved plan so the list can compare plans at a glance.</summary>
+public sealed record PlanStats(double Score, int PeoplePlaced, int PeopleTotal, int SplitGroups, int FirstChoicesMet, int FirstChoicesWanted);

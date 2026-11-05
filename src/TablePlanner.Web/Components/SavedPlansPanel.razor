@@ -1,0 +1,91 @@
+@* Saved plans: save the current plan under a name, and restore, rename or delete saved ones. *@
+
+<MudStack Row="true" AlignItems="AlignItems.End" Spacing="1" Class="mb-2">
+    <MudTextField T="string" @bind-Value="_name" Label="Name" Placeholder="@($"Plan {Project.SavedAssignments.Count + 1}")"
+                  Variant="Variant.Outlined" Margin="Margin.Dense" Disabled="!CanSave" OnKeyDown="OnNameKey" Immediate="true" />
+    <MudButton Variant="Variant.Filled" Color="Color.Primary" Disabled="!CanSave" OnClick="Save" Style="white-space: nowrap">Save plan</MudButton>
+</MudStack>
+@if (!CanSave)
+{
+    <MudText Typo="Typo.caption" Color="Color.Secondary">There is no current plan to save.</MudText>
+}
+
+@if (Project.SavedAssignments.Count == 0)
+{
+    <MudText Typo="Typo.body2" Class="mt-2">
+        No saved plans yet. Save a plan before trying other priorities, so you can go back to it.
+    </MudText>
+}
+@foreach (var saved in Project.SavedAssignments.OrderByDescending(s => s.SavedAt))
+{
+    var id = saved.Id;
+    <MudPaper Outlined="true" Class="pa-2 mb-2">
+        <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="1">
+            @if (_renaming == id)
+            {
+                <MudTextField T="string" @bind-Value="_newName" Margin="Margin.Dense" Variant="Variant.Outlined" AutoFocus="true"
+                              OnKeyDown="@(e => OnRenameKey(e, id))" Immediate="true" />
+                <MudIconButton Icon="@Icons.Material.Filled.Check" Size="Size.Small" aria-label="Save name" OnClick="@(() => Rename(id))" />
+            }
+            else
+            {
+                <MudText Typo="Typo.subtitle2" Style="flex: 1">@saved.Name</MudText>
+                <MudText Typo="Typo.caption" Color="Color.Secondary">@Formatting.Ago(saved.SavedAt)</MudText>
+            }
+        </MudStack>
+        @if (saved.Stats is { } stats)
+        {
+            <MudText Typo="Typo.caption" Style="display: block">
+                Score @stats.Score.ToString("N0") · @stats.PeoplePlaced of @stats.PeopleTotal seated · @stats.SplitGroups split
+                @(stats.FirstChoicesWanted > 0 ? $" · 1st choices {stats.FirstChoicesMet} of {stats.FirstChoicesWanted}" : "")
+            </MudText>
+        }
+        <MudStack Row="true" Spacing="1" Class="mt-1">
+            <MudButton Size="Size.Small" Variant="Variant.Outlined" StartIcon="@Icons.Material.Filled.Restore" OnClick="@(() => OnRestore.InvokeAsync(id))">Restore</MudButton>
+            <MudButton Size="Size.Small" Variant="Variant.Text" OnClick="@(() => StartRename(saved))">Rename</MudButton>
+            <MudButton Size="Size.Small" Variant="Variant.Text" Color="Color.Error" OnClick="@(() => OnDelete.InvokeAsync(id))">Delete</MudButton>
+        </MudStack>
+    </MudPaper>
+}
+
+@code {
+    private string? _name;
+    private Guid? _renaming;
+    private string? _newName;
+
+    [Parameter, EditorRequired] public EventProject Project { get; set; } = default!;
+    [Parameter] public bool CanSave { get; set; }
+    [Parameter] public EventCallback<string> OnSave { get; set; }
+    [Parameter] public EventCallback<Guid> OnRestore { get; set; }
+    [Parameter] public EventCallback<(Guid Id, string Name)> OnRename { get; set; }
+    [Parameter] public EventCallback<Guid> OnDelete { get; set; }
+
+    private async Task Save()
+    {
+        await OnSave.InvokeAsync(_name ?? "");
+        _name = null;
+    }
+
+    private async Task OnNameKey(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter" && CanSave)
+            await Save();
+    }
+
+    private void StartRename(SavedAssignment saved) => (_renaming, _newName) = (saved.Id, saved.Name);
+
+    private async Task Rename(Guid id)
+    {
+        if (!string.IsNullOrWhiteSpace(_newName))
+            await OnRename.InvokeAsync((id, _newName));
+        _renaming = null;
+    }
+
+    private async Task OnRenameKey(KeyboardEventArgs e, Guid id)
+    {
+        if (e.Key == "Enter")
+            await Rename(id);
+        else if (e.Key == "Escape")
+            _renaming = null;
+    }
+}

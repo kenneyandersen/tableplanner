@@ -1,0 +1,41 @@
+@* The plan per table: seats taken and the groups at each table, floor by floor. Clicking a group selects it. *@
+
+@foreach (var floor in Setup.Floors)
+{
+    <MudText Typo="Typo.subtitle2" Class="mt-2">@floor.Name</MudText>
+    @foreach (var table in floor.Tables.OrderBy(t => t.Number))
+    {
+        var groups = Assignment.Seats.Where(s => s.Seat.TableId == table.Id)
+            .GroupBy(s => s.GroupId)
+            .Select(g => (Group: Setup.FindGroup(g.Key), Count: g.Count()))
+            .Where(x => x.Group is not null)
+            .OrderByDescending(x => x.Count)
+            .ToList();
+        var taken = groups.Sum(g => g.Count);
+        <div class="table-list-row">
+            <div><b>@table.Number</b> · @taken of @table.AvailableSeatCount seats</div>
+            <div class="groups">
+                @if (groups.Count == 0)
+                {
+                    <span>Empty</span>
+                }
+                @foreach (var (group, count) in groups)
+                {
+                    var id = group!.Id;
+                    <span class="link-like" @onclick="() => GroupClicked.InvokeAsync(id)">@group.Name</span>
+                    <span> @(count == group.PeopleCount ? $"({count})" : $"({count} of {group.PeopleCount})")</span>
+                    @if (group != groups[^1].Group)
+                    {
+                        <span>, </span>
+                    }
+                }
+            </div>
+        </div>
+    }
+}
+
+@code {
+    [Parameter, EditorRequired] public EventSetup Setup { get; set; } = default!;
+    [Parameter, EditorRequired] public SeatingAssignment Assignment { get; set; } = default!;
+    [Parameter] public EventCallback<Guid?> GroupClicked { get; set; }
+}

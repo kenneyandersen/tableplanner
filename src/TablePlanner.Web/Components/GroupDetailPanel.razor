@@ -1,0 +1,126 @@
+@* The selected group in the plan: where it sits, its pin, its preferences, and actions (move, lock, pin, unseat). *@
+@using TablePlanner.Solver
+
+<MudPaper Outlined="true" Class="pa-3 mb-3 group-detail">
+    <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="1">
+        <span class="group-dot" style="background: @Colour"></span>
+        <MudText Typo="Typo.subtitle1" Style="flex: 1">@Group.Name (@Group.PeopleCount)</MudText>
+        <MudIconButton Icon="@Icons.Material.Filled.Close" Size="Size.Small" aria-label="Deselect group" OnClick="Close" />
+    </MudStack>
+
+    <MudText Typo="Typo.body2">@WhereText()</MudText>
+    <MudText Typo="Typo.body2" Color="@(Pin is null ? Color.Default : Color.Primary)" Class="mb-2">@PinText()</MudText>
+
+    @if (Placement is { Preferences.Count: > 0 } placement)
+    {
+        <MudText Typo="Typo.caption">Would like to sit with</MudText>
+        <ul class="pref-list mb-2">
+            @foreach (var pref in placement.Preferences)
+            {
+                <li>
+                    <MudIcon Icon="@(pref.IsMet ? Icons.Material.Filled.CheckCircle : Icons.Material.Filled.RadioButtonUnchecked)"
+                             Color="@(pref.IsMet ? Color.Success : Color.Default)" Size="Size.Small" />
+                    <span>@pref.Rank. @(Setup.FindGroup(pref.PreferredGroupId)?.Name)</span>
+                    <MudText Typo="Typo.caption" Color="Color.Secondary">@ClosenessText(pref.Closeness)</MudText>
+                </li>
+            }
+        </ul>
+    }
+
+    @if (Disabled)
+    {
+        <MudText Typo="Typo.caption" Color="Color.Secondary">Use or discard the new plan to edit by hand.</MudText>
+    }
+    else
+    {
+        <MudStack Row="true" Wrap="Wrap.Wrap" Spacing="1">
+            <MudButton Size="Size.Small" Variant="@(Moving ? Variant.Filled : Variant.Outlined)" Color="Color.Primary"
+                       StartIcon="@Icons.Material.Filled.OpenWith" OnClick="OnMove">@(Moving ? "Cancel move" : (IsSeated ? "Move (M)" : "Place (M)"))</MudButton>
+            @if (Pin?.Scope == PinScope.Seats)
+            {
+                <MudButton Size="Size.Small" Variant="Variant.Outlined" StartIcon="@Icons.Material.Filled.LockOpen" OnClick="OnUnpin">Unlock</MudButton>
+            }
+            else if (IsSeated)
+            {
+                <MudTooltip Text="Keep the group in these seats when making or re-optimizing the plan">
+                    <MudButton Size="Size.Small" Variant="Variant.Outlined" StartIcon="@Icons.Material.Filled.Lock" OnClick="OnLock">Lock</MudButton>
+                </MudTooltip>
+            }
+            <MudMenu Label="Pin" Size="Size.Small" Variant="Variant.Outlined" StartIcon="@Icons.Material.Filled.PushPin" Dense="true">
+                @foreach (var table in GroupTables())
+                {
+                    <MudMenuItem OnClick="@(() => OnPinTable.InvokeAsync(table.Id))">To table @table.Number</MudMenuItem>
+                }
+                @foreach (var floor in Setup.Floors)
+                {
+                    <MudMenuItem OnClick="@(() => OnPinFloor.InvokeAsync(floor.Id))">To @floor.Name</MudMenuItem>
+                }
+                @if (Pin is not null)
+                {
+                    <MudMenuItem OnClick="OnUnpin">Remove pin</MudMenuItem>
+                }
+            </MudMenu>
+            @if (IsSeated)
+            {
+                <MudButton Size="Size.Small" Variant="Variant.Text" StartIcon="@Icons.Material.Filled.EventBusy" OnClick="OnUnseat">Take out</MudButton>
+            }
+        </MudStack>
+    }
+</MudPaper>
+
+@code {
+    [Parameter, EditorRequired] public Group Group { get; set; } = default!;
+    [Parameter, EditorRequired] public EventSetup Setup { get; set; } = default!;
+    [Parameter, EditorRequired] public SeatingAssignment Assignment { get; set; } = default!;
+    [Parameter] public GroupPlacement? Placement { get; set; }
+    [Parameter] public string Colour { get; set; } = "#ccc";
+    [Parameter] public bool Moving { get; set; }
+
+    /// <summary>True while a proposed plan is shown: edits apply to the current plan only.</summary>
+    [Parameter] public bool Disabled { get; set; }
+
+    [Parameter] public EventCallback OnMove { get; set; }
+    [Parameter] public EventCallback OnLock { get; set; }
+    [Parameter] public EventCallback OnUnpin { get; set; }
+    [Parameter] public EventCallback<Guid> OnPinTable { get; set; }
+    [Parameter] public EventCallback<Guid> OnPinFloor { get; set; }
+    [Parameter] public EventCallback OnUnseat { get; set; }
+    [Parameter] public EventCallback OnClose { get; set; }
+
+    private Pin? Pin => Setup.Pins.FirstOrDefault(p => p.GroupId == Group.Id);
+
+    private bool IsSeated => Placement is { Placed: > 0 };
+
+    private Task Close() => OnClose.InvokeAsync();
+
+    private List<Table> GroupTables() =>
+        Assignment.SeatsOf(Group.Id).Select(s => s.TableId).Distinct()
+            .Select(Setup.FindTable).OfType<Table>().OrderBy(t => t.Number).ToList();
+
+    private string WhereText()
+    {
+        if (Placement is not { Placed: > 0 } placement)
+            return "Not seated.";
+        var floors = Setup.Floors.Where(f => f.Tables.Any(t => placement.TableNumbers.Contains(t.Number))).Select(f => f.Name);
+        var tables = placement.TableNumbers.Count == 1 ? $"Table {placement.TableNumbers[0]}" : $"Tables {string.Join(", ", placement.TableNumbers)}";
+        var count = placement.IsPlaced ? "" : $" ({placement.Placed} of {placement.PeopleCount} seated)";
+        return $"{tables}, {string.Join(" and ", floors)}{count}.";
+    }
+
+    private string PinText() => Pin switch
+    {
+        null => "Not pinned.",
+        { Scope: PinScope.Seats } => "Locked to its seats.",
+        { Scope: PinScope.Table } p => $"Pinned to table {Setup.FindTable(p.TableId ?? Guid.Empty)?.Number}.",
+        { } p => $"Pinned to {Setup.Floors.FirstOrDefault(f => f.Id == p.FloorId)?.Name}.",
+    };
+
+    private static string ClosenessText(PreferenceCloseness closeness) => closeness switch
+    {
+        PreferenceCloseness.SameTable => "same table",
+        PreferenceCloseness.AdjacentTable => "next table",
+        PreferenceCloseness.SameFloor => "same floor",
+        PreferenceCloseness.Apart => "other floor",
+        _ => "not seated",
+    };
+}

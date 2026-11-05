@@ -44,6 +44,10 @@ else
         <div class="group-row @(Highlight == id ? "highlighted" : "")" @onclick="() => HighlightChanged.InvokeAsync(id)">
             <span class="group-dot" style="background: @Colours.GetValueOrDefault(id, "#ccc")"></span>
             <span class="group-name">@group.Name <span class="group-count">(@group.PeopleCount)</span></span>
+            @if (Pinned.Contains(id))
+            {
+                <MudIcon Icon="@Icons.Material.Filled.Lock" Size="Size.Small" Color="Color.Secondary" Title="Locked or pinned" />
+            }
             <span class="group-tables">
                 @if (group.Placed == 0)
                 {
@@ -67,6 +71,7 @@ else
 
     [Parameter, EditorRequired] public PlanSummary Summary { get; set; } = default!;
     [Parameter, EditorRequired] public IReadOnlyDictionary<Guid, string> Colours { get; set; } = default!;
+    [Parameter] public IReadOnlySet<Guid> Pinned { get; set; } = new HashSet<Guid>();
     [Parameter] public Guid? Highlight { get; set; }
     [Parameter] public EventCallback<Guid?> HighlightChanged { get; set; }
 }

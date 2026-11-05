@@ -52,6 +52,10 @@
                     <MudButton Variant="Variant.Text" StartIcon="@Icons.Material.Filled.Settings" Class="ml-2" OnClick="EditPriorities">Priorities</MudButton>
                     <MudButton Variant="Variant.Text" StartIcon="@Icons.Material.Filled.ClearAll" Class="ml-2"
                                Disabled="Session.Project.CurrentAssignment.Seats.Count == 0" OnClick="ClearPlan">Clear plan</MudButton>
+                    <MudMenu Label="Locks" Variant="Variant.Text" StartIcon="@Icons.Material.Filled.Lock" Class="ml-2" Disabled="_proposal is not null">
+                        <MudMenuItem OnClick="LockAll" Disabled="Session.Project.CurrentAssignment.Seats.Count == 0">Lock all seated groups</MudMenuItem>
+                        <MudMenuItem OnClick="UnlockAll" Disabled="!setup.Pins.Any(p => p.Scope == PinScope.Seats)">Unlock all</MudMenuItem>
+                    </MudMenu>
                 }
 
                 <MudSpacer />
@@ -66,9 +70,15 @@
             </MudToolBar>
 
             <div class="editor-body">
-                <div class="editor-canvas">
+                <div class="editor-canvas" tabindex="0" @onkeydown="OnKeyDown">
+                    @if (_moving && SelectedGroup is { } moving)
+                    {
+                        <MudChip T="string" Color="Color.Primary" Class="move-hint" OnClose="@(() => _moving = false)">
+                            Click a seat to move @moving.Name there, or another group's seat to swap. Esc cancels.
+                        </MudChip>
+                    }
                     <PlanCanvas Setup="setup" FloorId="floor.Id" Assignment="DisplayedAssignment" Colours="_colours" Scale="_scale"
-                                Highlight="_highlight" HighlightChanged="HighlightGroup" />
+                                Selected="_highlight" Pinned="_pinned" MoveMode="_moving" SeatClicked="OnSeatClicked" GroupClicked="HighlightGroup" />
                 </div>
                 <div class="editor-side">
                     @if (_failure is { } failure)
@@ -104,9 +114,33 @@
                         </MudPaper>
                     }
 
+                    @if (SelectedGroup is { } selected)
+                    {
+                        <GroupDetailPanel Group="selected" Setup="setup" Assignment="DisplayedAssignment" Colour="@_colours.GetValueOrDefault(selected.Id, "#ccc")"
+                                          Placement="summary?.Groups.FirstOrDefault(g => g.GroupId == selected.Id)" Moving="_moving" Disabled="_proposal is not null"
+                                          OnMove="@(() => _moving = !_moving)" OnLock="@(() => Edit("Lock group", p => PlanOperations.Lock(p, selected.Id)))"
+                                          OnUnpin="@(() => Edit("Remove pin", p => PlanOperations.Unpin(p, selected.Id)))"
+                                          OnPinTable="@(t => Edit("Pin group to table", p => PlanOperations.PinToTable(p, selected.Id, t)))"
+                                          OnPinFloor="@(f => Edit("Pin group to floor", p => PlanOperations.PinToFloor(p, selected.Id, f)))"
+                                          OnUnseat="@(() => Edit("Take group out of plan", p => PlanOperations.UnseatGroup(p, selected.Id)))"
+                                          OnClose="@(() => HighlightGroup(null))" />
+                    }
+
                     @if (summary is not null)
                     {
-                        <PlanSummaryPanel Summary="summary" Colours="_colours" Highlight="_highlight" HighlightChanged="HighlightGroup" />
+                        <MudTabs Elevation="0" Rounded="true" TabPanelsClass="pt-2" Class="side-tabs" MinimumTabWidth="70px" @bind-ActivePanelIndex="_tab">
+                            <MudTabPanel Text="Groups">
+                                <PlanSummaryPanel Summary="summary" Colours="_colours" Pinned="_pinned" Highlight="_highlight" HighlightChanged="HighlightGroup" />
+                            </MudTabPanel>
+                            <MudTabPanel Text="Tables">
+                                <TablesPanel Setup="setup" Assignment="DisplayedAssignment" GroupClicked="HighlightGroup" />
+                            </MudTabPanel>
+                            <MudTabPanel Text="Saved plans">
+                                <SavedPlansPanel Project="Session.Project" CanSave="@(Session.Project.CurrentAssignment.Seats.Count > 0)"
+                                                 OnSave="SavePlan" OnRestore="RestorePlan" OnDelete="DeletePlan"
+                                                 OnRename="@(x => Edit("Rename saved plan", p => PlanOperations.RenamePlan(p, x.Id, x.Name)))" />
+                            </MudTabPanel>
+                        </MudTabs>
                     }
                 </div>
             </div>
@@ -120,6 +154,9 @@
     private Guid _floorId;
     private double _scale = DefaultScale;
     private Guid? _highlight;
+    private bool _moving;
+    private int _tab;
+    private IReadOnlySet<Guid> _pinned = new HashSet<Guid>();
     private IReadOnlyDictionary<Guid, string> _colours = new Dictionary<Guid, string>();
     private PlanSummary? _currentSummary;
 
@@ -164,6 +201,9 @@
         if (Session.Project is not { } project)
             return;
         _colours = GroupColours.For(project.Setup);
+        _pinned = project.Setup.Pins.Select(p => p.GroupId).ToHashSet();
+        if (_highlight is { } id && project.Setup.FindGroup(id) is null)
+            (_highlight, _moving) = (null, false);
         _currentSummary = Summarize(project.CurrentAssignment);
         _proposalSummary = _proposal?.Assignment is { } proposed ? Summarize(proposed) : null;
     }
@@ -238,9 +278,98 @@
             Session.History!.Execute("Change priorities", p => p.Priorities = edited);
     }
 
-    /// <summary>Highlights a group and shows the floor where it sits.</summary>
+    private Group? SelectedGroup => _highlight is { } id ? Session.Project?.Setup.FindGroup(id) : null;
+
+    /// <summary>Runs an edit on the current plan or pins as one undoable step.</summary>
+    private void Edit(string description, Action<EventProject> edit) => Session.History!.Execute(description, edit);
+
+    /// <summary>Selects a group via a click on a seat or, while moving, moves or swaps the selected group there.</summary>
+    private void OnSeatClicked(SeatId seat)
+    {
+        var at = DisplayedAssignment.GroupAt(seat);
+        if (!_moving || SelectedGroup is not { } group || _proposal is not null)
+        {
+            HighlightGroup(at);
+            return;
+        }
+
+        var project = Session.Project!;
+        var problem = SeatingProblem.Create(project.Setup, project.Priorities);
+        if (at is { } other && other != group.Id)
+        {
+            var swap = PlanEditing.SeatsForSwap(problem, project.CurrentAssignment, group.Id, other);
+            Edit("Swap groups", p => PlanOperations.SeatGroups(p, swap));
+        }
+        else if (PlanEditing.SeatsForMove(problem, project.CurrentAssignment, group.Id, seat) is { } seats)
+            Edit("Move group", p => PlanOperations.SeatGroups(p, new Dictionary<Guid, IReadOnlyList<SeatId>> { [group.Id] = seats }));
+        else
+        {
+            Snackbar.Add($"There are not enough free seats on this floor for {group.Name} ({group.PeopleCount}). Click a seat of another group to swap instead.", Severity.Warning);
+            return;
+        }
+        _moving = false;
+    }
+
+    private void OnKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Escape")
+            _moving = false;
+        else if (e.Key is "m" or "M" && SelectedGroup is not null && _proposal is null)
+            _moving = !_moving;
+    }
+
+    private void LockAll()
+    {
+        var count = 0;
+        Edit("Lock all groups", p => count = PlanOperations.LockAll(p));
+        Snackbar.Add($"{count} groups locked to their seats.", Severity.Info);
+    }
+
+    private void UnlockAll() => Edit("Unlock all groups", p => PlanOperations.UnlockAll(p));
+
+    private void SavePlan(string name)
+    {
+        var s = _currentSummary!;
+        var first = s.PreferenceStats.FirstOrDefault(x => x.Rank == 1);
+        var stats = new PlanStats(s.Score, s.PeoplePlaced, s.PeopleTotal, s.SplitGroups, first?.Met ?? 0, first?.Wanted ?? 0);
+        SavedAssignment? saved = null;
+        Edit("Save plan", p => saved = PlanOperations.SavePlan(p, name, DateTimeOffset.Now, stats));
+        Snackbar.Add($"Saved '{saved!.Name}'.", Severity.Success);
+    }
+
+    private void RestorePlan(Guid id)
+    {
+        RestoreReport? report = null;
+        (_proposal, _proposalSummary) = (null, null);
+        Edit("Restore saved plan", p => report = PlanOperations.RestorePlan(p, id));
+        if (report!.IsClean)
+        {
+            Snackbar.Add("The saved plan is now the current plan.", Severity.Success);
+            return;
+        }
+        var notes = new List<string>();
+        if (report.GroupsMissing > 0)
+            notes.Add($"{report.GroupsMissing} deleted groups were left out");
+        if (report.SeatsDropped > 0)
+            notes.Add($"{report.SeatsDropped} seats no longer exist");
+        if (report.GroupsWithWrongCount.Count > 0)
+            notes.Add($"the size changed for {string.Join(", ", report.GroupsWithWrongCount)}");
+        Snackbar.Add($"Restored, but the setup has changed since: {string.Join("; ", notes)}. Re-optimize to fix the plan.", Severity.Warning);
+    }
+
+    private async Task DeletePlan(Guid id)
+    {
+        var name = Session.Project!.SavedAssignments.FirstOrDefault(s => s.Id == id)?.Name;
+        var confirm = await Dialogs.ShowMessageBoxAsync("Delete saved plan?", $"Delete '{name}'? You can undo this.", yesText: "Delete", cancelText: "Cancel");
+        if (confirm == true)
+            Edit("Delete saved plan", p => PlanOperations.DeletePlan(p, id));
+    }
+
+    /// <summary>Selects a group (or deselects it when clicked again) and shows the floor where it sits.</summary>
     private void HighlightGroup(Guid? groupId)
     {
+        if (groupId != _highlight)
+            _moving = false;
         _highlight = _highlight == groupId ? null : groupId;
         if (_highlight is { } id && DisplayedAssignment.SeatsOf(id).FirstOrDefault() is { TableId: var tableId } && tableId != Guid.Empty)
             if (Session.Project!.Setup.Floors.FirstOrDefault(f => f.Tables.Any(t => t.Id == tableId)) is { } floor)

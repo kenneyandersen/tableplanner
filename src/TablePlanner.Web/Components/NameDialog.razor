@@ -1,0 +1,40 @@
+@* Asks for a name, e.g. for a template. Returns the name. *@
+
+<MudDialog>
+    <DialogContent>
+        @if (Message is not null)
+        {
+            <MudText Typo="Typo.body2" Class="mb-3">@Message</MudText>
+        }
+        <MudTextField T="string" @bind-Value="_name" Label="Name" Variant="Variant.Outlined" Margin="Margin.Dense" AutoFocus="true"
+                      Immediate="true" OnKeyDown="OnKeyDown" />
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="() => Dialog.Cancel()">Cancel</MudButton>
+        <MudButton Color="Color.Primary" Variant="Variant.Filled" Disabled="string.IsNullOrWhiteSpace(_name)" OnClick="Ok">@OkText</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    private string _name = "";
+
+    [CascadingParameter] private IMudDialogInstance Dialog { get; set; } = null!;
+
+    [Parameter] public string Name { get; set; } = "";
+    [Parameter] public string? Message { get; set; }
+    [Parameter] public string OkText { get; set; } = "Save";
+
+    protected override void OnInitialized() => _name = Name;
+
+    private void Ok()
+    {
+        if (!string.IsNullOrWhiteSpace(_name))
+            Dialog.Close(DialogResult.Ok(_name.Trim()));
+    }
+
+    private void OnKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter")
+            Ok();
+    }
+}

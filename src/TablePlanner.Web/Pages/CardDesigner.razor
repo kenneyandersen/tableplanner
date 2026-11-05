@@ -56,15 +56,30 @@
                 <MudIconButton Icon="@Icons.Material.Filled.ChevronRight" Size="Size.Small" OnClick="@(() => _sample = (_sample + 1) % _cards.Count)" aria-label="Next card" />
             }
             <MudButton Variant="Variant.Text" StartIcon="@Icons.Material.Filled.RestartAlt" Class="ml-2" OnClick="ResetDesign">Start over</MudButton>
-            <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Save" Class="ml-2" OnClick="Save">Save and use</MudButton>
+            <MudButton Variant="@(_editingTemplate is null ? Variant.Filled : Variant.Outlined)" Color="Color.Primary" StartIcon="@Icons.Material.Filled.SaveAs" Class="ml-2"
+                       OnClick="SaveAsNew">Save as new…</MudButton>
+            @if (_editingTemplate is { } editing)
+            {
+                <MudTooltip Text="@($"Saves the changes to '{editing.Name}' and uses it")">
+                    <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Save" Class="ml-2" OnClick="Save">Save</MudButton>
+                </MudTooltip>
+            }
         </MudToolBar>
 
-        @if (_replacesOwnTemplate)
-        {
-            <div class="print-messages">
-                <MudAlert Severity="Severity.Info" Dense="true">Your table cards use a template you edited by hand. Saving the design replaces it.</MudAlert>
-            </div>
-        }
+        <div class="print-messages">
+            @if (_editingTemplate is { } editing)
+            {
+                <MudAlert Severity="@(editing.IsUnchangedDesign ? Severity.Normal : Severity.Info)" Dense="true">
+                    Designing '@editing.Name'.@(editing.IsUnchangedDesign ? "" : " Its HTML was edited by hand since; Save replaces those changes, Save as new keeps them.")
+                </MudAlert>
+            }
+            else
+            {
+                <MudAlert Severity="Severity.Normal" Dense="true">
+                    A new design, starting from the built-in card@(_basedOn is null ? "" : $" (the selected template '{_basedOn}' was not made here, so it stays as it is)"). Save as new gives it a name.
+                </MudAlert>
+            }
+        </div>
 
         <div class="editor-body">
             <div class="editor-canvas design-area" tabindex="0" @ref="_host" @onkeydown="OnKeyDown"
@@ -206,7 +221,13 @@
     private Guid? _selectedId;
     private List<TemplateData> _cards = [];
     private int _sample;
-    private bool _replacesOwnTemplate;
+    private TemplateLibrary _library = new();
+
+    /// <summary>The saved template being designed, or null for a new design.</summary>
+    private SavedTemplate? _editingTemplate;
+
+    /// <summary>The name of the selected hand-made template when a new design was started instead.</summary>
+    private string? _basedOn;
     private int _fileKey;
     private ElementReference _host;
     private bool _keysHooked;
@@ -225,9 +246,13 @@
     protected override async Task OnInitializedAsync()
     {
         Session.Changed += OnSessionChanged;
-        _design = await Templates.LoadDesignAsync() ?? CardDesign.Default();
-        var own = await Templates.LoadAsync(PrintKind.TableCards);
-        _replacesOwnTemplate = own is not null && own != _design.ToTemplate();
+        // The selected card template opens again when it was made here; otherwise a new design starts.
+        _library = await Templates.LoadAsync();
+        var selected = _library.SelectedTemplate(PrintKind.TableCards);
+        if (CardDesign.FromJson(selected?.DesignJson) is { } design)
+            (_design, _editingTemplate) = (design, selected);
+        else
+            (_design, _basedOn) = (CardDesign.Default(), selected?.Name);
         LoadCards();
     }
 
@@ -367,18 +392,47 @@
         _selectedId = null;
     }
 
+    /// <summary>Saves the changes to the template being designed and uses it.</summary>
     private async Task Save()
+    {
+        if (_editingTemplate is not { } editing)
+            return;
+        editing.Html = _design.ToTemplate();
+        editing.DesignJson = _design.ToJson();
+        editing.SavedAt = DateTimeOffset.Now;
+        _library.Select(PrintKind.TableCards, editing.Id);
+        await Store($"Saved '{editing.Name}'. The table cards use it.");
+    }
+
+    /// <summary>Saves the design as a new, named card template and uses it; the template it started from stays.</summary>
+    private async Task SaveAsNew()
+    {
+        var suggested = _editingTemplate is { } editing ? $"{editing.Name} (copy)" : "My card design";
+        var dialog = await Dialogs.ShowAsync<NameDialog>("Save as a new template",
+            new DialogParameters<NameDialog>
+            {
+                { x => x.Name, _library.UniqueName(PrintKind.TableCards, suggested) },
+                { x => x.Message, "The table cards use the new template from now on. You can switch between templates on the Print & share page." },
+            },
+            new DialogOptions { MaxWidth = MaxWidth.ExtraSmall, FullWidth = true });
+        if (await dialog.Result is not { Canceled: false, Data: string name })
+            return;
+        var saved = _library.Add(PrintKind.TableCards, name, _design.ToTemplate(), DateTimeOffset.Now, _design.ToJson());
+        await Store($"Saved as '{saved.Name}'. The table cards use it.");
+    }
+
+    private async Task Store(string message)
     {
         try
         {
-            await Templates.SaveDesignAsync(_design);
+            await Templates.SaveAsync(_library);
         }
         catch (JSException)
         {
             Snackbar.Add("The design could not be saved: browser storage is full. Use a smaller image.", Severity.Error);
             return;
         }
-        Snackbar.Add("Saved. The table cards now use this design.", Severity.Success);
+        Snackbar.Add(message, Severity.Success);
         Navigation.NavigateTo($"project/{Id}/print");
     }
 

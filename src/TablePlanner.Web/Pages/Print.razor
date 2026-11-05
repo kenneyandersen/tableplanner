@@ -81,6 +81,14 @@
                     }
                 </MudSelect>
             }
+            <MudSelect T="Guid" Value="SelectedId" ValueChanged="SelectTemplate" Label="Template" Dense="true" Margin="Margin.Dense"
+                       Variant="Variant.Outlined" Class="mr-2 print-option" Style="min-width: 180px; max-width: 240px">
+                <MudSelectItem Value="Guid.Empty">@TemplateLibrary.BuiltInName</MudSelectItem>
+                @foreach (var saved in _library.For(_kind))
+                {
+                    <MudSelectItem Value="saved.Id">@saved.Name</MudSelectItem>
+                }
+            </MudSelect>
             @if (_kind == PrintKind.TableCards)
             {
                 <MudTooltip Text="Place the name, table number, colours, a logo or the QR code on the card by dragging">
@@ -122,19 +130,36 @@
                 <div class="template-side">
                     <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="1" Wrap="Wrap.Wrap">
                         <MudText Typo="Typo.subtitle2" Style="flex: 1">
-                            @(_kind switch { PrintKind.TableCards => "Table card template", PrintKind.Poster => "Poster template", _ => "Guest page template" })
-                            <MudChip T="string" Size="Size.Small" Color="@(IsCustom ? Color.Primary : Color.Default)">@(!IsCustom ? "Built-in" : IsFromDesigner ? "From the card designer" : "Your own")</MudChip>
+                            @(Selected?.Name ?? $"{TemplateLibrary.BuiltInName} {KindName.ToLowerInvariant()}")
+                            @if (Selected?.DesignJson is not null)
+                            {
+                                <MudChip T="string" Size="Size.Small" Color="Color.Primary">@(Selected.IsUnchangedDesign ? "Card designer" : "Card designer, edited by hand")</MudChip>
+                            }
                         </MudText>
+                    </MudStack>
+                    <MudStack Row="true" Spacing="1" Wrap="Wrap.Wrap">
+                        <MudButton Size="Size.Small" Variant="Variant.Outlined" StartIcon="@Icons.Material.Filled.ContentCopy" OnClick="CopyTemplate">Make a copy</MudButton>
+                        @if (Selected is { } saved)
+                        {
+                            <MudButton Size="Size.Small" Variant="Variant.Outlined" StartIcon="@Icons.Material.Filled.DriveFileRenameOutline" OnClick="@(() => RenameTemplate(saved))">Rename</MudButton>
+                            <MudButton Size="Size.Small" Variant="Variant.Outlined" Color="Color.Error" StartIcon="@Icons.Material.Filled.Delete" OnClick="@(() => DeleteTemplate(saved))">Delete</MudButton>
+                        }
                         <MudButton HtmlTag="label" Size="Size.Small" Variant="Variant.Outlined" StartIcon="@Icons.Material.Filled.Upload" for="template-file">Load</MudButton>
                         <InputFile id="template-file" accept=".html,.htm,text/html" OnChange="LoadTemplate" hidden @key="_fileKey" />
                         <MudButton Size="Size.Small" Variant="Variant.Outlined" StartIcon="@Icons.Material.Filled.Download" OnClick="DownloadTemplate">Save to file</MudButton>
-                        <MudButton Size="Size.Small" Variant="Variant.Text" StartIcon="@Icons.Material.Filled.RestartAlt" Disabled="!IsCustom" OnClick="ResetTemplate">Reset</MudButton>
                     </MudStack>
                     <MudText Class="mud-text-secondary" Typo="Typo.caption">
-                        HTML and CSS with placeholders such as {{GroupName}}. Changes are saved in this browser and used for every project.
+                        @if (Selected is null)
+                        {
+                            @:The built-in template cannot be changed: make a copy and give it a name to edit it.
+                        }
+                        else
+                        {
+                            @:HTML and CSS with placeholders such as {{GroupName}}. Changes are saved as you type, in this browser, and used for every project.
+                        }
                     </MudText>
-                    <MudTextField T="string" Value="Template" ValueChanged="SetTemplate" Lines="22" Variant="Variant.Outlined"
-                                  Immediate="true" DebounceInterval="500" Class="template-editor" spellcheck="false" aria-label="Template" />
+                    <MudTextField T="string" Value="Template" ValueChanged="SetTemplate" Lines="22" Variant="Variant.Outlined" ReadOnly="Selected is null"
+                                  Immediate="true" DebounceInterval="500" Class="template-editor" spellcheck="false" aria-label="Template HTML" />
                     <MudExpansionPanels Dense="true" Outlined="true">
                         <MudExpansionPanel Text="Placeholders">
                             @PlaceholderList(_kind switch { PrintKind.TableCards => TableCards.Placeholders, PrintKind.Poster => Poster.Placeholders, _ => GuestPage.Placeholders })
@@ -197,7 +222,7 @@
     // An A3 poster page is about 1,600 pixels wide, so it starts at half size.
     private readonly Dictionary<PrintKind, double> _zoom = new() { [PrintKind.TableCards] = 0.75, [PrintKind.Poster] = 0.5, [PrintKind.GuestPage] = 1 };
 
-    private readonly Dictionary<PrintKind, string?> _custom = [];
+    private TemplateLibrary _library = new();
     private PrintKind _kind = PrintKind.TableCards;
     private Guid _planId = Guid.Empty;
     private PosterOptions _poster = new();
@@ -214,25 +239,24 @@
 
     [Parameter] public Guid Id { get; set; }
 
-    private string Template => _custom.GetValueOrDefault(_kind) ?? DefaultTemplates.For(_kind);
+    private string Template => _library.Html(_kind);
+
+    /// <summary>The selected saved template of the shown kind, or null for the built-in one.</summary>
+    private SavedTemplate? Selected => _library.SelectedTemplate(_kind);
+
+    private Guid SelectedId => Selected?.Id ?? Guid.Empty;
+
+    private string KindName => _kind switch { PrintKind.TableCards => "Table cards", PrintKind.Poster => "Poster", _ => "Guest page" };
 
     private double Zoom => _zoom[_kind];
 
     private bool IsGuestPage => _kind == PrintKind.GuestPage;
 
-    private bool IsCustom => _custom.GetValueOrDefault(_kind) is not null;
-
-    /// <summary>The template made from the saved card design, to tell it apart from one edited by hand.</summary>
-    private string? _designTemplate;
-
-    private bool IsFromDesigner => _kind == PrintKind.TableCards && _designTemplate is not null && _custom.GetValueOrDefault(_kind) == _designTemplate;
 
     protected override async Task OnInitializedAsync()
     {
         Session.Changed += OnSessionChanged;
-        foreach (var kind in Enum.GetValues<PrintKind>())
-            _custom[kind] = await Templates.LoadAsync(kind);
-        _designTemplate = (await Templates.LoadDesignAsync())?.ToTemplate();
+        _library = await Templates.LoadAsync();
         Rebuild();
     }
 
@@ -321,58 +345,101 @@
 
     private async Task SetTemplate(string text)
     {
-        await StoreTemplate(text == DefaultTemplates.For(_kind) ? null : text);
+        // Only saved templates can be edited; the built-in one is read-only.
+        if (Selected is not { } saved || saved.Html == text)
+            return;
+        saved.Html = text;
+        saved.SavedAt = DateTimeOffset.Now;
+        await StoreLibrary();
         Rebuild();
     }
 
-    /// <summary>Remembers the template for this kind of print; null goes back to the built-in one.</summary>
-    private async Task StoreTemplate(string? text)
+    private async Task SelectTemplate(Guid id)
     {
-        _custom[_kind] = text;
+        _library.Select(_kind, id == Guid.Empty ? null : id);
+        await StoreLibrary();
+        Rebuild();
+    }
+
+    private async Task StoreLibrary()
+    {
         try
         {
-            if (text is null)
-                await Templates.ResetAsync(_kind);
-            else
-                await Templates.SaveAsync(_kind, text);
+            await Templates.SaveAsync(_library);
         }
         catch (JSException)
         {
-            Snackbar.Add("The template could not be saved: browser storage is full.", Severity.Error);
+            Snackbar.Add("The templates could not be saved: browser storage is full.", Severity.Error);
         }
     }
 
-    private async Task ResetTemplate()
+    private async Task<string?> AskName(string title, string name, string? message = null, string okText = "Save")
     {
-        var confirmed = await Dialogs.ShowMessageBoxAsync("Reset template?",
-            "Go back to the built-in template? Your changes are lost unless you saved them to a file.",
-            yesText: "Reset", cancelText: "Cancel");
-        if (confirmed != true)
+        var dialog = await Dialogs.ShowAsync<NameDialog>(title,
+            new DialogParameters<NameDialog> { { x => x.Name, name }, { x => x.Message, message }, { x => x.OkText, okText } },
+            new DialogOptions { MaxWidth = MaxWidth.ExtraSmall, FullWidth = true });
+        return await dialog.Result is { Canceled: false, Data: string chosen } ? chosen : null;
+    }
+
+    /// <summary>Saves the shown template (built-in or saved) under a new name and uses it, so it can be edited.</summary>
+    private async Task CopyTemplate()
+    {
+        var suggested = Selected is { } saved ? $"{saved.Name} (copy)" : $"My {KindName.ToLowerInvariant()}";
+        if (await AskName("Make a copy", _library.UniqueName(_kind, suggested),
+                "The copy is used from now on and can be edited. The original stays as it is.", "Make a copy") is not { } name)
             return;
-        await StoreTemplate(null);
+        _library.Add(_kind, name, Template, DateTimeOffset.Now, Selected?.DesignJson);
+        _editing = true;
+        await StoreLibrary();
         Rebuild();
     }
 
+    private async Task RenameTemplate(SavedTemplate saved)
+    {
+        if (await AskName("Rename template", saved.Name, okText: "Rename") is not { } name)
+            return;
+        _library.Rename(saved.Id, name);
+        await StoreLibrary();
+    }
+
+    private async Task DeleteTemplate(SavedTemplate saved)
+    {
+        var confirmed = await Dialogs.ShowMessageBoxAsync("Delete template?",
+            $"Delete '{saved.Name}'? This can't be undone. Save it to a file first if you may need it again.",
+            yesText: "Delete", cancelText: "Cancel");
+        if (confirmed != true)
+            return;
+        _library.Delete(saved.Id);
+        await StoreLibrary();
+        Rebuild();
+    }
+
+    /// <summary>A template from a file is saved under the file's name and used.</summary>
     private async Task LoadTemplate(InputFileChangeEventArgs e)
     {
         _fileKey++;
+        string html;
         try
         {
             using var reader = new StreamReader(e.File.OpenReadStream(MaxTemplateBytes));
-            await StoreTemplate(await reader.ReadToEndAsync());
+            html = await reader.ReadToEndAsync();
         }
         catch (IOException ex)
         {
             Snackbar.Add($"Could not read the file: {ex.Message}", Severity.Error);
             return;
         }
+        var saved = _library.Add(_kind, Path.GetFileNameWithoutExtension(e.File.Name), html, DateTimeOffset.Now);
+        await StoreLibrary();
         Rebuild();
-        Snackbar.Add($"Template loaded from {e.File.Name}.", Severity.Success);
+        Snackbar.Add($"Template loaded from {e.File.Name} and saved as '{saved.Name}'.", Severity.Success);
     }
 
     private async Task DownloadTemplate()
     {
-        var fileName = _kind switch { PrintKind.TableCards => "table-cards-template.html", PrintKind.Poster => "poster-template.html", _ => "guest-page-template.html" };
+        var fileName = Selected is { } saved
+            ? $"{Formatting.FileName(saved.Name)}.html"
+            : _kind switch { PrintKind.TableCards => "table-cards-template.html", PrintKind.Poster => "poster-template.html", _ => "guest-page-template.html" };
         await JS.InvokeVoidAsync("tablePlanner.downloadFile", fileName, "text/html", Template);
     }
 

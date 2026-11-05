@@ -4,34 +4,37 @@ using TablePlanner.Export.Printing;
 namespace TablePlanner.Web.Services;
 
 /// <summary>
-/// Keeps the user's own print templates in the browser's localStorage, separately from projects, so they are
-/// reused for every event. No entry means the built-in template is used.
+/// Keeps the user's print templates (a <see cref="TemplateLibrary"/>) in the browser's localStorage, separately from
+/// projects, so they are reused for every event.
 /// </summary>
 public sealed class TemplateStore(IJSRuntime js)
 {
-    private static string Key(PrintKind kind) => $"tableplanner:template:{kind.ToString().ToLowerInvariant()}";
+    private const string LibraryKey = "tableplanner:templatelibrary";
 
-    /// <summary>The user's template, or null when the built-in one is used.</summary>
-    public async Task<string?> LoadAsync(PrintKind kind) => await js.InvokeAsync<string?>("localStorage.getItem", Key(kind));
+    // What earlier versions kept: one own template per kind and one card design.
+    private static string EarlierKey(PrintKind kind) => $"tableplanner:template:{kind.ToString().ToLowerInvariant()}";
+    private const string EarlierDesignKey = "tableplanner:carddesign";
 
-    /// <summary>Saves the user's template. Throws <see cref="JSException"/> when browser storage is full.</summary>
-    public Task SaveAsync(PrintKind kind, string template) => js.InvokeVoidAsync("localStorage.setItem", Key(kind), template).AsTask();
-
-    /// <summary>Goes back to the built-in template.</summary>
-    public Task ResetAsync(PrintKind kind) => js.InvokeVoidAsync("localStorage.removeItem", Key(kind)).AsTask();
-
-    private const string DesignKey = "tableplanner:carddesign";
-
-    /// <summary>The design last saved in the card designer, or null.</summary>
-    public async Task<CardDesign?> LoadDesignAsync() => CardDesign.FromJson(await js.InvokeAsync<string?>("localStorage.getItem", DesignKey));
-
-    /// <summary>
-    /// Saves a card design and makes its template the table-card template. Throws <see cref="JSException"/> when
-    /// browser storage is full.
-    /// </summary>
-    public async Task SaveDesignAsync(CardDesign design)
+    public async Task<TemplateLibrary> LoadAsync()
     {
-        await js.InvokeVoidAsync("localStorage.setItem", DesignKey, design.ToJson());
-        await SaveAsync(PrintKind.TableCards, design.ToTemplate());
+        if (TemplateLibrary.FromJson(await js.InvokeAsync<string?>("localStorage.getItem", LibraryKey)) is { } library)
+            return library;
+
+        var own = new Dictionary<PrintKind, string?>();
+        foreach (var kind in Enum.GetValues<PrintKind>())
+            own[kind] = await js.InvokeAsync<string?>("localStorage.getItem", EarlierKey(kind));
+        var design = await js.InvokeAsync<string?>("localStorage.getItem", EarlierDesignKey);
+        library = TemplateLibrary.FromEarlierVersion(own, design, DateTimeOffset.Now);
+        if (library.Templates.Count > 0)
+        {
+            await SaveAsync(library);
+            foreach (var kind in Enum.GetValues<PrintKind>())
+                await js.InvokeVoidAsync("localStorage.removeItem", EarlierKey(kind));
+            await js.InvokeVoidAsync("localStorage.removeItem", EarlierDesignKey);
+        }
+        return library;
     }
+
+    /// <summary>Throws <see cref="JSException"/> when browser storage is full.</summary>
+    public Task SaveAsync(TemplateLibrary library) => js.InvokeVoidAsync("localStorage.setItem", LibraryKey, library.ToJson()).AsTask();
 }

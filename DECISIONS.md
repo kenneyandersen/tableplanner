@@ -472,3 +472,17 @@ Notes: no small parts of large groups (2026-11-05):
   even blocks over adjacent tables (Marketing 104 + 105 instead of 20 + 4). A solver test checks this.
 - Saved projects keep the priorities they were saved with (old numbers show as "Custom"); choose a preset such as
   Balanced to get the new values.
+
+Notes: several named templates (2026-11-05):
+- Each kind (table cards, poster, guest page) has the **built-in** template plus any number of **named templates**;
+  a **Template** picker on Print & share chooses which one is used. The choice and the templates are kept in the
+  browser (`TemplateLibrary`, localStorage `tableplanner:templatelibrary`), separately from projects.
+- The built-in template is read-only. **Make a copy** asks for a name and uses the copy; copies are edited in the
+  template editor (saved as you type), **Rename**d and **Delete**d (then the kind goes back to the built-in one).
+  Loading a file saves it under the file's name. Names are unique per kind ("Gala (2)"); "Built-in" is taken.
+- The **card designer** opens the selected card template when it was made in the designer (its design is kept with
+  it), otherwise it starts a new design from the built-in card and leaves the selected template alone. **Save**
+  updates the template being designed, **Save as new…** stores it under a new name; both make it the one used. A
+  designed template whose HTML was edited by hand since is marked, and the designer says Save replaces those edits.
+- Templates from the earlier version (one per kind plus one card design) are moved into the library on first use as
+  "My template" / "My card design", still selected; the old keys are removed. Tests cover the library logic.

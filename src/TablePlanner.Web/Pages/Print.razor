@@ -1,0 +1,292 @@
+@page "/project/{Id:guid}/print"
+@implements IDisposable
+@inject ProjectSession Session
+@inject TemplateStore Templates
+@inject IDialogService Dialogs
+@inject ISnackbar Snackbar
+@inject IJSRuntime JS
+@using TablePlanner.Export.Printing
+
+<PageTitle>Print · Table Planner</PageTitle>
+
+<ProjectLoader Id="Id">
+    @{ var project = Session.Project!; }
+    <div class="editor-page">
+        <MudToolBar Dense="true" Class="editor-toolbar" WrapContent="true">
+            <MudToggleGroup T="PrintKind" Value="_kind" ValueChanged="SetKind" Size="Size.Small" Color="Color.Primary">
+                <MudToggleItem Value="PrintKind.TableCards" Text="Table cards" />
+                <MudToggleItem Value="PrintKind.Poster" Text="Poster" />
+            </MudToggleGroup>
+
+            <MudSelect T="Guid" Value="_planId" ValueChanged="SetPlan" Label="Plan" Dense="true" Margin="Margin.Dense"
+                       Variant="Variant.Outlined" Class="ml-3 print-option" Style="max-width: 220px">
+                <MudSelectItem Value="Guid.Empty">Current plan</MudSelectItem>
+                @foreach (var saved in project.SavedAssignments)
+                {
+                    <MudSelectItem Value="saved.Id">@saved.Name</MudSelectItem>
+                }
+            </MudSelect>
+
+            @if (_kind == PrintKind.Poster)
+            {
+                <MudSelect T="PaperSize" Value="_poster.Paper" ValueChanged="@(v => SetPoster(_poster with { Paper = v }))" Label="Paper"
+                           Dense="true" Margin="Margin.Dense" Variant="Variant.Outlined" Class="ml-3 print-option" Style="max-width: 100px">
+                    <MudSelectItem Value="PaperSize.A3">A3</MudSelectItem>
+                    <MudSelectItem Value="PaperSize.A4">A4</MudSelectItem>
+                </MudSelect>
+                <MudSwitch T="bool" Value="_poster.Landscape" ValueChanged="@(v => SetPoster(_poster with { Landscape = v }))" Label="Landscape" Color="Color.Primary" Class="ml-3" />
+                <MudCheckBox T="bool" Value="_poster.ShowFloorPlans" ValueChanged="@(v => SetPoster(_poster with { ShowFloorPlans = v }))" Label="Floor plans" Dense="true" />
+                <MudCheckBox T="bool" Value="_poster.ShowGroupList" ValueChanged="@(v => SetPoster(_poster with { ShowGroupList = v }))" Label="Group list" Dense="true" />
+            }
+
+            <MudSpacer />
+            <MudSelect T="double" Value="Zoom" ValueChanged="@(v => _zoom[_kind] = v)" Label="Preview size" Dense="true" Margin="Margin.Dense"
+                       Variant="Variant.Outlined" Class="mr-2 print-option" Style="max-width: 120px">
+                @foreach (var zoom in ZoomLevels)
+                {
+                    <MudSelectItem Value="zoom">@($"{zoom:P0}")</MudSelectItem>
+                }
+            </MudSelect>
+            <MudButton Variant="@(_editing ? Variant.Filled : Variant.Text)" StartIcon="@Icons.Material.Filled.Code" OnClick="@(() => _editing = !_editing)">
+                @(_editing ? "Close template" : "Edit template")
+            </MudButton>
+            <MudTooltip Text="Opens the browser's print dialog. Choose your printer, or 'Save as PDF'.">
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Print" Class="ml-2"
+                           Disabled="_html is null" OnClick="PrintAsync">Print</MudButton>
+            </MudTooltip>
+        </MudToolBar>
+
+        @if (Messages().ToList() is { Count: > 0 } messages)
+        {
+            <div class="print-messages">
+                @foreach (var (severity, text) in messages)
+                {
+                    <MudAlert Severity="severity" Dense="true" Class="mb-1">@text</MudAlert>
+                }
+            </div>
+        }
+
+        <div class="editor-body">
+            @if (_editing)
+            {
+                <div class="template-side">
+                    <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="1" Wrap="Wrap.Wrap">
+                        <MudText Typo="Typo.subtitle2" Style="flex: 1">
+                            @(_kind == PrintKind.TableCards ? "Table card template" : "Poster template")
+                            <MudChip T="string" Size="Size.Small" Color="@(IsCustom ? Color.Primary : Color.Default)">@(IsCustom ? "Your own" : "Built-in")</MudChip>
+                        </MudText>
+                        <MudButton HtmlTag="label" Size="Size.Small" Variant="Variant.Outlined" StartIcon="@Icons.Material.Filled.Upload" for="template-file">Load</MudButton>
+                        <InputFile id="template-file" accept=".html,.htm,text/html" OnChange="LoadTemplate" hidden @key="_fileKey" />
+                        <MudButton Size="Size.Small" Variant="Variant.Outlined" StartIcon="@Icons.Material.Filled.Download" OnClick="DownloadTemplate">Save to file</MudButton>
+                        <MudButton Size="Size.Small" Variant="Variant.Text" StartIcon="@Icons.Material.Filled.RestartAlt" Disabled="!IsCustom" OnClick="ResetTemplate">Reset</MudButton>
+                    </MudStack>
+                    <MudText Class="mud-text-secondary" Typo="Typo.caption">
+                        HTML and CSS with placeholders such as {{GroupName}}. Changes are saved in this browser and used for every project.
+                    </MudText>
+                    <MudTextField T="string" Value="Template" ValueChanged="SetTemplate" Lines="22" Variant="Variant.Outlined"
+                                  Immediate="true" DebounceInterval="500" Class="template-editor" spellcheck="false" aria-label="Template" />
+                    <MudExpansionPanels Dense="true" Outlined="true">
+                        <MudExpansionPanel Text="Placeholders">
+                            @PlaceholderList(_kind == PrintKind.TableCards ? TableCards.Placeholders : Poster.Placeholders)
+                            <MudText Typo="Typo.caption" Class="mud-text-secondary mt-2">
+                                {{#List}}…{{/List}} repeats for each item; {{#Flag}}…{{/Flag}} shows only when it is true or not empty,
+                                {{^Flag}}…{{/Flag}} only when it is not. {{! … }} is a comment. Scripts do not run in the preview.
+                            </MudText>
+                        </MudExpansionPanel>
+                    </MudExpansionPanels>
+                </div>
+            }
+            @* No scripts: templates may come from other people. allow-same-origin lets the page call print() on the frame;
+               allow-modals lets the frame open the print dialog. The preview size scales the frame, not the document,
+               so it does not change what is printed. *@
+            <div class="print-preview-box">
+                <iframe @ref="_frame" class="print-preview" title="Print preview" sandbox="allow-same-origin allow-modals" srcdoc="@(_html ?? "")"
+                        style="@FormattableString.Invariant($"width: {100 / Zoom:0.##}%; height: {100 / Zoom:0.##}%; transform: scale({Zoom})")"></iframe>
+            </div>
+        </div>
+    </div>
+</ProjectLoader>
+
+@code {
+    private const long MaxTemplateBytes = 1024 * 1024;
+    private static readonly double[] ZoomLevels = [0.25, 0.5, 0.75, 1];
+
+    // An A3 poster page is about 1,600 pixels wide, so it starts at half size.
+    private readonly Dictionary<PrintKind, double> _zoom = new() { [PrintKind.TableCards] = 0.75, [PrintKind.Poster] = 0.5 };
+
+    private readonly Dictionary<PrintKind, string?> _custom = [];
+    private PrintKind _kind = PrintKind.TableCards;
+    private Guid _planId = Guid.Empty;
+    private PosterOptions _poster = new();
+    private bool _editing;
+    private int _fileKey;
+    private ElementReference _frame;
+
+    private string? _html;
+    private IReadOnlyList<string> _warnings = [];
+    private string? _error;
+    private int _notSeated;
+
+    [Parameter] public Guid Id { get; set; }
+
+    private string Template => _custom.GetValueOrDefault(_kind) ?? DefaultTemplates.For(_kind);
+
+    private double Zoom => _zoom[_kind];
+
+    private bool IsCustom => _custom.GetValueOrDefault(_kind) is not null;
+
+    protected override async Task OnInitializedAsync()
+    {
+        Session.Changed += OnSessionChanged;
+        foreach (var kind in Enum.GetValues<PrintKind>())
+            _custom[kind] = await Templates.LoadAsync(kind);
+        Rebuild();
+    }
+
+    public void Dispose() => Session.Changed -= OnSessionChanged;
+
+    private void OnSessionChanged()
+    {
+        Rebuild();
+        InvokeAsync(StateHasChanged);
+    }
+
+    private SeatingAssignment? SelectedAssignment(EventProject project) => _planId == Guid.Empty
+        ? project.CurrentAssignment
+        : project.SavedAssignments.FirstOrDefault(s => s.Id == _planId)?.Assignment;
+
+    /// <summary>Fills the template with the chosen plan. A broken template keeps the last good preview and shows the error.</summary>
+    private void Rebuild()
+    {
+        if (Session.Project is not { } project || project.Id != Id)
+            return;
+        if (SelectedAssignment(project) is not { } assignment)
+        {
+            _planId = Guid.Empty;
+            assignment = project.CurrentAssignment;
+        }
+
+        var plan = new PrintedPlan(project.Setup, assignment);
+        _notSeated = project.Setup.Groups.Count(g => g.PeopleCount > 0 && plan.Seated(g) < g.PeopleCount);
+        var data = _kind == PrintKind.TableCards ? TableCards.BuildData(project.Name, plan) : Poster.BuildData(project.Name, plan, _poster);
+        try
+        {
+            var result = HtmlTemplate.Render(Template, data);
+            _html = result.Html;
+            _warnings = result.Warnings;
+            _error = null;
+        }
+        catch (TemplateFormatException ex)
+        {
+            _error = ex.Message;
+            _warnings = [];
+        }
+    }
+
+    private IEnumerable<(Severity, string)> Messages()
+    {
+        var project = Session.Project!;
+        if (SelectedAssignment(project) is { Seats.Count: 0 })
+            yield return (Severity.Info, "No groups are seated in this plan yet. Make a plan on the Plan page first.");
+        else if (_notSeated > 0)
+            yield return (Severity.Warning, $"{_notSeated} {(_notSeated == 1 ? "group is" : "groups are")} not fully seated; only seated people are printed.");
+        if (_error is not null)
+            yield return (Severity.Error, $"The template could not be read. {_error} The preview shows the last version that worked.");
+        foreach (var warning in _warnings)
+            yield return (Severity.Warning, warning);
+    }
+
+    private void SetKind(PrintKind kind)
+    {
+        _kind = kind;
+        Rebuild();
+    }
+
+    private void SetPlan(Guid id)
+    {
+        _planId = id;
+        Rebuild();
+    }
+
+    private void SetPoster(PosterOptions options)
+    {
+        _poster = options;
+        Rebuild();
+    }
+
+    private async Task SetTemplate(string text)
+    {
+        await StoreTemplate(text == DefaultTemplates.For(_kind) ? null : text);
+        Rebuild();
+    }
+
+    /// <summary>Remembers the template for this kind of print; null goes back to the built-in one.</summary>
+    private async Task StoreTemplate(string? text)
+    {
+        _custom[_kind] = text;
+        try
+        {
+            if (text is null)
+                await Templates.ResetAsync(_kind);
+            else
+                await Templates.SaveAsync(_kind, text);
+        }
+        catch (JSException)
+        {
+            Snackbar.Add("The template could not be saved: browser storage is full.", Severity.Error);
+        }
+    }
+
+    private async Task ResetTemplate()
+    {
+        var confirmed = await Dialogs.ShowMessageBoxAsync("Reset template?",
+            "Go back to the built-in template? Your changes are lost unless you saved them to a file.",
+            yesText: "Reset", cancelText: "Cancel");
+        if (confirmed != true)
+            return;
+        await StoreTemplate(null);
+        Rebuild();
+    }
+
+    private async Task LoadTemplate(InputFileChangeEventArgs e)
+    {
+        _fileKey++;
+        try
+        {
+            using var reader = new StreamReader(e.File.OpenReadStream(MaxTemplateBytes));
+            await StoreTemplate(await reader.ReadToEndAsync());
+        }
+        catch (IOException ex)
+        {
+            Snackbar.Add($"Could not read the file: {ex.Message}", Severity.Error);
+            return;
+        }
+        Rebuild();
+        Snackbar.Add($"Template loaded from {e.File.Name}.", Severity.Success);
+    }
+
+    private async Task DownloadTemplate()
+    {
+        var fileName = _kind == PrintKind.TableCards ? "table-cards-template.html" : "poster-template.html";
+        await JS.InvokeVoidAsync("tablePlanner.downloadFile", fileName, "text/html", Template);
+    }
+
+    private async Task PrintAsync() => await JS.InvokeVoidAsync("tablePlanner.printFrame", _frame);
+
+    private static RenderFragment PlaceholderList(IReadOnlyList<Placeholder> placeholders) => __builder =>
+    {
+        <ul class="placeholder-list">
+            @foreach (var placeholder in placeholders)
+            {
+                <li>
+                    <code>@(placeholder.Items is null ? $"{{{{{placeholder.Name}}}}}" : $"{{{{#{placeholder.Name}}}}}…{{{{/{placeholder.Name}}}}}")</code>
+                    <span>@placeholder.Description</span>
+                    @if (placeholder.Items is { } items)
+                    {
+                        @PlaceholderList(items)
+                    }
+                </li>
+            }
+        </ul>
+    };
+}

@@ -236,3 +236,25 @@ code {
 .table-list-row { font-size: 0.875rem; padding: 4px 0; border-bottom: 1px solid var(--mud-palette-lines-default); }
 .table-list-row .groups { color: var(--mud-palette-text-secondary); }
 .link-like { cursor: pointer; text-decoration: underline dotted; }
+
+/* ---- Print ---- */
+
+.print-messages { padding: 8px 12px 0; flex: none; }
+.print-option { flex: none; }
+.print-preview-box { flex: 1; min-width: 0; overflow: hidden; background: #d9d9d9; }
+.print-preview { border: 0; display: block; transform-origin: 0 0; }
+.template-side {
+    width: 520px;
+    flex: none;
+    overflow-y: auto;
+    padding: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    border-right: 1px solid var(--mud-palette-lines-default);
+}
+.template-editor textarea { font-family: Consolas, "Cascadia Mono", monospace; font-size: 12px; line-height: 1.45; white-space: pre; }
+.placeholder-list { margin: 0; padding-left: 16px; font-size: 0.8125rem; }
+.placeholder-list li { margin: 2px 0; }
+.placeholder-list code { font-size: 0.75rem; margin-right: 6px; }
+.placeholder-list span { color: var(--mud-palette-text-secondary); }

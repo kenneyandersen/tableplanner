@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Table cards · {{EventName}}</title>
+{{! Table cards: A5, two to an A4 sheet. Cut along the dashed line. Placeholders are listed next to the editor. }}
+<style>
+  @page { size: A4 portrait; margin: 0; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    font-family: "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+    color: #222;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  .sheet { width: 210mm; height: 297mm; overflow: hidden; break-after: page; }
+  .sheet:last-child { break-after: auto; }
+  .card {
+    position: relative;
+    height: 148.5mm;
+    padding: 24mm 20mm;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    text-align: center;
+  }
+  .card + .card { border-top: 0.3mm dashed #bbb; }
+  .stripe { position: absolute; left: 0; right: 0; top: 0; height: 7mm; }
+  .event { position: absolute; top: 13mm; font-size: 11pt; color: #777; letter-spacing: 0.08em; text-transform: uppercase; }
+  .group { font-size: 40pt; font-weight: 600; line-height: 1.1; overflow-wrap: anywhere; }
+  .count { margin-top: 6mm; font-size: 16pt; color: #444; }
+  .table { position: absolute; bottom: 12mm; font-size: 14pt; color: #666; }
+  .table strong { color: #222; font-size: 22pt; }
+  .empty { padding: 20mm; font-size: 14pt; }
+  @media screen {
+    body { background: #d9d9d9; padding: 8mm 0; }
+    .sheet { margin: 0 auto 8mm; background: #fff; box-shadow: 0 1mm 4mm rgba(0, 0, 0, 0.25); }
+    .empty { background: #fff; width: 210mm; margin: 0 auto; }
+  }
+</style>
+</head>
+<body>
+{{#Sheets}}
+<section class="sheet">
+  {{#Cards}}
+  <div class="card">
+    <div class="stripe" style="background: {{Colour}}"></div>
+    {{#EventName}}<div class="event">{{EventName}}</div>{{/EventName}}
+    <div class="group">{{GroupName}}</div>
+    <div class="count">
+      {{#IsSplit}}{{PeopleHere}} of {{PeopleCount}} people · also at {{#SeveralOtherTables}}tables{{/SeveralOtherTables}}{{^SeveralOtherTables}}table{{/SeveralOtherTables}} {{OtherTables}}{{/IsSplit}}
+      {{^IsSplit}}{{PeopleCount}} {{#OnePerson}}person{{/OnePerson}}{{^OnePerson}}people{{/OnePerson}}{{/IsSplit}}
+    </div>
+    <div class="table">Table <strong>{{TableNumber}}</strong>{{#FloorName}} · {{FloorName}}{{/FloorName}}</div>
+  </div>
+  {{/Cards}}
+</section>
+{{/Sheets}}
+{{^Cards}}<p class="empty">No groups are seated yet. Make a plan first.</p>{{/Cards}}
+</body>
+</html>

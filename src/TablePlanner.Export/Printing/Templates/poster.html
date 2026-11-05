@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Seating plan · {{EventName}}</title>
+{{! The poster: a floor plan page per floor, then the "find your table" list. Placeholders are listed next to the editor. }}
+<style>
+  @page { size: {{PaperSize}} {{Orientation}}; margin: 10mm; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    font-family: "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+    color: #222;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  .page { break-after: page; }
+  .page:last-child { break-after: auto; }
+  .floor-page { height: calc({{PageHeightMm}}mm - 20mm); display: flex; flex-direction: column; }
+  header {
+    display: flex;
+    align-items: baseline;
+    gap: 6mm;
+    border-bottom: 0.6mm solid #222;
+    padding-bottom: 2mm;
+    margin-bottom: 4mm;
+  }
+  h1 { font-size: 26pt; margin: 0; }
+  h2 { font-size: 20pt; margin: 0; font-weight: 400; color: #555; }
+  .plan { flex: 1; min-height: 0; }
+  .plan svg { width: 100%; height: 100%; display: block; }
+  .list { columns: 70mm; column-gap: 8mm; font-size: 12pt; }
+  .letter-block { break-inside: avoid; }
+  .letter-block:first-child .letter { margin-top: 0; }
+  .letter {
+    font-size: 15pt;
+    font-weight: 700;
+    margin: 4mm 0 1mm;
+    border-bottom: 0.3mm solid #bbb;
+  }
+  .row { display: flex; align-items: baseline; gap: 2mm; padding: 0.7mm 0; break-inside: avoid; }
+  .dot { width: 3mm; height: 3mm; border-radius: 50%; flex: none; }
+  .name { flex: 1; }
+  .where { white-space: nowrap; font-weight: 600; }
+  .where small { font-weight: 400; color: #666; }
+  @media screen {
+    body { background: #d9d9d9; padding: 8mm 0; }
+    .page {
+      width: {{PageWidthMm}}mm;
+      min-height: {{PageHeightMm}}mm;
+      padding: 10mm;
+      margin: 0 auto 8mm;
+      background: #fff;
+      box-shadow: 0 1mm 4mm rgba(0, 0, 0, 0.25);
+    }
+    .floor-page { height: {{PageHeightMm}}mm; }
+  }
+</style>
+</head>
+<body>
+{{#ShowFloorPlans}}
+{{#Floors}}
+<section class="page floor-page">
+  <header>{{#EventName}}<h1>{{EventName}}</h1>{{/EventName}}<h2>{{FloorName}}</h2></header>
+  <div class="plan">{{FloorPlan}}</div>
+</section>
+{{/Floors}}
+{{/ShowFloorPlans}}
+{{#ShowGroupList}}
+<section class="page list-page">
+  <header>{{#EventName}}<h1>{{EventName}}</h1>{{/EventName}}<h2>Find your table</h2></header>
+  <div class="list">
+    {{#Letters}}
+    <div class="letter-block">
+    <div class="letter">{{Letter}}</div>
+    {{#Groups}}
+    <div class="row">
+      <span class="dot" style="background: {{Colour}}"></span>
+      <span class="name">{{GroupName}}</span>
+      <span class="where">{{Tables}}{{#ShowFloorNames}} <small>{{FloorName}}</small>{{/ShowFloorNames}}</span>
+    </div>
+    {{/Groups}}
+    </div>
+    {{/Letters}}
+    {{^Groups}}<p>No groups are seated yet. Make a plan first.</p>{{/Groups}}
+  </div>
+</section>
+{{/ShowGroupList}}
+</body>
+</html>

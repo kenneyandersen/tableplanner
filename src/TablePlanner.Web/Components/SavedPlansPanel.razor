@@ -7,7 +7,7 @@
 </MudStack>
 @if (!CanSave)
 {
-    <MudText Typo="Typo.caption" Color="Color.Secondary">There is no current plan to save.</MudText>
+    <MudText Class="mud-text-secondary" Typo="Typo.caption">There is no current plan to save.</MudText>
 }
 
 @if (Project.SavedAssignments.Count == 0)
@@ -30,7 +30,7 @@
             else
             {
                 <MudText Typo="Typo.subtitle2" Style="flex: 1">@saved.Name</MudText>
-                <MudText Typo="Typo.caption" Color="Color.Secondary">@Formatting.Ago(saved.SavedAt)</MudText>
+                <MudText Class="mud-text-secondary" Typo="Typo.caption">@Formatting.Ago(saved.SavedAt)</MudText>
             }
         </MudStack>
         @if (saved.Stats is { } stats)

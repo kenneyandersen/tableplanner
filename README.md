@@ -15,8 +15,8 @@ Design decisions are recorded in [DECISIONS.md](DECISIONS.md).
 |---|---|
 | `src/TablePlanner.Core` | Model, seat geometry, seat graph, validation, editing operations and undo/redo, project JSON, example project |
 | `src/TablePlanner.Solver` | Seating algorithm: scoring, plan summary, search |
-| `src/TablePlanner.Export` | CSV and Excel (.xlsx) import/export of groups; print templates (not yet implemented) |
-| `src/TablePlanner.Web` | Blazor UI (MudBlazor): projects, floor layout editor, groups editor with import/export, plan page with manual edits, locks and saved plans |
+| `src/TablePlanner.Export` | CSV and Excel (.xlsx) import/export of groups; HTML print templates for table cards and the poster |
+| `src/TablePlanner.Web` | Blazor UI (MudBlazor): projects, floor layout editor, groups editor with import/export, plan page with manual edits, locks and saved plans, print page |
 | `tests/*` | xUnit tests per project |
 
 Dependencies point one way: Web → Solver/Export → Core.

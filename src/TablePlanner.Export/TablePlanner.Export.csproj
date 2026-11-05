@@ -4,6 +4,10 @@
     <ProjectReference Include="..\TablePlanner.Core\TablePlanner.Core.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <EmbeddedResource Include="Printing\Templates\*.html" />
+  </ItemGroup>
+
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>

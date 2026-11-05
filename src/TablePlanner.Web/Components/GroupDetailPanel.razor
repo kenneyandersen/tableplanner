@@ -21,7 +21,7 @@
                     <MudIcon Icon="@(pref.IsMet ? Icons.Material.Filled.CheckCircle : Icons.Material.Filled.RadioButtonUnchecked)"
                              Color="@(pref.IsMet ? Color.Success : Color.Default)" Size="Size.Small" />
                     <span>@pref.Rank. @(Setup.FindGroup(pref.PreferredGroupId)?.Name)</span>
-                    <MudText Typo="Typo.caption" Color="Color.Secondary">@ClosenessText(pref.Closeness)</MudText>
+                    <MudText Class="mud-text-secondary" Typo="Typo.caption">@ClosenessText(pref.Closeness)</MudText>
                 </li>
             }
         </ul>
@@ -29,7 +29,7 @@
 
     @if (Disabled)
     {
-        <MudText Typo="Typo.caption" Color="Color.Secondary">Use or discard the new plan to edit by hand.</MudText>
+        <MudText Class="mud-text-secondary" Typo="Typo.caption">Use or discard the new plan to edit by hand.</MudText>
     }
     else
     {

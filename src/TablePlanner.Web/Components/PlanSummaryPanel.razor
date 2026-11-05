@@ -46,7 +46,7 @@ else
             <span class="group-name">@group.Name <span class="group-count">(@group.PeopleCount)</span></span>
             @if (Pinned.Contains(id))
             {
-                <MudIcon Icon="@Icons.Material.Filled.Lock" Size="Size.Small" Color="Color.Secondary" Title="Locked or pinned" />
+                <MudIcon Icon="@Icons.Material.Filled.Lock" Size="Size.Small" Class="mud-text-secondary" Title="Locked or pinned" />
             }
             <span class="group-tables">
                 @if (group.Placed == 0)

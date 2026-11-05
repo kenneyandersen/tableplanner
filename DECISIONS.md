@@ -259,7 +259,7 @@ algorithm works on setup + assignment. UI code never goes into model or algorith
 8. **Background images**
 9. Later: the mobile page
 
-Status (2026-11-04): steps 1–6 done.
+Status (2026-11-05): steps 1–7 done.
 
 Notes from step 3:
 - Undo/redo stores a snapshot of the project before each edit (`EditHistory`); the edit logic itself lives in
@@ -303,3 +303,31 @@ Notes from step 6:
 - **Tables** tab: per table, seats taken and the groups sitting there.
 - Automatic colours now start with a 20-colour palette (Tableau 20) before falling back to the colour wheel.
 - Not done: drag and drop, side-by-side comparison of saved plans, presets/sliders for priorities.
+
+Notes from step 7:
+- **Print page** (Print in the top bar): Table cards or Poster, which plan (current or a saved one), poster paper
+  (A3/A4, landscape or portrait, floor plans and/or group list), preview size, and **Print**, which opens the
+  browser's print dialog (printer or "Save as PDF").
+- **Templates** use a small Mustache subset, implemented in `Export.Printing.HtmlTemplate` (no library):
+  `{{Name}}` (HTML-escaped), `{{{Name}}}` (not escaped), `{{#List}}…{{/List}}` (repeat, or show if true/not empty),
+  `{{^Name}}…{{/Name}}` (show if false/empty), `{{! comment }}`. Names are case-insensitive; inner sections see outer
+  values. Unknown placeholders give an empty text and a warning in the preview; a broken template (unclosed section
+  etc.) shows the error with its line and keeps the last good preview.
+- The data a template gets is built by `TableCards.BuildData` / `Poster.BuildData`; the placeholder help next to the
+  editor comes from the same code (`Placeholders`), and a test checks they match. Texts that depend on numbers
+  ("person"/"people", "table"/"tables") are flags (`OnePerson`, `SeveralOtherTables`), so the wording stays in the template.
+- **Built-in templates** are real HTML files (`Export/Printing/Templates/*.html`, embedded). The user's own templates
+  are kept in localStorage per kind (not in the project), can be loaded from / saved to an .html file, and reset.
+- **Preview:** an iframe with `srcdoc` and `sandbox="allow-same-origin allow-modals"`: scripts in templates do not run;
+  same-origin lets the page call `print()` on the frame. The preview size scales the iframe, not the document, so
+  printing is unaffected. Templates have `@media screen` styles that show pages as sheets.
+- **Cards:** one per group per table, in floor/table order and along the table; `Sheets` gives two per A4 sheet.
+  A split group's card shows "12 of 32 people · also at table 102".
+- **Poster:** a page per floor with an SVG floor plan (`FloorPlanSvg`: cropped to the tables and elements, colours as
+  presentation attributes so template CSS can override them by class), then "Find your table" in columns, by first
+  letter. Floor names in the list only when there is more than one floor with tables.
+- Group label placement moved to Core (`GroupLabels`), shared by the plan view and the poster. Long names on a short
+  part of a table are drawn smaller (down to 65 %) before they are shortened with "…".
+- Printing reads the plan leniently (`PrintedPlan`): seats that no longer exist and deleted groups are left out;
+  the page warns when groups are not fully seated.
+- Not done: folded tent cards, a fit-to-width preview, the mobile page (step 9).

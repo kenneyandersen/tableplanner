@@ -13,6 +13,12 @@ window.tablePlanner = {
         URL.revokeObjectURL(url);
     },
 
+    /** Opens the browser's print dialog for the document in an iframe (the print preview). */
+    printFrame(frame) {
+        frame.contentWindow.focus();
+        frame.contentWindow.print();
+    },
+
     /** Keeps sending pointer events to the element while dragging, even when the pointer leaves it. */
     capturePointer(element, pointerId) {
         try {

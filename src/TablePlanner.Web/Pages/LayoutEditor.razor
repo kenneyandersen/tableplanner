@@ -106,6 +106,8 @@
         ("Long table, 8 per side (16 seats)", 8, 0),
         ("Long table, 10 per side (20 seats)", 10, 0),
         ("Long table, 8 per side + 2 ends (18 seats)", 8, 2),
+        ("Round table, 8 seats", -8, 0),
+        ("Round table, 10 seats", -10, 0),
     ];
 
     private ElementReference _canvasHost;
@@ -176,7 +178,10 @@
     {
         var (x, y) = FreeSpot();
         var newId = Guid.Empty;
-        History.Execute("Add table", p => newId = SetupOperations.AddTable(p, CurrentFloor!.Id, x, y, seatsPerSide, endSeats).Id);
+        // A negative count in the presets means a round table with that many seats.
+        History.Execute("Add table", p => newId = (seatsPerSide < 0
+            ? SetupOperations.AddRoundTable(p, CurrentFloor!.Id, x, y, -seatsPerSide)
+            : SetupOperations.AddTable(p, CurrentFloor!.Id, x, y, seatsPerSide, endSeats)).Id);
         SetSelection(new HashSet<Guid> { newId });
     }
 

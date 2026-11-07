@@ -40,7 +40,7 @@
             var bounds = TableGeometry.GetBounds(table);
             var seats = TableGeometry.GetSeats(table);
             <g class="table">
-                <rect x="@Svg(bounds.Left)" y="@Svg(bounds.Top)" width="@Svg(bounds.Width)" height="@Svg(bounds.Height)" rx="0.05" />
+                <rect x="@Svg(bounds.Left)" y="@Svg(bounds.Top)" width="@Svg(bounds.Width)" height="@Svg(bounds.Height)" rx="@Svg(TableGeometry.CornerRadius(table))" />
                 @foreach (var seat in seats)
                 {
                     var groupId = _groupAt.GetValueOrDefault(seat.Id);

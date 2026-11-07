@@ -60,7 +60,7 @@ public static class FloorPlanSvg
             var b = TableGeometry.GetBounds(table);
             var seats = TableGeometry.GetSeats(table);
             svg.Append($"<g class=\"table\" data-table=\"{table.Number}\">");
-            svg.Append($"<rect x=\"{N(b.Left)}\" y=\"{N(b.Top)}\" width=\"{N(b.Width)}\" height=\"{N(b.Height)}\" rx=\"0.05\" fill=\"#f6eedf\" stroke=\"#8d6e45\" stroke-width=\"0.03\"/>");
+            svg.Append($"<rect x=\"{N(b.Left)}\" y=\"{N(b.Top)}\" width=\"{N(b.Width)}\" height=\"{N(b.Height)}\" rx=\"{N(TableGeometry.CornerRadius(table))}\" fill=\"#f6eedf\" stroke=\"#8d6e45\" stroke-width=\"0.03\"/>");
             foreach (var seat in seats)
             {
                 var taken = plan.GroupAt.TryGetValue(seat.Id, out var groupId);

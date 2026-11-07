@@ -105,7 +105,9 @@ public static class SetupValidator
 
         foreach (var table in setup.AllTables)
         {
-            if (table.SeatsPerSide < 1)
+            if (table.IsRound && table.RoundSeats < Table.MinRoundSeats)
+                issues.Add(Error(IssueCode.TableSizeInvalid, $"Table {table.Number} must have at least {Table.MinRoundSeats} seats.", table.Id));
+            if (!table.IsRound && table.SeatsPerSide < 1)
                 issues.Add(Error(IssueCode.TableSizeInvalid, $"Table {table.Number} must have at least 1 seat per side.", table.Id));
             if (table.EndSeats is < 0 or > Table.MaxEndSeats)
                 issues.Add(Error(IssueCode.TableEndSeatsInvalid, $"Table {table.Number} must have 0, 1 or 2 end seats.", table.Id));
@@ -123,7 +125,7 @@ public static class SetupValidator
             var tables = floor.Tables.Select(t => (Table: t, Bounds: TableGeometry.GetBounds(t))).ToList();
             for (var i = 0; i < tables.Count; i++)
                 for (var j = i + 1; j < tables.Count; j++)
-                    if (tables[i].Bounds.Overlaps(tables[j].Bounds))
+                    if (TableGeometry.Overlap(tables[i].Table, tables[j].Table))
                         issues.Add(Warning(IssueCode.TablesOverlap, $"Tables {tables[i].Table.Number} and {tables[j].Table.Number} overlap.", tables[i].Table.Id));
         }
     }

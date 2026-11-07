@@ -78,6 +78,21 @@ public static class SetupOperations
         return table;
     }
 
+    public static Table AddRoundTable(EventProject project, Guid floorId, double x, double y, int seats = 8)
+    {
+        var floor = GetFloor(project, floorId);
+        var table = new Table
+        {
+            Number = floor.NextTableNumber(),
+            Shape = TableShape.Round,
+            X = x,
+            Y = y,
+            RoundSeats = Math.Max(Table.MinRoundSeats, seats),
+        };
+        floor.Tables.Add(table);
+        return table;
+    }
+
     public static FloorElement AddElement(EventProject project, Guid floorId, FloorElementKind kind, double x, double y)
     {
         var (width, depth) = FloorElementGeometry.DefaultSize(kind);
@@ -176,25 +191,8 @@ public static class SetupOperations
             return;
 
         var shiftFromLeft = keepRightEnd ? seatsPerSide - table.SeatsPerSide : 0;
-        int? Remap(int index) =>
-            LongTableGeometry.RemapSeatIndex(index, table.SeatsPerSide, table.EndSeats, seatsPerSide, endSeats, shiftFromLeft);
-
-        table.DisabledSeats = table.DisabledSeats.Select(Remap).OfType<int>().ToHashSet();
-
-        var assignments = project.CurrentAssignment.Seats;
-        for (var i = assignments.Count - 1; i >= 0; i--)
-        {
-            if (assignments[i].Seat.TableId != tableId) continue;
-            if (Remap(assignments[i].Seat.Index) is { } newIndex)
-                assignments[i] = assignments[i] with { Seat = new SeatId(tableId, newIndex) };
-            else
-                assignments.RemoveAt(i);
-        }
-
-        // A seat pin that loses a seat no longer describes the group's place, so it is removed.
-        project.Setup.Pins.RemoveAll(p => p.Scope == PinScope.Seats && p.Seats.Any(s => s.TableId == tableId && Remap(s.Index) is null));
-        foreach (var pin in project.Setup.Pins.Where(p => p.Scope == PinScope.Seats))
-            pin.Seats = pin.Seats.Select(s => s.TableId == tableId ? new SeatId(tableId, Remap(s.Index)!.Value) : s).ToList();
+        RemapSeats(project, table, index =>
+            LongTableGeometry.RemapSeatIndex(index, table.SeatsPerSide, table.EndSeats, seatsPerSide, endSeats, shiftFromLeft));
 
         // Keep one end fixed: shift the centre by half the change in length along the table's axis, away from that end.
         var shift = (seatsPerSide - table.SeatsPerSide) * table.SeatSpacing / 2 * (keepRightEnd ? -1 : 1);
@@ -204,6 +202,60 @@ public static class SetupOperations
         table.Y = Math.Round(table.Y + axis.Y * shift, 3);
         table.SeatsPerSide = seatsPerSide;
         table.EndSeats = endSeats;
+    }
+
+    /// <summary>
+    /// Changes the number of seats at a round table; the table keeps its centre. Seats keep their numbers (clockwise
+    /// from the top), so removing seats drops the last ones, with their assignments and pins.
+    /// </summary>
+    public static void ResizeRoundTable(EventProject project, Guid tableId, int seats)
+    {
+        var table = GetTable(project, tableId);
+        seats = Math.Max(Table.MinRoundSeats, seats);
+        if (!table.IsRound || seats == table.RoundSeats)
+            return;
+        RemapSeats(project, table, index => index >= 0 && index < seats ? index : null);
+        table.RoundSeats = seats;
+    }
+
+    /// <summary>
+    /// Changes a table's shape. Seat numbers mean something else on the other shape, so the table's disabled seats,
+    /// seat assignments and seat pins are cleared. A round table gets as many seats as the long one had, and back.
+    /// </summary>
+    public static void SetTableShape(EventProject project, Guid tableId, TableShape shape)
+    {
+        var table = GetTable(project, tableId);
+        if (table.Shape == shape)
+            return;
+        var seats = table.SeatCount;
+        RemapSeats(project, table, _ => null);
+        table.Shape = shape;
+        if (shape == TableShape.Round)
+            table.RoundSeats = Math.Max(Table.MinRoundSeats, seats);
+        else
+            (table.SeatsPerSide, table.EndSeats) = (Math.Max(1, seats / 2), seats % 2);
+    }
+
+    /// <summary>Moves disabled seats, seat assignments and seat pins of a table to new seat numbers; null drops the seat.</summary>
+    private static void RemapSeats(EventProject project, Table table, Func<int, int?> remap)
+    {
+        var tableId = table.Id;
+        table.DisabledSeats = table.DisabledSeats.Select(remap).OfType<int>().ToHashSet();
+
+        var assignments = project.CurrentAssignment.Seats;
+        for (var i = assignments.Count - 1; i >= 0; i--)
+        {
+            if (assignments[i].Seat.TableId != tableId) continue;
+            if (remap(assignments[i].Seat.Index) is { } newIndex)
+                assignments[i] = assignments[i] with { Seat = new SeatId(tableId, newIndex) };
+            else
+                assignments.RemoveAt(i);
+        }
+
+        // A seat pin that loses a seat no longer describes the group's place, so it is removed.
+        project.Setup.Pins.RemoveAll(p => p.Scope == PinScope.Seats && p.Seats.Any(s => s.TableId == tableId && remap(s.Index) is null));
+        foreach (var pin in project.Setup.Pins.Where(p => p.Scope == PinScope.Seats))
+            pin.Seats = pin.Seats.Select(s => s.TableId == tableId ? new SeatId(tableId, remap(s.Index)!.Value) : s).ToList();
     }
 
     /// <summary>Smallest width or depth of a floor element, in metres.</summary>
@@ -320,6 +372,7 @@ public static class SetupOperations
         Rotation = t.Rotation,
         SeatsPerSide = t.SeatsPerSide,
         EndSeats = t.EndSeats,
+        RoundSeats = t.RoundSeats,
         SeatSpacing = t.SeatSpacing,
         Width = t.Width,
         DisabledSeats = [.. t.DisabledSeats],

@@ -53,6 +53,33 @@ public class SeatingSolverTests
         Assert.DoesNotContain(summary.Groups, g => g.HasDistantParts);
     }
 
+    [Fact]
+    public async Task Seats_groups_at_round_tables_in_compact_arcs()
+    {
+        // 6 round tables of 10 in two rows, 2.5 m apart edge to edge (not adjacent); groups of 2–10.
+        var floor = new Floor { Name = "Hall", Number = 1 };
+        for (var i = 0; i < 6; i++)
+            floor.Tables.Add(new Table { Number = 101 + i, Shape = TableShape.Round, RoundSeats = 10, X = 3 + (i % 3) * 4.5, Y = 3 + (i / 3) * 4.5 });
+        var sizes = new[] { 10, 8, 7, 6, 6, 5, 5, 4, 3, 2 };
+        var project = new EventProject
+        {
+            Setup = new EventSetup { Floors = [floor], Groups = sizes.Select((s, i) => new Group { Name = $"G{i}", PeopleCount = s }).ToList() },
+        };
+
+        var result = await Solve(project);
+
+        Assert.Equal(SolveStatus.Success, result.Status);
+        AssertValid(project, result);
+        // Every group fits at one table, and sits in one unbroken arc there.
+        Assert.All(result.Summary!.Groups, g => Assert.Single(g.TableNumbers));
+        foreach (var group in result.Assignment!.Seats.GroupBy(s => s.GroupId))
+        {
+            var taken = group.Select(s => s.Seat.Index).ToHashSet();
+            var starts = taken.Count(i => !taken.Contains((i + 9) % 10));
+            Assert.True(taken.Count == 10 || starts == 1, $"group of {taken.Count} sits in {starts} arcs");
+        }
+    }
+
     [Theory]
     [InlineData(1)]
     [InlineData(2)]

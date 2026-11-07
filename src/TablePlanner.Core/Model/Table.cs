@@ -4,6 +4,9 @@ public enum TableShape
 {
     /// <summary>Rectangular table with seats along both long sides and optional end seats.</summary>
     Long,
+
+    /// <summary>Round table with <see cref="Table.RoundSeats"/> seats around it; the diameter follows from the seat count.</summary>
+    Round,
 }
 
 /// <summary>Rotation in 90° steps, clockwise.</summary>
@@ -53,9 +56,26 @@ public sealed class Table
     /// <summary>Indices of seats that cannot be used (pillar, wheelchair space, reserved).</summary>
     public HashSet<int> DisabledSeats { get; set; } = [];
 
-    public double Length => SeatsPerSide * SeatSpacing;
+    /// <summary>Seats around a round table (only used when <see cref="Shape"/> is <see cref="TableShape.Round"/>).</summary>
+    public int RoundSeats { get; set; } = 8;
 
-    public int SeatCount => 2 * SeatsPerSide + EndSeats;
+    public const int MinRoundSeats = 2;
+
+    public bool IsRound => Shape == TableShape.Round;
+
+    /// <summary>
+    /// Diameter of a round table: each seat gets <see cref="SeatSpacing"/> of the edge (8 seats ≈ 1.5 m, 10 ≈ 1.9 m),
+    /// at least 0.9 m.
+    /// </summary>
+    public double Diameter => Math.Max(0.9, RoundSeats * SeatSpacing / Math.PI);
+
+    /// <summary>Length of a long table, or the diameter of a round one.</summary>
+    public double Length => IsRound ? Diameter : SeatsPerSide * SeatSpacing;
+
+    /// <summary>Width (across) of a long table, or the diameter of a round one.</summary>
+    public double TopWidth => IsRound ? Diameter : Width;
+
+    public int SeatCount => IsRound ? RoundSeats : 2 * SeatsPerSide + EndSeats;
 
     public bool IsValidSeatIndex(int index) => index >= 0 && index < SeatCount;
 

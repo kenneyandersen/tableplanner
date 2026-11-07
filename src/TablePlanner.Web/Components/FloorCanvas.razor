@@ -55,7 +55,7 @@
             var id = table.Id;
             var selected = Selection.Contains(id);
             <g class="item table @(selected ? "selected" : "")" @onpointerdown="e => OnItemDown(e, id)" @onpointerdown:stopPropagation="true">
-                <rect x="@Svg(bounds.Left)" y="@Svg(bounds.Top)" width="@Svg(bounds.Width)" height="@Svg(bounds.Height)" rx="0.05" />
+                <rect x="@Svg(bounds.Left)" y="@Svg(bounds.Top)" width="@Svg(bounds.Width)" height="@Svg(bounds.Height)" rx="@Svg(TableGeometry.CornerRadius(table))" />
                 @foreach (var seat in TableGeometry.GetSeats(table))
                 {
                     var index = seat.Id.Index;
@@ -76,11 +76,11 @@
         @if (Selection.Count == 1 && !EditSeats && floor.Tables.FirstOrDefault(t => Selection.Contains(t.Id)) is { } resizable)
         {
             var id = resizable.Id;
-            foreach (var rightEnd in new[] { false, true })
+            foreach (var rightEnd in resizable.IsRound ? [true] : new[] { false, true })
             {
                 var handle = ResizeHandle(resizable, rightEnd);
                 var keepRight = !rightEnd;
-                <rect class="resize-handle @(resizable.Rotation is Rotation.R90 or Rotation.R270 ? "resize-ns" : "resize-ew")" x="@Svg(handle.X - HandleSize / 2)" y="@Svg(handle.Y - HandleSize / 2)" width="@Svg(HandleSize)" height="@Svg(HandleSize)"
+                <rect class="resize-handle @(!resizable.IsRound && resizable.Rotation is Rotation.R90 or Rotation.R270 ? "resize-ns" : "resize-ew")" x="@Svg(handle.X - HandleSize / 2)" y="@Svg(handle.Y - HandleSize / 2)" width="@Svg(HandleSize)" height="@Svg(HandleSize)"
                       @onpointerdown="e => OnHandleDown(e, id, keepRight)" @onpointerdown:stopPropagation="true">
                     <title>Drag to add or remove seats at this end</title>
                 </rect>
@@ -175,8 +175,9 @@
     /// A handle sits against each end of the table (in the table's own frame), within the narrow gap
     /// usually left between tables placed end to end.
     /// </summary>
-    private static Point ResizeHandle(Table table, bool rightEnd) =>
-        new Point((rightEnd ? 1 : -1) * (table.Length / 2 + HandleSize / 2 + 0.02), 0).Rotate(table.Rotation).Offset(table.X, table.Y);
+    private static Point ResizeHandle(Table table, bool rightEnd) => table.IsRound
+        ? new Point(table.X + table.Diameter / 2 + HandleSize / 2 + 0.02, table.Y)
+        : new Point((rightEnd ? 1 : -1) * (table.Length / 2 + HandleSize / 2 + 0.02), 0).Rotate(table.Rotation).Offset(table.X, table.Y);
 
     private async Task OnItemDown(PointerEventArgs e, Guid id)
     {
@@ -209,7 +210,8 @@
             return;
         _resizeTableId = tableId;
         _keepRightEnd = keepRightEnd;
-        _startSeatsPerSide = History.Project.Setup.FindTable(tableId)!.SeatsPerSide;
+        var table = History.Project.Setup.FindTable(tableId)!;
+        _startSeatsPerSide = table.IsRound ? table.RoundSeats : table.SeatsPerSide;
         await BeginDrag(e, DragMode.Resize);
     }
 
@@ -323,6 +325,12 @@
         {
             if (floor.Elements.Any(el => el.Id == _resizeElementId))
                 SetupOperations.SetElementBounds(History.Project, floor.Id, _resizeElementId, ResizedElementBounds(dx, dy, !e.AltKey));
+        }
+        else if (History.Project.Setup.FindTable(_resizeTableId) is { IsRound: true } round)
+        {
+            // Each seat makes the radius this much bigger, so the handle stays under the pointer.
+            var perSeat = round.SeatSpacing / Math.PI / 2;
+            SetupOperations.ResizeRoundTable(History.Project, round.Id, _startSeatsPerSide + (int)Math.Round(dx / perSeat));
         }
         else if (History.Project.Setup.FindTable(_resizeTableId) is { } table)
         {

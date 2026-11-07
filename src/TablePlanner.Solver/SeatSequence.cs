@@ -105,9 +105,13 @@ internal sealed class SeatSequence
             {
                 // Of the four ways to walk the table (either end first, either side of a column first),
                 // take the one that starts nearest to where the previous table ended.
-                var variants = new[] { (false, false), (true, false), (false, true), (true, true) }
-                    .Select(v => TableOrder(graph, table, v.Item1, v.Item2))
-                    .ToList();
+                var variants = table.Table.IsRound
+                    ? RoundTableOrders(graph, table)
+                    : new[] { (false, false), (true, false), (false, true), (true, true) }
+                        .Select(v => TableOrder(graph, table, v.Item1, v.Item2))
+                        .ToList();
+                if (variants.Count == 0)
+                    continue;
                 var seats = lastSeat is { } p
                     ? variants.MinBy(v => Distance(graph.Seats[v[0]].Position, p))!
                     : variants[0];
@@ -127,9 +131,9 @@ internal sealed class SeatSequence
         {
             yield return current;
             left.Remove(current);
-            var from = TableGeometry.GetBounds(current.Table);
+            var from = current.Table;
             current = left
-                .OrderBy(t => from.DistanceTo(TableGeometry.GetBounds(t.Table)))
+                .OrderBy(t => TableGeometry.Distance(from, t.Table))
                 .ThenBy(t => Distance(new Point(t.Table.X, t.Table.Y), new Point(current.Table.X, current.Table.Y)))
                 .ThenBy(t => t.Index)
                 .FirstOrDefault();
@@ -158,6 +162,23 @@ internal sealed class SeatSequence
                 .ToList();
         }
         return order;
+    }
+
+    /// <summary>
+    /// Around a round table, from any seat, clockwise or anticlockwise. Disabled seats are left out, so a start just
+    /// after a gap keeps the gap at the end, where empty seats belong.
+    /// </summary>
+    private static List<List<int>> RoundTableOrders(SeatGraph graph, TableNode table)
+    {
+        var ring = table.Seats.OrderBy(s => graph.Seats[s].PositionAlongSide).ToList();
+        var orders = new List<List<int>>(2 * ring.Count);
+        for (var start = 0; start < ring.Count; start++)
+        {
+            orders.Add([.. ring.Skip(start), .. ring.Take(start)]);
+            var reversed = ring.AsEnumerable().Reverse().ToList();
+            orders.Add([.. reversed.Skip(start), .. reversed.Take(start)]);
+        }
+        return orders;
     }
 
     private static double Distance(Point a, Point b) => Math.Sqrt((a.X - b.X) * (a.X - b.X) + (a.Y - b.Y) * (a.Y - b.Y));

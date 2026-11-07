@@ -65,9 +65,16 @@ public sealed class SeatingProblem
         foreach (var edge in graph.Edges.Where(e => e.Relation == SeatRelation.NextTo))
         {
             var (a, b) = (graph.Seats[edge.A], graph.Seats[edge.B]);
-            if (a.TableIndex != b.TableIndex || a.Side != b.Side || a.Side is not (SeatSide.Top or SeatSide.Bottom))
+            if (a.TableIndex != b.TableIndex || a.Side != b.Side || a.Side is not (SeatSide.Top or SeatSide.Bottom or SeatSide.Round))
                 continue;
-            var (left, right) = a.PositionAlongSide < b.PositionAlongSide ? (a, b) : (b, a);
+            // Around a round table the "left" seat is the one before, counting clockwise (the last seat comes before seat 0).
+            var count = graph.Tables[a.TableIndex].Table.RoundSeats;
+            var aFirst = a.Side == SeatSide.Round
+                ? (b.PositionAlongSide - a.PositionAlongSide + count) % count == 1
+                : a.PositionAlongSide < b.PositionAlongSide;
+            if (a.Side == SeatSide.Round && count <= 2)
+                continue;
+            var (left, right) = aFirst ? (a, b) : (b, a);
             SideNeighbours[left.Index] = (SideNeighbours[left.Index].Item1, right.Index);
             SideNeighbours[right.Index] = (left.Index, SideNeighbours[right.Index].Item2);
         }

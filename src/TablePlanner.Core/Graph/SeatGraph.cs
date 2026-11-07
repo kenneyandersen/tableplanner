@@ -111,7 +111,7 @@ public sealed class SeatGraph
                 {
                     indexOnTable[layout.Id.Index] = seats.Count;
                     seats.Add(new SeatNode(seats.Count, layout.Id, tableIndex, f, layout.Side, layout.PositionAlongSide, layout.Position,
-                        Facing(layout.Side, table.Rotation)));
+                        Facing(table, layout)));
                 }
                 tables.Add(new TableNode(tableIndex, table, f, layouts.Select(l => indexOnTable[l.Id.Index]).ToList()));
                 AddTableEdges(table, indexOnTable, edges);
@@ -141,17 +141,29 @@ public sealed class SeatGraph
     }
 
     private static bool AreClose(Table a, Table b, SeatGraphOptions options) =>
-        TableGeometry.GetBounds(a).DistanceTo(TableGeometry.GetBounds(b)) <= options.AdjacentTableGap;
+        TableGeometry.Distance(a, b) <= options.AdjacentTableGap;
 
-    /// <summary>Edges between seats of one long table, by seat numbering (see <see cref="LongTableGeometry"/>).</summary>
+    /// <summary>Edges between seats of one table, by seat numbering (see <see cref="LongTableGeometry"/> and <see cref="RoundTableGeometry"/>).</summary>
     private static void AddTableEdges(Table table, Dictionary<int, int> seat, List<SeatEdge> edges)
     {
-        var n = table.SeatsPerSide;
         void Add(int a, int b, SeatRelation relation)
         {
             if (seat.TryGetValue(a, out var x) && seat.TryGetValue(b, out var y))
                 edges.Add(new SeatEdge(x, y, relation));
         }
+
+        if (table.IsRound)
+        {
+            // Around a round table only the neighbours on either side are close; across is too far to talk.
+            // The rest of the table counts through "same table".
+            var count = table.RoundSeats;
+            for (var i = 0; i < count && count > 1; i++)
+                if (count > 2 || i == 0)
+                    Add(i, (i + 1) % count, SeatRelation.NextTo);
+            return;
+        }
+
+        var n = table.SeatsPerSide;
 
         for (var i = 0; i < n; i++)
         {
@@ -197,16 +209,25 @@ public sealed class SeatGraph
             }
     }
 
-    /// <summary>The unit direction a seat faces: towards the table, straight across for side seats and along the table for end seats.</summary>
-    private static Point Facing(SeatSide side, Rotation rotation)
+    /// <summary>
+    /// The unit direction a seat faces: towards the table, straight across for side seats, along the table for end
+    /// seats, and towards the centre at a round table.
+    /// </summary>
+    private static Point Facing(Table table, SeatLayout seat)
     {
-        var local = side switch
+        if (seat.Side == SeatSide.Round)
+        {
+            var (dx, dy) = (table.X - seat.Position.X, table.Y - seat.Position.Y);
+            var length = Math.Sqrt(dx * dx + dy * dy);
+            return length > 0 ? new Point(dx / length, dy / length) : new Point(0, 1);
+        }
+        var local = seat.Side switch
         {
             SeatSide.Top => new Point(0, 1),
             SeatSide.Bottom => new Point(0, -1),
             SeatSide.LeftEnd => new Point(1, 0),
             _ => new Point(-1, 0),
         };
-        return local.Rotate(rotation);
+        return local.Rotate(table.Rotation);
     }
 }

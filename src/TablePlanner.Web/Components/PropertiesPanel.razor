@@ -8,19 +8,33 @@
         <MudStack Spacing="2">
             <MudNumericField T="int" Label="Table number" Value="table.Number" Min="1" Variant="Variant.Outlined" Margin="Margin.Dense"
                              ValueChanged="@(v => EditTable(table.Id, "Change table number", t => t.Number = v))" />
-            <MudStack Row="true">
-                <MudNumericField T="int" Label="Seats per side" Value="table.SeatsPerSide" Min="1" Max="60" Variant="Variant.Outlined" Margin="Margin.Dense"
-                                 ValueChanged="@(v => History.Execute("Resize table", p => SetupOperations.ResizeTable(p, table.Id, v, table.EndSeats)))" />
-                <MudSelect T="int" Label="End seats" Value="table.EndSeats" Variant="Variant.Outlined" Margin="Margin.Dense"
-                           ValueChanged="@(v => History.Execute("Change end seats", p => SetupOperations.ResizeTable(p, table.Id, table.SeatsPerSide, v)))">
-                    <MudSelectItem Value="0">None</MudSelectItem>
-                    <MudSelectItem Value="1">1 (left end)</MudSelectItem>
-                    <MudSelectItem Value="2">2 (both ends)</MudSelectItem>
-                </MudSelect>
-            </MudStack>
+            <MudSelect T="TableShape" Label="Shape" Value="table.Shape" Variant="Variant.Outlined" Margin="Margin.Dense"
+                       ValueChanged="@(v => History.Execute("Change table shape", p => SetupOperations.SetTableShape(p, table.Id, v)))"
+                       HelperText="Changing the shape clears this table's seats in the plan.">
+                <MudSelectItem Value="TableShape.Long">Long</MudSelectItem>
+                <MudSelectItem Value="TableShape.Round">Round</MudSelectItem>
+            </MudSelect>
+            @if (table.IsRound)
+            {
+                <MudNumericField T="int" Label="Seats" Value="table.RoundSeats" Min="Table.MinRoundSeats" Max="24" Variant="Variant.Outlined" Margin="Margin.Dense"
+                                 ValueChanged="@(v => History.Execute("Resize table", p => SetupOperations.ResizeRoundTable(p, table.Id, v)))" />
+            }
+            else
+            {
+                <MudStack Row="true">
+                    <MudNumericField T="int" Label="Seats per side" Value="table.SeatsPerSide" Min="1" Max="60" Variant="Variant.Outlined" Margin="Margin.Dense"
+                                     ValueChanged="@(v => History.Execute("Resize table", p => SetupOperations.ResizeTable(p, table.Id, v, table.EndSeats)))" />
+                    <MudSelect T="int" Label="End seats" Value="table.EndSeats" Variant="Variant.Outlined" Margin="Margin.Dense"
+                               ValueChanged="@(v => History.Execute("Change end seats", p => SetupOperations.ResizeTable(p, table.Id, table.SeatsPerSide, v)))">
+                        <MudSelectItem Value="0">None</MudSelectItem>
+                        <MudSelectItem Value="1">1 (left end)</MudSelectItem>
+                        <MudSelectItem Value="2">2 (both ends)</MudSelectItem>
+                    </MudSelect>
+                </MudStack>
+            }
             <MudText Typo="Typo.body2">
                 @table.SeatCount seats@(table.AvailableSeatCount < table.SeatCount ? $", {table.AvailableSeatCount} available" : "") ·
-                @Formatting.Svg(table.Length) × @Formatting.Svg(table.Width) m
+                @(table.IsRound ? $"Ø {Formatting.Svg(Math.Round(table.Diameter, 2))}" : $"{Formatting.Svg(table.Length)} × {Formatting.Svg(table.Width)}") m
             </MudText>
             <PositionFields X="table.X" Y="table.Y" Rotation="table.Rotation"
                             XChanged="@(v => EditTable(table.Id, "Move table", t => t.X = v))"

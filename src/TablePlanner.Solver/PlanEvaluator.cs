@@ -86,13 +86,12 @@ public sealed class PlanEvaluator
         _partPeople = new int[_tableCount + 1];
 
         var tables = problem.Graph.Tables;
-        var tableBounds = tables.Select(t => Core.Geometry.TableGeometry.GetBounds(t.Table)).ToArray();
         _tableDistance = new double[_tableCount * _tableCount];
         for (var a = 0; a < _tableCount; a++)
             for (var b = 0; b < _tableCount; b++)
                 if (a != b)
                     _tableDistance[a * _tableCount + b] = tables[a].FloorIndex == tables[b].FloorIndex
-                        ? Math.Min(ApartMaxDistance, tableBounds[a].DistanceTo(tableBounds[b]))
+                        ? Math.Min(ApartMaxDistance, Core.Geometry.TableGeometry.Distance(tables[a].Table, tables[b].Table))
                         : ApartMaxDistance;
     }
 

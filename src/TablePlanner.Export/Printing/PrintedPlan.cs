@@ -62,6 +62,9 @@ public sealed class PrintedPlan
     /// </summary>
     public static int SeatNumber(Table table, SeatLayout seat)
     {
+        // Around a round table: clockwise from the top.
+        if (seat.Side == SeatSide.Round)
+            return seat.PositionAlongSide + 1;
         var n = table.SeatsPerSide;
         var hasRightEnd = table.EndSeats >= 2;
         return seat.Side switch

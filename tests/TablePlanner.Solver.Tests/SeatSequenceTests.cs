@@ -70,6 +70,36 @@ public class SeatSequenceTests
         Assert.Single(tablesOfB);
     }
 
+    /// <summary>Two 6-seat tables far apart, and groups of 4, 6 and 2: every seat is needed.</summary>
+    internal static (SeatingProblem Problem, SeatSequence Sequence) TwoAreasFull()
+    {
+        var project = new EventProject();
+        project.Setup.Floors.Add(new Floor
+        {
+            Name = "Ground",
+            Number = 1,
+            Tables = [new Table { Number = 101, SeatsPerSide = 3 }, new Table { Number = 102, SeatsPerSide = 3, X = 20 }],
+        });
+        project.Setup.Groups = [new Group { Name = "A", PeopleCount = 4 }, new Group { Name = "B", PeopleCount = 6 }, new Group { Name = "C", PeopleCount = 2 }];
+        var problem = Problem(project);
+        return (problem, new SeatSequence(problem, problem.EmptyPlan()));
+    }
+
+    [Fact]
+    public void A_group_that_would_run_into_another_area_lets_a_later_group_that_fits_go_first()
+    {
+        var (problem, sequence) = TwoAreasFull();
+        var plan = problem.EmptyPlan();
+
+        // In this order B would have 2 people at the first table and 4 at the far one; C fills the gap instead.
+        sequence.Decode([0, 1, 2], plan);
+
+        var tablesOf = (int g) => Enumerable.Range(0, plan.Length).Where(s => plan[s] == g).Select(s => problem.Graph.Seats[s].TableIndex).Distinct().ToList();
+        Assert.Single(tablesOf(1));
+        Assert.Equal(tablesOf(0), tablesOf(2));
+        Assert.DoesNotContain(-1, plan);
+    }
+
     [Fact]
     public void Groups_that_do_not_fit_are_skipped_and_later_ones_still_placed()
     {

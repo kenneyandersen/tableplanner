@@ -259,7 +259,8 @@ public class SeatingSolverTests
         var result = await SeatingSolver.SolveAsync(Benchmarks.Large(), options, new SyncProgress(reports.Add));
 
         Assert.Equal(StopReason.TimeBudget, result.StoppedBecause);
-        Assert.InRange(result.Elapsed, TimeSpan.FromMilliseconds(500), TimeSpan.FromSeconds(3));
+        // The order search stops at 85% of the budget; polishing may finish before the rest is used.
+        Assert.InRange(result.Elapsed, TimeSpan.FromMilliseconds(400), TimeSpan.FromSeconds(3));
         Assert.True(reports.Count > 2);
         Assert.Equal(result.Summary!.Score, reports[^1].BestScore);
     }

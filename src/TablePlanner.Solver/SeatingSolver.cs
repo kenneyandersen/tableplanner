@@ -74,12 +74,19 @@ public sealed record SolveResult(
 /// <summary>
 /// Seats the groups. A plan is an order of the groups that are not pinned to a table or seats; it is turned
 /// into seats by filling a fixed seat order (<see cref="SeatSequence"/>), so every group is a compact block.
-/// Simulated annealing then improves the order. The solver always stops (time budget, iteration limit, no
-/// improvement or cancellation) and returns the best plan found so far.
+/// Simulated annealing then improves the order; when it gets stuck it goes back to the best order and searches on from
+/// there. Finally <see cref="PlanPolisher"/> makes direct seat swaps the order cannot express. The solver always stops
+/// (time budget, iteration limit, no improvement or cancellation) and returns the best plan found so far.
 /// </summary>
 public static class SeatingSolver
 {
     private const double StartTemperature = 40;
+
+    /// <summary>Restarts from the best plan after <see cref="SolverOptions.StallIterations"/> without improvement, before stopping.</summary>
+    private const int MaxRestarts = 4;
+
+    /// <summary>The share of the time budget for the order search; polishing the seats gets the rest.</summary>
+    private const double SearchShare = 0.85;
 
     public static async Task<SolveResult> SolveAsync(EventProject project, SolverOptions? options = null,
         IProgress<SolveProgress>? progress = null, CancellationToken cancellationToken = default)
@@ -87,6 +94,8 @@ public static class SeatingSolver
         options ??= new SolverOptions();
         var clock = Stopwatch.StartNew();
         var budget = options.TimeBudget ?? TimeSpan.FromSeconds(Math.Max(0.1, project.Priorities.TimeBudgetSeconds));
+        // The order search gets most of the time; polishing the seats (PlanPolisher) gets the rest.
+        var searchBudget = budget * SearchShare;
 
         var failure = PreCheck(project);
         if (failure.Count > 0)
@@ -131,6 +140,7 @@ public static class SeatingSolver
         var candidate = new int[current.Length];
         long iterations = 0;
         long lastImprovement = 0;
+        var restarts = 0;
         var stop = free.Length < 2 ? StopReason.NothingToSearch : (StopReason?)null;
         var lastYield = clock.Elapsed;
         var yield = options.Yield ?? (ct => Task.Delay(1, ct));
@@ -153,6 +163,7 @@ public static class SeatingSolver
                     Array.Copy(current, best, current.Length);
                     bestScore = score;
                     lastImprovement = iterations;
+                    restarts = 0;
                 }
             }
 
@@ -163,16 +174,23 @@ public static class SeatingSolver
             // Cooling follows the time budget, or the iteration limit if that comes first. With a seed it follows only
             // the iterations, so the same seed gives the same plan on any machine.
             var byIterations = (double)iterations / options.MaxIterations;
-            var progressFraction = options.Seed is null ? Math.Max(clock.Elapsed / budget, byIterations) : byIterations;
+            var progressFraction = options.Seed is null ? Math.Max(clock.Elapsed / searchBudget, byIterations) : byIterations;
             temperature = StartTemperature * Math.Pow(Math.Max(0, 1 - progressFraction), 2);
             if (cancellationToken.IsCancellationRequested)
                 stop = StopReason.Cancelled;
-            else if (clock.Elapsed >= budget)
+            else if (clock.Elapsed >= searchBudget)
                 stop = StopReason.TimeBudget;
             else if (iterations >= options.MaxIterations)
                 stop = StopReason.MaxIterations;
             else if (iterations - lastImprovement >= options.StallIterations)
-                stop = StopReason.NoImprovement;
+            {
+                // Stuck: go back to the best plan and search on from there. Give up after a few restarts that find nothing better.
+                if (++restarts > MaxRestarts)
+                    stop = StopReason.NoImprovement;
+                Array.Copy(best, current, best.Length);
+                currentScore = bestScore;
+                lastImprovement = iterations;
+            }
             else if (clock.Elapsed - lastYield >= options.YieldInterval)
             {
                 progress?.Report(new SolveProgress(clock.Elapsed, budget, iterations, bestScore));
@@ -189,6 +207,28 @@ public static class SeatingSolver
         }
 
         sequence.Decode(best, plan);
+        if (stop != StopReason.Cancelled)
+        {
+            var polisher = new PlanPolisher(problem, sequence, evaluator);
+            await polisher.PolishAsync(plan,
+                () => cancellationToken.IsCancellationRequested || (options.Seed is null && clock.Elapsed >= budget),
+                async () =>
+                {
+                    if (clock.Elapsed - lastYield < options.YieldInterval)
+                        return;
+                    progress?.Report(new SolveProgress(clock.Elapsed, budget, iterations, bestScore));
+                    try
+                    {
+                        await yield(cancellationToken);
+                    }
+                    catch (OperationCanceledException)
+                    {
+                    }
+                    lastYield = clock.Elapsed;
+                });
+            if (cancellationToken.IsCancellationRequested)
+                stop = StopReason.Cancelled;
+        }
         var summary = evaluator.Summarize(plan);
         progress?.Report(new SolveProgress(clock.Elapsed, budget, iterations, summary.Score));
 

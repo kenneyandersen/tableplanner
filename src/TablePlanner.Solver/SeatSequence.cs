@@ -24,6 +24,7 @@ internal sealed class SeatSequence
     {
         _problem = problem;
         _fixed = fixedPlan;
+        _minimumPart = problem.Priorities.SmallFragmentPenalty > 0 ? problem.Priorities.MinimumFragmentSize : 0;
         _seats = FillOrder(problem.Graph).Where(s => fixedPlan[s] < 0).ToArray();
 
         // Tables and floors are contiguous runs in the order; store where each run ends.
@@ -47,6 +48,11 @@ internal sealed class SeatSequence
     // the previous one there (another part of the room).
     private readonly int[] _areaEnd;
 
+    // Decode's work buffer: which positions of the order have been seated (or skipped).
+    private bool[] _done = [];
+
+    private readonly int _minimumPart;
+
     public int Length => _seats.Length;
 
     /// <summary>The free seats in fill order.</summary>
@@ -60,20 +66,50 @@ internal sealed class SeatSequence
     public void Decode(IReadOnlyList<int> order, int[] plan)
     {
         Array.Copy(_fixed, plan, plan.Length);
+        if (_done.Length < order.Count)
+            _done = new bool[order.Count];
         var length = _seats.Length;
         var remainingPeople = 0;
         foreach (var g in order)
             remainingPeople += _problem.Size[g];
 
+        Array.Clear(_done, 0, order.Count);
         var pos = 0;
-        foreach (var g in order)
+        var first = 0;
+        while (true)
         {
+            while (first < order.Count && _done[first])
+                first++;
+            if (first == order.Count)
+                break;
+
+            var i = first;
+            var g = order[i];
             var size = _problem.Size[g];
             if (size > length - pos)
             {
+                _done[i] = true;
                 remainingPeople -= size;
                 continue;
             }
+
+            // A group that would run past the end of this area (into another part of the room): first seat a later
+            // group that fits in what is left of the area, so that areas fill up with whole groups.
+            // Likewise for a group that would run on to the next table with only a few of its people on one of the two.
+            var areaLeft = _areaEnd[pos] - pos;
+            var tableLeft = _tableEnd[pos] - pos;
+            var minimumPart = Math.Min(_minimumPart, size);
+            var gapLeft = size > areaLeft ? areaLeft
+                : size > tableLeft && (tableLeft < minimumPart || size - tableLeft < minimumPart) ? tableLeft
+                : 0;
+            if (gapLeft > 0)
+                for (var j = i + 1; j < order.Count; j++)
+                    if (!_done[j] && _problem.Size[order[j]] <= gapLeft)
+                    {
+                        (i, g, size) = (j, order[j], _problem.Size[order[j]]);
+                        break;
+                    }
+            _done[i] = true;
 
             var spare = length - pos - remainingPeople;
             var floorEnd = _floorEnd[pos];

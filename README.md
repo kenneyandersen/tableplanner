@@ -57,6 +57,12 @@ dotnet test tests/TablePlanner.Solver.Tests -c Release --filter FragmentDiagnost
 dotnet test tests/TablePlanner.Solver.Tests -c Release --filter ApartDiagnostics --logger "console;verbosity=detailed"
 ```
 
+and for real projects: put an exported `*.tableplanner.json` anywhere under `tests/testplans` and run
+
+```sh
+dotnet test tests/TablePlanner.Solver.Tests -c Release --filter TestPlanDiagnostics --logger "console;verbosity=detailed"
+```
+
 ## Publishing to GitHub Pages
 
 Release builds are compiled ahead of time (AOT), which makes the solver much faster in the browser.

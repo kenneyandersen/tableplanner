@@ -532,6 +532,32 @@ Notes: changes after testing (2026-11-07):
     (5,000 iterations, like a slow browser) 12 people in 2 groups were apart over 5 seeds; now none. The regular
     benchmarks did not show the problem, since all their tables are adjacent. First choices unchanged or slightly better.
   - The plan's warnings say how many of a split group sit away from the rest.
+- **Nearly full venues** (*changed*), found with a real project in `tests/testplans` (676 people, 677 seats, 37 groups,
+  three floors, ten separate areas of adjacent tables, groups of up to 47 at 50-seat tables). With one seat to spare
+  every area has to be filled by whole groups exactly, which the plain "fill groups one after another" decoder only
+  managed by luck. Four changes:
+  - **Fill gaps with a group that fits:** when the next group would run past the end of an area, the decoder first
+    seats the next group in the order that fits in what is left of the area. Likewise when it would run on to the next
+    table with fewer than `MinimumFragmentSize` people on one of the two. The order search still decides which group
+    that is, so it can steer it.
+  - **Restart from the best instead of stopping:** after `StallIterations` without improvement the search goes back to
+    the best order and goes on; it stops only after 4 such restarts in a row. Before, it stopped after 50,000
+    iterations (about 1 s of the 8 s budget natively) while still hot.
+  - **Polishing:** after the search (which now gets 85 % of the time), `PlanPolisher` takes each small part of a split
+    group (a run of up to 16 seats at one table, not the group's largest) and tries swapping it with every equally long
+    run of seats in the fill order, keeping the best swap that raises the score, until none does. This fixes splits
+    the order search cannot express. With a seed (tests) it runs to the end, so results stay repeatable.
+  - On that project over 5 seeds: before, 8 / 11 / 7 warnings (20k / 100k / 500k iterations) with people seated away
+    from their group; after, 1 / 3 / 2, none away from their group, only "small part at a table", and scores about
+    1,500–2,000 higher. The other benchmarks are unchanged within noise.
+  - What is left: a 47-person group at a 50-seat table leaves 3 seats, and there are no groups of 2–4, so someone's 3
+    people sit there unless the big group itself splits 42 + 5 over two adjacent tables. The search finds that in some
+    runs but not all.
+  - Considered: A* and other exact searches do not fit the whole problem (no goal state, no useful optimistic
+    estimate, too many partial plans). An exact search may still pay off for the sub-problem "which whole groups fill
+    each area exactly" (subset sums).
+  - Diagnostic: `dotnet test tests/TablePlanner.Solver.Tests -c Release --filter TestPlanDiagnostics --logger "console;verbosity=detailed"`
+    runs every `*.tableplanner.json` under `tests/testplans` and prints the warnings with the groups at each table.
 - **Poster in A2 and A1** (plus A4, A3): the template gets `PageSize` in millimetres (browsers do not all know A1/A2 by
   name) and `Scale` (1 on A3/A4, 1.41 on A2, 2 on A1); the built-in poster multiplies its text and marks by it.
   The page notes that A2/A1 are best saved as PDF and printed at a print shop.

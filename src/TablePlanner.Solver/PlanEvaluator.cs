@@ -44,6 +44,16 @@ public sealed class PlanEvaluator
 
     private int[]? _previousTableCount2D;
 
+    /// <summary>The apart penalty doubles at this distance (metres) from the main part of the group.</summary>
+    internal const double ApartDistanceScale = 10;
+
+    /// <summary>Distances count up to this (metres); another floor counts as this far.</summary>
+    internal const double ApartMaxDistance = 30;
+
+    // Shortest distance between two tables' tops, capped at ApartMaxDistance (which other floors count as).
+    private readonly double[] _tableDistance;
+    private readonly int[] _partPeople;
+
     public PlanEvaluator(SeatingProblem problem)
     {
         _problem = problem;
@@ -73,6 +83,17 @@ public sealed class PlanEvaluator
         _tablesOf = Enumerable.Range(0, groups).Select(_ => new List<int>()).ToArray();
         _floorsOf = Enumerable.Range(0, groups).Select(_ => new List<int>()).ToArray();
         _component = new int[_tableCount];
+        _partPeople = new int[_tableCount + 1];
+
+        var tables = problem.Graph.Tables;
+        var tableBounds = tables.Select(t => Core.Geometry.TableGeometry.GetBounds(t.Table)).ToArray();
+        _tableDistance = new double[_tableCount * _tableCount];
+        for (var a = 0; a < _tableCount; a++)
+            for (var b = 0; b < _tableCount; b++)
+                if (a != b)
+                    _tableDistance[a * _tableCount + b] = tables[a].FloorIndex == tables[b].FloorIndex
+                        ? Math.Min(ApartMaxDistance, tableBounds[a].DistanceTo(tableBounds[b]))
+                        : ApartMaxDistance;
     }
 
     /// <summary>
@@ -194,6 +215,9 @@ public sealed class PlanEvaluator
             var parts = Components(tables);
             score -= (tables.Count - 1) * p.TableSplitPenalty;
             score -= (parts - 1) * p.DistantTableSplitPenalty;
+            var weightedApart = 0.0;
+            var apart = parts > 1 ? PeopleApart(g, tables, parts, out weightedApart) : 0;
+            score -= weightedApart * p.ApartPersonPenalty;
             score -= shortBy * p.SmallFragmentPenalty;
 
             var floors = _floorsOf[g].Count;
@@ -216,6 +240,7 @@ public sealed class PlanEvaluator
             if (details is not null)
             {
                 details[g].DistantParts = parts - 1;
+                details[g].PeopleApart = apart;
                 details[g].SmallParts = smallParts;
                 details[g].BreaksHardRule = hardBroken > 0;
             }
@@ -303,9 +328,42 @@ public sealed class PlanEvaluator
         return parts;
     }
 
+    /// <summary>
+    /// After <see cref="Components"/>: the people not in the group's largest connected part. Each counts
+    /// 1 + d / <see cref="ApartDistanceScale"/> in <paramref name="weighted"/>, d being the distance from their table to
+    /// the nearest table of the main part.
+    /// </summary>
+    private int PeopleApart(int g, List<int> tables, int parts, out double weighted)
+    {
+        Array.Clear(_partPeople, 0, parts + 1);
+        for (var i = 0; i < tables.Count; i++)
+            _partPeople[_component[i]] += _tableCount2D[g * _tableCount + tables[i]];
+        var main = 1;
+        for (var q = 2; q <= parts; q++)
+            if (_partPeople[q] > _partPeople[main])
+                main = q;
+
+        var apart = 0;
+        weighted = 0;
+        for (var i = 0; i < tables.Count; i++)
+        {
+            if (_component[i] == main)
+                continue;
+            var nearest = double.MaxValue;
+            for (var j = 0; j < tables.Count; j++)
+                if (_component[j] == main)
+                    nearest = Math.Min(nearest, _tableDistance[tables[i] * _tableCount + tables[j]]);
+            var people = _tableCount2D[g * _tableCount + tables[i]];
+            apart += people;
+            weighted += people * (1 + nearest / ApartDistanceScale);
+        }
+        return apart;
+    }
+
     private sealed class GroupPlacementBuilder
     {
         public int DistantParts;
+        public int PeopleApart;
         public int SmallParts;
         public bool BreaksHardRule;
         public readonly List<PreferenceOutcome> Preferences = [];
@@ -315,7 +373,7 @@ public sealed class PlanEvaluator
             var group = problem.Groups[g];
             var tableNumbers = tables.Select(t => problem.Graph.Tables[t].Table.Number).Order().ToList();
             return new GroupPlacement(group.Id, group.Name, group.PeopleCount, placed, tableNumbers, floors.Count,
-                DistantParts > 0, SmallParts, BreaksHardRule, Preferences.ToList());
+                DistantParts > 0, PeopleApart, SmallParts, BreaksHardRule, Preferences.ToList());
         }
     }
 }

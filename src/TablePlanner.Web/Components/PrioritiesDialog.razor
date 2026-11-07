@@ -37,6 +37,7 @@
         <MudGrid Spacing="2" Class="mb-1">
             <PriorityField Label="Per extra table" @bind-Value="_p.TableSplitPenalty" />
             <PriorityField Label="Per part not next to the rest" @bind-Value="_p.DistantTableSplitPenalty" />
+            <PriorityField Label="Per person away from the rest (×2 at 10 m)" @bind-Value="_p.ApartPersonPenalty" />
             <PriorityField Label="Per extra floor" @bind-Value="_p.FloorSplitPenalty" />
             <PriorityField Label="Small part: per person it is short" @bind-Value="_p.SmallFragmentPenalty" />
             <MudItem xs="6" sm="4">

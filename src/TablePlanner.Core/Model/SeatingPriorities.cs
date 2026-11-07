@@ -22,6 +22,13 @@ public sealed class SeatingPriorities
     /// <summary>Extra, per part of a group that is not at a table adjacent to the rest of the group.</summary>
     public double DistantTableSplitPenalty { get; set; } = 100;
 
+    /// <summary>
+    /// Per person seated away from the main part of their group (at a table that is neither the main part's nor next to
+    /// it). Grows with the distance: doubled at 10 m away, at most 4 times (30 m or another floor). Keeps a split
+    /// group's parts close to each other.
+    /// </summary>
+    public double ApartPersonPenalty { get; set; } = 200;
+
     /// <summary>Per floor a group uses beyond the first.</summary>
     public double FloorSplitPenalty { get; set; } = 1000;
 

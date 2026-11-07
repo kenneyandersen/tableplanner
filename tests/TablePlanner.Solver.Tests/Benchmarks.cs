@@ -40,6 +40,38 @@ internal static class Benchmarks
         return project;
     }
 
+    /// <summary>
+    /// A venue with separate areas (192 seats): a main hall of 2 × 3 tables, a side room with a row of 3 tables 6 m
+    /// away, and two single tables in corners. Groups of 2–30, about 95 % full, random preferences.
+    /// </summary>
+    public static EventProject Scattered(int seed = 1, double fill = 0.95)
+    {
+        var random = new Random(seed);
+        var floor = new Floor { Name = "Hall", Number = 1 };
+        foreach (var y in new[] { 4.0, 6.5 })
+            foreach (var x in new[] { 4.0, 10.5, 17.0 })
+                floor.Tables.Add(new Table { Number = floor.NextTableNumber(), SeatsPerSide = 10, X = x, Y = y });
+        foreach (var x in new[] { 4.0, 9.3, 14.6 })
+            floor.Tables.Add(new Table { Number = floor.NextTableNumber(), SeatsPerSide = 8, X = x, Y = 14 });
+        floor.Tables.Add(new Table { Number = floor.NextTableNumber(), SeatsPerSide = 6, X = 26, Y = 3 });
+        floor.Tables.Add(new Table { Number = floor.NextTableNumber(), SeatsPerSide = 6, X = 26, Y = 15 });
+
+        var project = new EventProject { Name = "Scattered" };
+        project.Setup.Floors.Add(floor);
+        var people = (int)(project.Setup.AllTables.Sum(t => t.SeatCount) * fill);
+        var sizes = new List<int>();
+        while (sizes.Sum() < people)
+        {
+            var size = random.NextDouble() < 0.2 ? random.Next(12, 31) : random.Next(2, 10);
+            sizes.Add(Math.Min(size, people - sizes.Sum()));
+        }
+        var groups = sizes.Select((s, i) => new Group { Name = $"G{i + 1}", PeopleCount = s }).ToList();
+        foreach (var group in groups)
+            group.PreferredGroupIds = groups.Where(g => g != group).OrderBy(_ => random.Next()).Take(random.Next(0, 3)).Select(g => g.Id).ToList();
+        project.Setup.Groups = groups;
+        return project;
+    }
+
     /// <summary>The example with groups grown until there is only 1 seat to spare.</summary>
     public static EventProject NearlyFull()
     {

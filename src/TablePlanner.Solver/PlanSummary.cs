@@ -29,6 +29,7 @@ public sealed record GroupPlacement(
     IReadOnlyList<int> TableNumbers,
     int FloorCount,
     bool HasDistantParts,
+    int PeopleApart,
     int SmallParts,
     bool BreaksHardRule,
     IReadOnlyList<PreferenceOutcome> Preferences)
@@ -96,7 +97,8 @@ public sealed class PlanSummary
             if (g.FloorCount > 1)
                 issues.Add(new(IssueSeverity.Warning, $"'{g.Name}' is split across {g.FloorCount} floors.", g.GroupId));
             else if (g.HasDistantParts)
-                issues.Add(new(IssueSeverity.Warning, $"'{g.Name}' is split over tables that are not next to each other.", g.GroupId));
+                issues.Add(new(IssueSeverity.Warning,
+                    $"'{g.Name}' is split over tables that are not next to each other ({g.PeopleApart} of {g.Placed} away from the rest).", g.GroupId));
             else if (g.SmallParts > 0)
                 issues.Add(new(IssueSeverity.Warning, $"'{g.Name}' has a small part of its group alone at a table.", g.GroupId));
         }

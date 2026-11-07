@@ -17,6 +17,7 @@ public static class PriorityPresets
             Weights(p, new SeatingPriorities());
             (p.TableSplitPenalty, p.DistantTableSplitPenalty, p.FloorSplitPenalty) = (150, 300, 3000);
             p.SmallFragmentPenalty = 400;
+            p.ApartPersonPenalty = 600;
             p.PreferenceRankWeights = [100, 30, 10, 3, 1];
             p.MutualPreferenceBonus = 25;
         }),
@@ -24,6 +25,7 @@ public static class PriorityPresets
         {
             Weights(p, new SeatingPriorities());
             (p.TableSplitPenalty, p.DistantTableSplitPenalty) = (30, 60);
+            p.ApartPersonPenalty = 100;
             p.PreferenceRankWeights = [400, 150, 50, 15, 5];
             p.MutualPreferenceBonus = 100;
         }),
@@ -52,6 +54,7 @@ public static class PriorityPresets
         target.AdjacentTableWeight = source.AdjacentTableWeight;
         target.TableSplitPenalty = source.TableSplitPenalty;
         target.DistantTableSplitPenalty = source.DistantTableSplitPenalty;
+        target.ApartPersonPenalty = source.ApartPersonPenalty;
         target.FloorSplitPenalty = source.FloorSplitPenalty;
         target.SmallFragmentPenalty = source.SmallFragmentPenalty;
         target.EmptySeatGapPenalty = source.EmptySeatGapPenalty;
@@ -64,6 +67,7 @@ public static class PriorityPresets
         a.NextToWeight == b.NextToWeight && a.AcrossWeight == b.AcrossWeight && a.DiagonalWeight == b.DiagonalWeight
         && a.BackToBackWeight == b.BackToBackWeight && a.SameTableWeight == b.SameTableWeight && a.AdjacentTableWeight == b.AdjacentTableWeight
         && a.TableSplitPenalty == b.TableSplitPenalty && a.DistantTableSplitPenalty == b.DistantTableSplitPenalty
+        && a.ApartPersonPenalty == b.ApartPersonPenalty
         && a.FloorSplitPenalty == b.FloorSplitPenalty && a.SmallFragmentPenalty == b.SmallFragmentPenalty
         && a.EmptySeatGapPenalty == b.EmptySeatGapPenalty && a.MovedPersonPenalty == b.MovedPersonPenalty
         && a.MutualPreferenceBonus == b.MutualPreferenceBonus

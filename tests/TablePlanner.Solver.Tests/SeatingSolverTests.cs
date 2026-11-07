@@ -54,6 +54,21 @@ public class SeatingSolverTests
     }
 
     [Theory]
+    [InlineData(1)]
+    [InlineData(2)]
+    [InlineData(3)]
+    public async Task Keeps_split_groups_in_one_area_of_a_scattered_venue_even_with_a_short_search(int seed)
+    {
+        // A nearly full venue with separate areas; few iterations, as in a slow browser.
+        var project = Benchmarks.Scattered(seed, 0.99);
+
+        var result = await SeatingSolver.SolveAsync(project, new SolverOptions { MaxIterations = 5000, Seed = seed, Yield = _ => Task.CompletedTask });
+
+        AssertValid(project, result);
+        Assert.All(result.Summary!.Groups, g => Assert.Equal(0, g.PeopleApart));
+    }
+
+    [Theory]
     [InlineData("example", 1)]
     [InlineData("example", 2)]
     [InlineData("large", 1)]

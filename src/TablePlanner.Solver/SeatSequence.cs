@@ -29,14 +29,23 @@ internal sealed class SeatSequence
         // Tables and floors are contiguous runs in the order; store where each run ends.
         _tableEnd = new int[_seats.Length];
         _floorEnd = new int[_seats.Length];
+        _areaEnd = new int[_seats.Length];
         var seats = problem.Graph.Seats;
         for (var i = _seats.Length - 1; i >= 0; i--)
         {
             var last = i == _seats.Length - 1;
-            _tableEnd[i] = !last && seats[_seats[i + 1]].TableIndex == seats[_seats[i]].TableIndex ? _tableEnd[i + 1] : i + 1;
-            _floorEnd[i] = !last && seats[_seats[i + 1]].FloorIndex == seats[_seats[i]].FloorIndex ? _floorEnd[i + 1] : i + 1;
+            var (here, next) = (seats[_seats[i]], last ? null : seats[_seats[i + 1]]);
+            _tableEnd[i] = next is not null && next.TableIndex == here.TableIndex ? _tableEnd[i + 1] : i + 1;
+            _floorEnd[i] = next is not null && next.FloorIndex == here.FloorIndex ? _floorEnd[i + 1] : i + 1;
+            var sameArea = next is not null && next.FloorIndex == here.FloorIndex
+                && (next.TableIndex == here.TableIndex || problem.Graph.AreAdjacent(next.TableIndex, here.TableIndex));
+            _areaEnd[i] = sameArea ? _areaEnd[i + 1] : i + 1;
         }
     }
+
+    // Where the run of seats at tables next to each other ends: the fill order jumps to a table that is not next to
+    // the previous one there (another part of the room).
+    private readonly int[] _areaEnd;
 
     public int Length => _seats.Length;
 
@@ -45,8 +54,8 @@ internal sealed class SeatSequence
 
     /// <summary>
     /// Fills the plan from the group order. A group that does not fit in the rest of the current table
-    /// (or floor) starts at the next one, leaving the seats empty, as long as there are seats to spare
-    /// and it then fits entirely. Groups that do not fit in the remaining seats at all are skipped.
+    /// (or area of tables next to each other, or floor) starts at the next one, leaving the seats empty, as long as
+    /// there are seats to spare and it then fits entirely. Groups that do not fit in the remaining seats at all are skipped.
     /// </summary>
     public void Decode(IReadOnlyList<int> order, int[] plan)
     {
@@ -68,9 +77,12 @@ internal sealed class SeatSequence
 
             var spare = length - pos - remainingPeople;
             var floorEnd = _floorEnd[pos];
+            var areaEnd = _areaEnd[pos];
             var tableEnd = _tableEnd[pos];
             if (size > floorEnd - pos && floorEnd - pos <= spare && length - floorEnd >= size)
                 pos = floorEnd;
+            else if (size > areaEnd - pos && areaEnd - pos <= spare && areaEnd < length && size <= _areaEnd[areaEnd] - areaEnd)
+                pos = areaEnd;
             else if (size > tableEnd - pos && tableEnd - pos <= spare && tableEnd < length && size <= _tableEnd[tableEnd] - tableEnd)
                 pos = tableEnd;
 

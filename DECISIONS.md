@@ -616,3 +616,7 @@ Notes: changes after testing (2026-11-07):
 - **Warnings select their group:** on the plan page, clicking a warning about a group selects that group (as clicking
   it in the group list does: it is highlighted and its floor shown; clicking again deselects). More than 6 warnings
   can be shown in full ("… and N more" / "Show fewer").
+- **Moving one person** (Shift+drag a seat on the plan): only that person moves; onto an empty seat they move there,
+  onto someone else's seat the two swap (`PlanOperations.MovePerson`, one undo step). Seat pins (locks) follow the
+  people. The plan's warnings update as usual, so a person moved away from their group shows up there. Without Shift a
+  drag moves the whole group as before; the seat tooltip and the move hint mention Shift.

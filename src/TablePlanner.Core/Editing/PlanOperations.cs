@@ -28,6 +28,36 @@ public static class PlanOperations
         }
     }
 
+    /// <summary>
+    /// Moves the one person at <paramref name="from"/> to <paramref name="to"/>, without moving the rest of their group.
+    /// When someone sits at <paramref name="to"/>, the two swap seats. Seat pins (locks) follow the people. False when
+    /// no one sits at <paramref name="from"/>, or both seats are the same or held by the same group (nothing changes).
+    /// </summary>
+    public static bool MovePerson(EventProject project, SeatId from, SeatId to)
+    {
+        var plan = project.CurrentAssignment;
+        if (from == to || plan.GroupAt(from) is not { } moved)
+            return false;
+        var other = plan.GroupAt(to);
+        if (other == moved)
+            return false;
+
+        plan.Seats.RemoveAll(s => s.Seat == from || s.Seat == to);
+        plan.Seats.Add(new SeatAssignment(to, moved));
+        if (other is { } o)
+            plan.Seats.Add(new SeatAssignment(from, o));
+
+        void FollowPin(Guid groupId, SeatId oldSeat, SeatId newSeat)
+        {
+            if (project.Setup.Pins.FirstOrDefault(p => p.GroupId == groupId && p.Scope == PinScope.Seats) is { } pin)
+                pin.Seats = [.. pin.Seats.Select(s => s == oldSeat ? newSeat : s)];
+        }
+        FollowPin(moved, from, to);
+        if (other is { } swapped)
+            FollowPin(swapped, to, from);
+        return true;
+    }
+
     /// <summary>Takes a group out of the plan, and drops its seat pin, which would otherwise put it back.</summary>
     public static void UnseatGroup(EventProject project, Guid groupId)
     {

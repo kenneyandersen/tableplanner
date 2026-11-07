@@ -50,6 +50,43 @@ public class PlanOperationsTests
     }
 
     [Fact]
+    public void MovePerson_moves_one_person_to_an_empty_seat()
+    {
+        var (project, table, a, b) = Seated();
+
+        Assert.True(PlanOperations.MovePerson(project, new SeatId(table.Id, 1), new SeatId(table.Id, 7)));
+
+        Assert.Equal([0, 7], SeatIndices(project, a));
+        Assert.Equal([2, 3], SeatIndices(project, b));
+    }
+
+    [Fact]
+    public void MovePerson_onto_someone_else_swaps_the_two_and_locks_follow()
+    {
+        var (project, table, a, b) = Seated();
+        PlanOperations.Lock(project, a.Id);
+        PlanOperations.Lock(project, b.Id);
+
+        Assert.True(PlanOperations.MovePerson(project, new SeatId(table.Id, 1), new SeatId(table.Id, 2)));
+
+        Assert.Equal([0, 2], SeatIndices(project, a));
+        Assert.Equal([1, 3], SeatIndices(project, b));
+        Assert.Equal([0, 2], project.Setup.Pins.Single(p => p.GroupId == a.Id).Seats.Select(s => s.Index).Order());
+        Assert.Equal([1, 3], project.Setup.Pins.Single(p => p.GroupId == b.Id).Seats.Select(s => s.Index).Order());
+    }
+
+    [Fact]
+    public void MovePerson_does_nothing_from_an_empty_seat_or_within_the_group()
+    {
+        var (project, table, _, _) = Seated();
+
+        Assert.False(PlanOperations.MovePerson(project, new SeatId(table.Id, 6), new SeatId(table.Id, 7)));
+        Assert.False(PlanOperations.MovePerson(project, new SeatId(table.Id, 0), new SeatId(table.Id, 1)));
+        Assert.False(PlanOperations.MovePerson(project, new SeatId(table.Id, 0), new SeatId(table.Id, 0)));
+        Assert.Equal(4, project.CurrentAssignment.Seats.Count);
+    }
+
+    [Fact]
     public void Lock_replaces_other_pins_and_needs_seats()
     {
         var (project, table, a, _) = Seated();

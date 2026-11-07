@@ -15,7 +15,7 @@ Design decisions are recorded in [DECISIONS.md](DECISIONS.md).
   a background image of the venue, with move, resize, rotate, snap to grid and undo.
 - **Groups:** a groups editor with quick add and up to 5 ranked preferences per group; CSV and Excel import/export.
 - **Plan:** the solver seats groups close together and near the groups they prefer, without leaving small parts of
-  a group alone at a table; two search methods (search, beam search); priority presets; re-optimizing with few changes; manual moves and swaps (also by drag
+  a group alone at a table; two search methods (search, beam search); priority presets; re-optimizing with few changes; manual moves and swaps of groups or single people (also by drag
   and drop, from the plan or the group list), locks and pins, saved plans.
 - **Print & share:** table cards (per group at a table or per seat, flat or tent cards, A4 or A5), a poster with floor
   plans and a "find your table" list, and a guest page for phones (search or explore the floor plan) with a QR code.

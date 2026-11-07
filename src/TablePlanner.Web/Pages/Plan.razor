@@ -81,12 +81,12 @@
                     @if (_moving && SelectedGroup is { } moving)
                     {
                         <MudChip T="string" Color="Color.Primary" Class="move-hint" OnClose="@(() => _moving = false)">
-                            Click a seat to move @moving.Name there, or another group's seat to swap. Esc cancels.
+                            Click a seat to move @moving.Name there, or another group's seat to swap. Esc cancels. (Shift+drag a seat to move just one person.)
                         </MudChip>
                     }
                     <PlanCanvas Setup="setup" FloorId="floor.Id" Assignment="DisplayedAssignment" Colours="_colours" Scale="_scale" BackgroundUrl="@Session.ImageUrl(floor.Background?.ImageId)"
                                 Selected="_highlight" Pinned="_pinned" MoveMode="_moving" SeatClicked="OnSeatClicked" GroupClicked="HighlightGroup"
-                                DragEnabled="_proposal is null" DropPreview="DropPreview" GroupDropped="OnGroupDropped" ListDrag="_listDrag" />
+                                DragEnabled="_proposal is null" DropPreview="DropPreview" GroupDropped="OnGroupDropped" PersonDropped="OnPersonDropped" ListDrag="_listDrag" />
                 </div>
                 <div class="editor-side">
                     @if (_failure is { } failure)
@@ -325,6 +325,17 @@
             _highlight = group.Id;
             _moving = false;
         }
+    }
+
+    /// <summary>One person dragged (Shift+drag) onto another seat: moved there, or swapped with the person sitting there.</summary>
+    private void OnPersonDropped((SeatId From, SeatId To) drop)
+    {
+        if (_proposal is not null || Session.Project!.CurrentAssignment.GroupAt(drop.From) is not { } groupId)
+            return;
+        var swap = Session.Project.CurrentAssignment.GroupAt(drop.To) is not null;
+        Edit(swap ? "Swap two people" : "Move one person", p => PlanOperations.MovePerson(p, drop.From, drop.To));
+        _highlight = groupId;
+        _moving = false;
     }
 
     /// <summary>The seating problem for the current setup, made once per change: drag previews ask for it often.</summary>

@@ -51,8 +51,8 @@
                             class="seat @(seat.IsDisabled ? "disabled" : "") @(group is null ? "empty" : "taken") @(dimmed ? "dimmed" : "") @(Selected == groupId && group is not null ? "highlighted" : "") @(group is not null && Pinned.Contains(groupId) ? "pinned" : "") @DropClass(seatId)"
                             style="@(group is null ? null : $"fill: {Colours.GetValueOrDefault(groupId, "#ccc")}")"
                             @onclick="() => SeatClicked.InvokeAsync(seatId)" @onclick:stopPropagation="true"
-                            @onpointerdown="e => OnGroupPointerDown(e, group?.Id)">
-                        <title>@(group is null ? $"Table {table.Number}, empty seat" : $"{group.Name} ({group.PeopleCount}) · table {table.Number}")</title>
+                            @onpointerdown="e => OnGroupPointerDown(e, group?.Id, seatId)">
+                        <title>@SeatTitle(table, group)</title>
                     </circle>
                 }
                 @{ var numberAt = GroupLabels.TableNumberPosition(table); }
@@ -70,12 +70,12 @@
             </g>
         }
 
-        @* The dragged group follows the pointer; drawn last so it is on top. *@
+        @* The dragged group (or person) follows the pointer; drawn last so it is on top. *@
         @if (_drag is { Started: true, At: { } at } drag && Setup.FindGroup(drag.GroupId) is { } dragged)
         {
             <g class="drag-ghost">
-                <circle cx="@Svg(at.X)" cy="@Svg(at.Y)" r="0.3" style="fill: @Colours.GetValueOrDefault(dragged.Id, "#ccc")" />
-                <text x="@Svg(at.X + 0.45)" y="@Svg(at.Y)" font-size="0.32">@dragged.Name (@dragged.PeopleCount)</text>
+                <circle cx="@Svg(at.X)" cy="@Svg(at.Y)" r="@(drag.FromSeat is null ? "0.3" : "0.22")" style="fill: @Colours.GetValueOrDefault(dragged.Id, "#ccc")" />
+                <text x="@Svg(at.X + 0.45)" y="@Svg(at.Y)" font-size="0.32">@(drag.FromSeat is null ? $"{dragged.Name} ({dragged.PeopleCount})" : $"1 of {dragged.Name}")</text>
             </g>
         }
     </svg>
@@ -120,6 +120,9 @@
     /// <summary>A group was dragged onto a seat.</summary>
     [Parameter] public EventCallback<(Guid GroupId, SeatId Seat)> GroupDropped { get; set; }
 
+    /// <summary>One person was dragged (Shift+drag) from a seat onto another, empty or taken.</summary>
+    [Parameter] public EventCallback<(SeatId From, SeatId To)> PersonDropped { get; set; }
+
     /// <summary>A group being dragged from the group list (with the browser's drag and drop); the plan is its drop zone.</summary>
     [Parameter] public Guid? ListDrag { get; set; }
 
@@ -132,6 +135,9 @@
     private sealed class DragState(Guid groupId, double startX, double startY, long pointerId)
     {
         public Guid GroupId { get; } = groupId;
+
+        /// <summary>Set when only the one person at this seat is dragged (Shift+drag), not the whole group.</summary>
+        public SeatId? FromSeat { get; init; }
         public double StartX { get; } = startX;
         public double StartY { get; } = startY;
         public long PointerId { get; } = pointerId;
@@ -178,13 +184,22 @@
         _ => "",
     };
 
-    private void OnGroupPointerDown(PointerEventArgs e, Guid? groupId)
+    private void OnGroupPointerDown(PointerEventArgs e, Guid? groupId, SeatId? seat = null)
     {
         _render = false;
         if (e.Button != 0 || !DragEnabled || groupId is not { } id)
             return;
-        _drag = new DragState(id, e.ClientX, e.ClientY, e.PointerId);
+        // Shift on a seat drags only that person.
+        _drag = new DragState(id, e.ClientX, e.ClientY, e.PointerId) { FromSeat = e.ShiftKey ? seat : null };
     }
+
+    private string SeatTitle(Table table, Group? group) =>
+        group is null ? $"Table {table.Number}, empty seat"
+        : $"{group.Name} ({group.PeopleCount}) · table {table.Number}" + (DragEnabled ? "\nDrag to move the group, Shift+drag to move only this person" : "");
+
+    /// <summary>Where one dragged person would go: the seat itself, unless it is their own or their group's.</summary>
+    private HashSet<SeatId>? PersonPreview(DragState drag, SeatId target) =>
+        target != drag.FromSeat && _groupAt.GetValueOrDefault(target) != drag.GroupId ? [target] : null;
 
     private async Task OnPointerMove(PointerEventArgs e)
     {
@@ -214,7 +229,9 @@
         if (target != drag.Target)
         {
             drag.Target = target;
-            drag.Preview = target is { } seat && DropPreview?.Invoke(drag.GroupId, seat) is { } seats ? [.. seats] : null;
+            drag.Preview = target is not { } seat ? null
+                : drag.FromSeat is not null ? PersonPreview(drag, seat)
+                : DropPreview?.Invoke(drag.GroupId, seat) is { } seats ? [.. seats] : null;
             moved = true;
         }
         return moved;
@@ -262,7 +279,12 @@
         _drag = null;
         // The click that follows a drag lands on the SVG itself; it must not deselect.
         _justDropped = true;
-        if (drag.Target is { } seat)
+        if (drag.FromSeat is { } from)
+        {
+            if (drag is { Target: { } to, Preview: not null })
+                await PersonDropped.InvokeAsync((from, to));
+        }
+        else if (drag.Target is { } seat)
             await GroupDropped.InvokeAsync((drag.GroupId, seat));
     }
 

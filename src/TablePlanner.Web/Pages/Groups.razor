@@ -104,6 +104,20 @@
             </NoRecordsContent>
         </MudTable>
 
+        @* Quick add: type a name, Tab, type the size, Enter. The fields clear and the cursor returns to Name. *@
+        <MudPaper Outlined="true" Class="pa-2 mt-2" Style="max-width: 640px">
+            <MudStack Row="true" AlignItems="AlignItems.Start" Spacing="2">
+                <MudTextField T="string" @ref="_quickNameField" @bind-Value="_quickName" @bind-Value:after="() => _quickError = null" Label="New group name" Immediate="true"
+                              Margin="Margin.Dense" Variant="Variant.Outlined" OnKeyDown="QuickNameKeyDown"
+                              Error="@(_quickError is not null)" ErrorText="@_quickError" Style="min-width: 220px" />
+                <MudNumericField T="int?" @ref="_quickPeopleField" @bind-Value="_quickPeople" Label="People" Min="1" Immediate="true"
+                                 Margin="Margin.Dense" Variant="Variant.Outlined" OnKeyDown="QuickPeopleKeyDown" Style="max-width: 120px" />
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add" Class="mt-2"
+                           OnClick="QuickAdd">Add</MudButton>
+            </MudStack>
+            <MudText Typo="Typo.caption" Class="mud-text-secondary">Quick add: name, Tab, people, Enter.</MudText>
+        </MudPaper>
+
         <div class="mt-4" style="max-width: 800px">
             <IssuesPanel Setup="setup" />
         </div>
@@ -132,6 +146,50 @@
         Session.History!.Execute(description, p => edit(p.Setup.FindGroup(groupId)!));
 
     private void AddGroup() => Session.History!.Execute("Add group", p => SetupOperations.AddGroup(p));
+
+    private MudTextField<string>? _quickNameField;
+    private MudNumericField<int?>? _quickPeopleField;
+    private string? _quickName;
+    private int? _quickPeople;
+    private string? _quickError;
+
+    private async Task QuickNameKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter" && _quickPeopleField is not null)
+            await _quickPeopleField.FocusAsync();
+    }
+
+    private async Task QuickPeopleKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter")
+            await QuickAdd();
+    }
+
+    private async Task QuickAdd()
+    {
+        var name = _quickName?.Trim();
+        _quickError = null;
+        if (string.IsNullOrEmpty(name))
+            _quickError = "Enter a name.";
+        else if (Session.Project!.Setup.Groups.Any(g => string.Equals(g.Name.Trim(), name, StringComparison.OrdinalIgnoreCase)))
+            _quickError = "A group with this name already exists.";
+        else if (_quickPeople is not > 0)
+        {
+            if (_quickPeopleField is not null) await _quickPeopleField.FocusAsync();
+            Snackbar.Add("Enter the number of people (1 or more).", Severity.Warning);
+            return;
+        }
+
+        if (_quickError is null)
+        {
+            var count = _quickPeople!.Value;
+            Session.History!.Execute("Add group", p => SetupOperations.AddGroup(p, name, count));
+            _quickName = null;
+            _quickPeople = null;
+        }
+        if (_quickNameField is not null)
+            await _quickNameField.FocusAsync();
+    }
 
     private async Task EditPreferences(Guid groupId)
     {

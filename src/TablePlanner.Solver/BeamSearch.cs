@@ -15,7 +15,7 @@ internal sealed class BeamSearch
     private readonly int[] _free;
     private readonly int[] _priority;
     private readonly double[] _ideal;
-    private readonly double[] _preferenceBonus;
+    private readonly double[][] _preferenceWeight;
     private readonly int[][] _linked;
     private readonly ulong[] _key;
     private readonly double _misfitPenalty;
@@ -43,16 +43,11 @@ internal sealed class BeamSearch
             .Select(g => problem.Preferences[g].Concat(Enumerable.Range(0, groups).Where(h => problem.Preferences[h].Contains(g))).Distinct().ToArray())
             .ToArray();
 
-        // Per group: the most its preferences can add (when every preferred group sits at the same table).
-        _preferenceBonus = new double[groups];
-        for (var g = 0; g < groups; g++)
-            for (var r = 0; r < problem.Preferences[g].Length; r++)
-            {
-                var h = problem.Preferences[g][r];
-                var bonus = (r < p.PreferenceRankWeights.Count ? p.PreferenceRankWeights[r] : 0)
-                    + (problem.IsMutual[g][r] && g < h ? p.MutualPreferenceBonus : 0);
-                _preferenceBonus[g] += bonus;
-            }
+        // Per group and preference: what it adds when met at the same table (the rank weight, and the mutual bonus once per pair).
+        _preferenceWeight = Enumerable.Range(0, groups)
+            .Select(g => problem.Preferences[g].Select((h, r) => (r < p.PreferenceRankWeights.Count ? p.PreferenceRankWeights[r] : 0)
+                + (problem.IsMutual[g][r] && g < h ? p.MutualPreferenceBonus : 0)).ToArray())
+            .ToArray();
 
         // Per group: what it scores seated on its own at the start of the largest area.
         _empty = problem.EmptyPlan();
@@ -77,7 +72,7 @@ internal sealed class BeamSearch
         }
     }
 
-    private sealed class Node(int[] plan, int pos, bool[] pending, int pendingPeople, int[] order, ulong key)
+    private sealed class Node(int[] plan, int pos, bool[] pending, int pendingPeople, int[] order, ulong key, int[] end)
     {
         public readonly int[] Plan = plan;
         public readonly int Pos = pos;
@@ -85,6 +80,9 @@ internal sealed class BeamSearch
         public readonly int PendingPeople = pendingPeople;
         public readonly int[] Order = order;
         public readonly ulong Key = key;
+
+        /// <summary>Per group: the position in the seat order just after its seats; 0 when the beam has not seated it.</summary>
+        public readonly int[] End = end;
     }
 
     private readonly record struct Child(int Parent, int Group, double Rating, ulong Key, int Pos);
@@ -99,7 +97,7 @@ internal sealed class BeamSearch
         var rootPending = new bool[groups];
         foreach (var g in _free)
             rootPending[g] = true;
-        var beam = new List<Node> { new(_empty, 0, rootPending, _free.Sum(g => _problem.Size[g]), [], 0) };
+        var beam = new List<Node> { new(_empty, 0, rootPending, _free.Sum(g => _problem.Size[g]), [], 0, new int[groups]) };
         var scratch = new int[_empty.Length];
         var children = new List<Child>();
         var candidates = new List<int>();
@@ -118,7 +116,9 @@ internal sealed class BeamSearch
                     var pos = node.Pos;
                     _sequence.Place(scratch, ref pos, g, node.PendingPeople);
                     node.Pending[g] = false;
-                    var rating = _evaluator.ScorePartial(scratch, node.Pending) + Estimate(node.Pending, pos, node.PendingPeople - _problem.Size[g]);
+                    node.End[g] = pos;
+                    var rating = _evaluator.ScorePartial(scratch, node.Pending) + Estimate(node.Pending, node.End, pos, node.PendingPeople - _problem.Size[g]);
+                    node.End[g] = 0;
                     node.Pending[g] = true;
                     children.Add(new Child(b, g, rating, node.Key ^ _key[g], pos));
                     Evaluations++;
@@ -147,7 +147,9 @@ internal sealed class BeamSearch
                 _sequence.Place(plan, ref pos, child.Group, parent.PendingPeople);
                 var pending = (bool[])parent.Pending.Clone();
                 pending[child.Group] = false;
-                next.Add(new Node(plan, pos, pending, parent.PendingPeople - _problem.Size[child.Group], [.. parent.Order, child.Group], child.Key));
+                var end = (int[])parent.End.Clone();
+                end[child.Group] = pos;
+                next.Add(new Node(plan, pos, pending, parent.PendingPeople - _problem.Size[child.Group], [.. parent.Order, child.Group], child.Key, end));
             }
             beam = next;
         }
@@ -180,21 +182,31 @@ internal sealed class BeamSearch
         candidates.RemoveAll(g => _sequence.GapLeft(node.Pos, _problem.Size[g]) is var gap and > 0 && smallest <= gap);
     }
 
-    /// <summary>The optimistic rest: every group still to come seated on its own with all its preferences met, less the misfit penalty.</summary>
-    private double Estimate(bool[] pending, int pos, int pendingPeople)
+    /// <summary>
+    /// The optimistic rest: every group still to come seated on its own, less the misfit penalty, plus the preferences
+    /// that can still be met. A preference between two groups still to come counts fully; between a seated group and
+    /// one still to come only while the seated group is in the area being filled (so the other can still sit at the
+    /// same or the next table), otherwise only as "same floor".
+    /// </summary>
+    private double Estimate(bool[] pending, int[] end, int pos, int pendingPeople)
     {
         var estimate = 0.0;
+        var area = pos < _sequence.Length ? _sequence.AreaEnd(pos) : -1;
+        bool Reachable(int g) => pending[g] || (end[g] > 0 && area >= 0 && _sequence.AreaEnd(end[g] - 1) == area);
         for (var g = 0; g < pending.Length; g++)
+        {
             if (pending[g])
-                estimate += _ideal[g] + _preferenceBonus[g];
-            else
-                foreach (var h in _problem.Preferences[g])
-                    if (pending[h])
-                    {
-                        // A preference of a seated group for one still to come may still be met; count it fully.
-                        var r = Array.IndexOf(_problem.Preferences[g], h);
-                        estimate += r < _problem.Priorities.PreferenceRankWeights.Count ? _problem.Priorities.PreferenceRankWeights[r] : 0;
-                    }
+                estimate += _ideal[g];
+            var preferences = _problem.Preferences[g];
+            for (var r = 0; r < preferences.Length; r++)
+            {
+                var h = preferences[r];
+                if (!pending[g] && !pending[h])
+                    continue; // both seated: in the score already
+                var closeness = Reachable(g) && Reachable(h) ? 1 : PlanEvaluator.SameFloorCloseness;
+                estimate += _preferenceWeight[g][r] * closeness;
+            }
+        }
 
         if (pos < _sequence.Length && pendingPeople > 0)
         {

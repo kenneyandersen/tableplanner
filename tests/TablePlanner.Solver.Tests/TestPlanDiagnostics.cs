@@ -5,8 +5,10 @@ using Xunit.Abstractions;
 namespace TablePlanner.Solver.Tests;
 
 /// <summary>
-/// Runs the solver on the real projects in tests/testplans and prints the warnings, for tuning. Run with:
-/// dotnet test tests/TablePlanner.Solver.Tests -c Release --filter TestPlanDiagnostics --logger "console;verbosity=detailed"
+/// Runs the solver on the projects in tests/testplans (real ones and those from <see cref="TestPlanGenerator"/>).
+/// Normally a quick check only; the comparison of methods and time limits (a few minutes), for tuning, with:
+/// <c>$env:TABLEPLANNER_DIAGNOSTICS=1; dotnet test tests/TablePlanner.Solver.Tests -c Release --filter TestPlanDiagnostics --logger "console;verbosity=detailed"</c>
+/// (TABLEPLANNER_DETAILS=1 also lists which tables are adjacent.)
 /// </summary>
 public class TestPlanDiagnostics(ITestOutputHelper output)
 {
@@ -21,43 +23,58 @@ public class TestPlanDiagnostics(ITestOutputHelper output)
             return;
         var project = TestPlans.Load(file);
         var problem = SeatingProblem.Create(project.Setup, project.Priorities);
-        output.WriteLine($"{file}: {problem.PeopleCount} people, {problem.Graph.Seats.Count} seats, {problem.Groups.Count} groups");
-        foreach (var t in problem.Graph.Tables)
-            output.WriteLine($"  table {t.Table.Number} ({t.Seats.Count}) next to {string.Join(",", problem.Graph.Tables.Where(o => problem.Graph.AreAdjacent(t.Index, o.Index)).Select(o => o.Table.Number))}");
-
-        var evaluator = new PlanEvaluator(problem);
-        Print("saved plan", evaluator.Summarize(problem.ToPlan(project.CurrentAssignment)), problem, problem.ToPlan(project.CurrentAssignment));
-
-        // Seeded (repeatable) runs of the search at three lengths and of the beam (widths 4, 16, 64); then runs limited
-        // by time only, as in the app (a native second is several in the browser).
-        var runs = new (string Name, SolverMethod Method, int Iterations, double Seconds, bool Seeded, bool ThenSearch)[]
+        if (Environment.GetEnvironmentVariable("TABLEPLANNER_DIAGNOSTICS") != "1")
         {
-            ("search 20k", SolverMethod.Search, 20_000, 60, true, true),
-            ("search 100k", SolverMethod.Search, 100_000, 60, true, true),
-            ("search 500k", SolverMethod.Search, 500_000, 60, true, true),
-            ("beam only", SolverMethod.Beam, 5_000_000, 60, true, false),
-            ("beam+search 100k", SolverMethod.Beam, 100_000, 60, true, true),
-            ("search 2s", SolverMethod.Search, 5_000_000, 2, false, true),
-            ("beam only 2s", SolverMethod.Beam, 5_000_000, 2, false, false),
-            ("beam+search 2s", SolverMethod.Beam, 5_000_000, 2, false, true),
+            // In normal test runs, only a quick check: both methods seat everyone without anyone away from their group.
+            foreach (var method in new[] { SolverMethod.Search, SolverMethod.Beam })
+            {
+                var quick = await SeatingSolver.SolveAsync(project, new SolverOptions { Method = method, Seed = 1, MaxIterations = 20_000, Yield = _ => Task.CompletedTask });
+                Assert.Equal(quick.Summary!.PeopleTotal, quick.Summary.PeoplePlaced);
+                Assert.All(quick.Summary.Groups, g => Assert.Equal(0, g.PeopleApart));
+            }
+            return;
+        }
+        output.WriteLine($"{file}: {problem.PeopleCount} people, {problem.Graph.Seats.Count} seats, {problem.Groups.Count} groups");
+        if (Environment.GetEnvironmentVariable("TABLEPLANNER_DETAILS") == "1")
+            foreach (var t in problem.Graph.Tables)
+                output.WriteLine($"  table {t.Table.Number} ({t.Seats.Count}) next to {string.Join(",", problem.Graph.Tables.Where(o => problem.Graph.AreAdjacent(t.Index, o.Index)).Select(o => o.Table.Number))}");
+
+        // Limited by time only, as in the app (a native second is several in the browser), so not repeatable.
+        var runs = new (string Name, SolverMethod Method, double Seconds)[]
+        {
+            ("search 0.5s", SolverMethod.Search, 0.5),
+            ("beam 0.5s", SolverMethod.Beam, 0.5),
+            ("search 2s", SolverMethod.Search, 2),
+            ("beam 2s", SolverMethod.Beam, 2),
         };
+        const int Repeats = 5;
         foreach (var run in runs)
         {
-            var (warnings, apart, score) = (0, 0, 0.0);
-            for (var seed = 1; seed <= 5; seed++)
+            var (warnings, apart, small, split, unplaced, firstMet, firstWanted, score) = (0, 0, 0, 0, 0, 0, 0, 0.0);
+            PlanSummary? worst = null;
+            int[]? worstPlan = null;
+            for (var i = 0; i < Repeats; i++)
             {
                 var result = await SeatingSolver.SolveAsync(project, new SolverOptions
                 {
-                    TimeBudget = TimeSpan.FromSeconds(run.Seconds), MaxIterations = run.Iterations, Seed = run.Seeded ? seed : null,
-                    Method = run.Method, BeamOnly = !run.ThenSearch, Yield = _ => Task.CompletedTask,
+                    TimeBudget = TimeSpan.FromSeconds(run.Seconds), Method = run.Method, Yield = _ => Task.CompletedTask,
                 });
                 var s = result.Summary!;
-                output.WriteLine($"   {run.Name} #{seed}: {s.Score:0}, {s.Issues.Count} warnings, {result.Iterations} it, {result.Elapsed.TotalSeconds:0.0}s, {result.StoppedBecause}");
-                (warnings, apart, score) = (warnings + s.Issues.Count, apart + s.Groups.Sum(g => g.PeopleApart), score + s.Score);
-                if (seed == 1)
-                    Print($"{run.Name} #1", s, problem, problem.ToPlan(result.Assignment!));
+                var first = s.PreferenceStats.FirstOrDefault(p => p.Rank == 1);
+                warnings += s.Issues.Count;
+                apart += s.Groups.Sum(g => g.PeopleApart);
+                small += s.Groups.Count(g => g.SmallParts > 0);
+                split += s.SplitGroups;
+                unplaced += s.PeopleTotal - s.PeoplePlaced;
+                (firstMet, firstWanted) = (firstMet + (first?.Met ?? 0), firstWanted + (first?.Wanted ?? 0));
+                score += s.Score;
+                if (worst is null || s.Issues.Count > worst.Issues.Count)
+                    (worst, worstPlan) = (s, problem.ToPlan(result.Assignment!));
             }
-            output.WriteLine($"== {run.Name}, 5 runs: avg score {score / 5:0}, {warnings} warnings, {apart} people apart");
+            output.WriteLine($"== {file} | {run.Name,-11} | score {score / Repeats,7:0} | warnings {warnings,2} | people apart {apart,3} | "
+                + $"small parts {small,2} | split groups {split / (double)Repeats,4:0.0} | 1st choices {firstMet}/{firstWanted} | unplaced {unplaced}");
+            if (worst!.Issues.Count > 0)
+                Print($"   worst of {Repeats}", worst, problem, worstPlan!);
         }
     }
 
@@ -90,7 +107,7 @@ public class TestPlanDiagnostics(ITestOutputHelper output)
 
 internal static class TestPlans
 {
-    private static string? Folder()
+    internal static string? Folder()
     {
         for (var dir = new DirectoryInfo(AppContext.BaseDirectory); dir is not null; dir = dir.Parent)
         {

@@ -57,11 +57,15 @@ dotnet test tests/TablePlanner.Solver.Tests -c Release --filter FragmentDiagnost
 dotnet test tests/TablePlanner.Solver.Tests -c Release --filter ApartDiagnostics --logger "console;verbosity=detailed"
 ```
 
-and for real projects: put an exported `*.tableplanner.json` anywhere under `tests/testplans` and run
+and for real projects: put an exported `*.tableplanner.json` anywhere under `tests/testplans` (five generated ones
+are there too, made by `TestPlanGenerator`) and run the comparison of both search methods (a few minutes):
 
-```sh
-dotnet test tests/TablePlanner.Solver.Tests -c Release --filter TestPlanDiagnostics --logger "console;verbosity=detailed"
+```powershell
+$env:TABLEPLANNER_DIAGNOSTICS=1; dotnet test tests/TablePlanner.Solver.Tests -c Release --filter TestPlanDiagnostics --logger "console;verbosity=detailed"
 ```
+
+Without the variable, normal test runs only check that every test plan gets everyone seated with no one away from their
+group. To regenerate the generated plans: `$env:TABLEPLANNER_GENERATE=1; dotnet test tests/TablePlanner.Solver.Tests --filter TestPlanGenerator`.
 
 ## Publishing to GitHub Pages
 

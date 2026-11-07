@@ -578,6 +578,29 @@ Notes: changes after testing (2026-11-07):
     3 warnings; beam alone: 28,731, 0 warnings, the same plan every time, but fewer first choices met (4 of 8); beam then
     search: 29,055, 1 warning. Differences between runs are about as large as between methods, hence the choice in the
     app rather than one fixed method.
+  - Beam estimate (*changed* after the test plans below): a preference between a seated group and one still to come
+    counts fully only while the seated group is in the area being filled; otherwise as "same floor" (0.2). Before, the
+    beam counted it as achievable long after the area was full, and met clearly fewer preferences than Search on every
+    plan (Party 2025: 6 of 24 first choices against 20).
+- **Test plans** (`tests/testplans`): the user's Party 2025 and five made by `TestPlanGenerator` (seeded, so they can be
+  made again): Wedding 176 (17 round tables of 8–10 and a head table with 2 disabled seats, 178 seats, 35 groups of
+  2–12 with many preferences); Company dinner 430 (2 floors, long tables, a side room of round tables, a pillar
+  blocking 4 seats, 458 seats, departments of 25–60); Club party 220 full (every seat taken, three separate areas incl.
+  a rotated row, 3 disabled seats); Conference lunch 96 (16 round tables of 6/8, 110 seats, groups of 1–6, many mutual
+  preferences; the tables are just over 2 m apart, so not adjacent, and a preference is only met at the same table);
+  Festival 1080 (3 floors, 54 long and 12 round tables, 1165 seats, groups up to 89, larger than any table).
+  Normal test runs check that both methods seat everyone there with no one away from their group.
+  - Comparison (5 runs each, time limit only; 0.5 s native is about a slow browser, 2 s about 8 s in the browser):
+    no one was away from their group in any run, and everyone was seated. Search had the higher score on 5 of 6 plans
+    and met more preferences (e.g. Festival 138 vs 119 of 165 first choices, Company dinner 74 vs 67 of 80); beam search
+    was best on Party 2025 (the nearly full real one: 0 warnings in 5 runs, 38 of 40 first choices, against 3 warnings
+    and 34 for Search). Club party (exactly full) and Conference lunch: both without warnings. So Search stays the
+    default; beam search is worth trying for very full venues with many separate areas.
+  - Runs of the same method differ by several hundred points, often more than the methods do: compare over 5 or more
+    runs. Clicking Make plan again is a cheap way to get a better plan.
+  - Seen in the worst runs: polishing swaps can put a single person between two other groups at a table, or interleave
+    two small groups; the score accepts it because it removes something worse, but it looks untidy. A group larger
+    than its tables (89 at tables of 21–22) may still leave 3 at a fifth table.
 - **Poster in A2 and A1** (plus A4, A3): the template gets `PageSize` in millimetres (browsers do not all know A1/A2 by
   name) and `Scale` (1 on A3/A4, 1.41 on A2, 2 on A1); the built-in poster multiplies its text and marks by it.
   The page notes that A2/A1 are best saved as PDF and printed at a print shop.

@@ -308,3 +308,6 @@ code {
 .print-settings { background: var(--mud-palette-background-gray); }
 /* A MudSelect's outer wrapper grows to fill a toolbar; keep selects at their own width so items stay together. */
 .editor-toolbar .mud-select { flex-grow: 0; }
+
+/* The search method next to Make plan: as wide as its longest choice. */
+.editor-toolbar .method-select { width: 10.5rem; }

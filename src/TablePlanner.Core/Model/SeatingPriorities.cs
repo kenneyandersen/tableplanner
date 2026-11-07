@@ -1,5 +1,14 @@
 namespace TablePlanner.Core.Model;
 
+public enum SolverMethod
+{
+    /// <summary>Many small random changes to the order the groups are seated in, keeping what improves the plan.</summary>
+    Search,
+
+    /// <summary>Builds the plan group by group, keeping the best partial plans at each step (beam search).</summary>
+    Beam,
+}
+
 /// <summary>
 /// Weights and limits for the solver, saved with the project.
 /// Default values are a starting point and will be tuned together with the solver.
@@ -58,6 +67,9 @@ public sealed class SeatingPriorities
 
     /// <summary>The solver stops after this time and returns the best plan found.</summary>
     public double TimeBudgetSeconds { get; set; } = 8;
+
+    /// <summary>How Make plan searches. Re-optimizing always improves the current plan with <see cref="SolverMethod.Search"/>.</summary>
+    public SolverMethod Method { get; set; } = SolverMethod.Search;
 
     public SeatingPriorities Clone()
     {

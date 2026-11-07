@@ -111,6 +111,52 @@ public class SeatingSolverTests
         Assert.All(result.Summary!.Groups, g => Assert.Equal(0, g.SmallParts));
     }
 
+    [Theory]
+    [InlineData("example")]
+    [InlineData("large")]
+    [InlineData("nearly-full")]
+    [InlineData("scattered-full")]
+    public async Task Beam_search_seats_everyone_and_keeps_groups_together(string name)
+    {
+        var project = name switch
+        {
+            "example" => Benchmarks.Example(),
+            "large" => Benchmarks.Large(),
+            "nearly-full" => Benchmarks.NearlyFull(),
+            _ => Benchmarks.Scattered(1, 0.99),
+        };
+
+        var result = await Solve(project, Options() with { Method = SolverMethod.Beam });
+
+        Assert.Equal(SolveStatus.Success, result.Status);
+        AssertValid(project, result);
+        Assert.All(result.Summary!.Groups, g => Assert.Equal(0, g.PeopleApart));
+        Assert.All(result.Summary.Groups, g => Assert.Equal(0, g.SmallParts));
+    }
+
+    [Fact]
+    public async Task Beam_search_with_too_few_seats_places_as_many_people_as_possible()
+    {
+        var project = Benchmarks.TooFewSeats();
+        var seats = project.Setup.AllTables.Sum(t => t.AvailableSeatCount);
+
+        var result = await Solve(project, Options() with { Method = SolverMethod.Beam });
+
+        Assert.Equal(SolveStatus.Partial, result.Status);
+        AssertValid(project, result);
+        Assert.InRange(result.Summary!.PeoplePlaced, seats - 3, seats);
+    }
+
+    [Fact]
+    public async Task Beam_search_with_a_seed_gives_the_same_plan()
+    {
+        var a = await Solve(Benchmarks.Example(), Options(5_000) with { Method = SolverMethod.Beam });
+        var b = await Solve(Benchmarks.Example(), Options(5_000) with { Method = SolverMethod.Beam });
+
+        Assert.Equal(a.Summary!.Score, b.Summary!.Score);
+        Assert.Equal(a.Summary.Groups.Select(g => g.TableNumbers), b.Summary!.Groups.Select(g => g.TableNumbers));
+    }
+
     [Fact]
     public async Task Groups_that_fit_at_one_table_are_not_split()
     {
@@ -174,8 +220,10 @@ public class SeatingSolverTests
         Assert.Equal(result.Summary!.PeopleTotal, result.Summary.PeoplePlaced);
     }
 
-    [Fact]
-    public async Task Keeps_seat_table_and_floor_pins()
+    [Theory]
+    [InlineData(SolverMethod.Search)]
+    [InlineData(SolverMethod.Beam)]
+    public async Task Keeps_seat_table_and_floor_pins(SolverMethod method)
     {
         var project = Benchmarks.Example();
         var setup = project.Setup;
@@ -188,7 +236,7 @@ public class SeatingSolverTests
         setup.Pins.Add(new Pin { GroupId = setup.Groups.Single(g => g.Name == "Board").Id, Scope = PinScope.Table, TableId = table.Id });
         setup.Pins.Add(new Pin { GroupId = setup.Groups.Single(g => g.Name == "Finance").Id, Scope = PinScope.Floor, FloorId = upstairs.Id });
 
-        var result = await Solve(project);
+        var result = await Solve(project, Options() with { Method = method });
 
         Assert.Equal(SolveStatus.Success, result.Status);
         Assert.Equal(seatPin.ToHashSet(), result.Assignment!.SeatsOf(book.Id).ToHashSet());

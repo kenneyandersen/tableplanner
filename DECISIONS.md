@@ -558,6 +558,26 @@ Notes: changes after testing (2026-11-07):
     each area exactly" (subset sums).
   - Diagnostic: `dotnet test tests/TablePlanner.Solver.Tests -c Release --filter TestPlanDiagnostics --logger "console;verbosity=detailed"`
     runs every `*.tableplanner.json` under `tests/testplans` and prints the warnings with the groups at each table.
+- **Two search methods** (`SeatingPriorities.Method`, chosen next to Make plan, saved with the project; Re-optimize
+  always uses Search, since it starts from the current plan):
+  - **Search** (default): the order search above.
+  - **Beam search** (`BeamSearch`): builds the plan group by group along the seat order and keeps the best W partial
+    plans at each step. Tried next at each step: one group of each size still to seat (groups of the same size are
+    interchangeable for packing) and the groups linked by a preference to the last one seated. A partial plan is rated
+    by its score so far (groups still to come cost nothing for missing seats, `PlanEvaluator.ScorePartial`), plus an
+    optimistic rest (each remaining group as if seated on its own at the start of the largest area, all its
+    preferences met), minus about 750 when no combination of the remaining groups fills what is left of the current
+    area exactly (a subset sum, within the seats that can be spared). This was the user's suggestion of rating "how
+    close we are to fitting people together without gaps". Not A*: the estimate is not a guaranteed bound, and keeping
+    only the best W makes memory and time predictable.
+  - The beam follows the decoder's rule (no group may run past an area end while a smaller one would fill the gap), so
+    its plan is exactly what decoding its order gives. Beams of width 4, 8, 16, … run while 40 % of the search time
+    allows (4, 16, 64 with a seed); then the order search goes on from the best one, starting cooler (temperature 3
+    instead of 40, so it refines rather than reshuffles) and cooling over the rest of the time; then polishing.
+  - On the Party 2025 project (5 runs each, 2 s native, time limit only): Search: average score 28,867–29,192,
+    3 warnings; beam alone: 28,731, 0 warnings, the same plan every time, but fewer first choices met (4 of 8); beam then
+    search: 29,055, 1 warning. Differences between runs are about as large as between methods, hence the choice in the
+    app rather than one fixed method.
 - **Poster in A2 and A1** (plus A4, A3): the template gets `PageSize` in millimetres (browsers do not all know A1/A2 by
   name) and `Scale` (1 on A3/A4, 1.41 on A2, 2 on A1); the built-in poster multiplies its text and marks by it.
   The page notes that A2/A1 are best saved as PDF and printed at a print shop.

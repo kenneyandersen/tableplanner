@@ -28,22 +28,36 @@ public class TestPlanDiagnostics(ITestOutputHelper output)
         var evaluator = new PlanEvaluator(problem);
         Print("saved plan", evaluator.Summarize(problem.ToPlan(project.CurrentAssignment)), problem, problem.ToPlan(project.CurrentAssignment));
 
-        foreach (var iterations in new[] { 20_000, 100_000, 500_000 })
+        // Seeded (repeatable) runs of the search at three lengths and of the beam (widths 4, 16, 64); then runs limited
+        // by time only, as in the app (a native second is several in the browser).
+        var runs = new (string Name, SolverMethod Method, int Iterations, double Seconds, bool Seeded, bool ThenSearch)[]
+        {
+            ("search 20k", SolverMethod.Search, 20_000, 60, true, true),
+            ("search 100k", SolverMethod.Search, 100_000, 60, true, true),
+            ("search 500k", SolverMethod.Search, 500_000, 60, true, true),
+            ("beam only", SolverMethod.Beam, 5_000_000, 60, true, false),
+            ("beam+search 100k", SolverMethod.Beam, 100_000, 60, true, true),
+            ("search 2s", SolverMethod.Search, 5_000_000, 2, false, true),
+            ("beam only 2s", SolverMethod.Beam, 5_000_000, 2, false, false),
+            ("beam+search 2s", SolverMethod.Beam, 5_000_000, 2, false, true),
+        };
+        foreach (var run in runs)
         {
             var (warnings, apart, score) = (0, 0, 0.0);
             for (var seed = 1; seed <= 5; seed++)
             {
                 var result = await SeatingSolver.SolveAsync(project, new SolverOptions
                 {
-                    TimeBudget = TimeSpan.FromSeconds(60), MaxIterations = iterations, Seed = seed, Yield = _ => Task.CompletedTask,
+                    TimeBudget = TimeSpan.FromSeconds(run.Seconds), MaxIterations = run.Iterations, Seed = run.Seeded ? seed : null,
+                    Method = run.Method, BeamOnly = !run.ThenSearch, Yield = _ => Task.CompletedTask,
                 });
                 var s = result.Summary!;
-                output.WriteLine($"   seed {seed}: {s.Score:0}, {s.Issues.Count} warnings, {result.Iterations} it, {result.StoppedBecause}");
+                output.WriteLine($"   {run.Name} #{seed}: {s.Score:0}, {s.Issues.Count} warnings, {result.Iterations} it, {result.Elapsed.TotalSeconds:0.0}s, {result.StoppedBecause}");
                 (warnings, apart, score) = (warnings + s.Issues.Count, apart + s.Groups.Sum(g => g.PeopleApart), score + s.Score);
                 if (seed == 1)
-                    Print($"{iterations} iterations, seed 1 ({result.Elapsed.TotalSeconds:0.0}s)", s, problem, problem.ToPlan(result.Assignment!));
+                    Print($"{run.Name} #1", s, problem, problem.ToPlan(result.Assignment!));
             }
-            output.WriteLine($"== {iterations} iterations, 5 seeds: avg score {score / 5:0}, {warnings} warnings, {apart} people apart");
+            output.WriteLine($"== {run.Name}, 5 runs: avg score {score / 5:0}, {warnings} warnings, {apart} people apart");
         }
     }
 

@@ -45,6 +45,13 @@
                 {
                     <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.AutoAwesome"
                                OnClick="@(() => Solve(SolveMode.Fresh))">Make plan</MudButton>
+                    <MudTooltip Text="How Make plan searches. Search: many small changes to a plan, keeping what improves it. Beam search: builds the plan group by group, filling each part of the room with groups that fit, then improves it the same way. Try both and keep the better plan.">
+                        <MudSelect T="SolverMethod" Value="Session.Project.Priorities.Method" ValueChanged="SetMethod" Variant="Variant.Outlined"
+                                   Margin="Margin.Dense" Dense="true" Class="ml-2 method-select" aria-label="Search method">
+                            <MudSelectItem Value="SolverMethod.Search">Search</MudSelectItem>
+                            <MudSelectItem Value="SolverMethod.Beam">Beam search</MudSelectItem>
+                        </MudSelect>
+                    </MudTooltip>
                     <MudTooltip Text="Improve the current plan while moving as few people as possible to other tables">
                         <MudButton Variant="Variant.Outlined" StartIcon="@Icons.Material.Filled.Tune" Class="ml-2"
                                    Disabled="Session.Project.CurrentAssignment.Seats.Count == 0" OnClick="@(() => Solve(SolveMode.KeepCloseToCurrent))">Re-optimize</MudButton>
@@ -274,6 +281,12 @@
             yesText: "Clear", cancelText: "Cancel");
         if (confirm == true)
             Session.History!.Execute("Clear plan", p => p.CurrentAssignment = new SeatingAssignment());
+    }
+
+    private void SetMethod(SolverMethod method)
+    {
+        if (method != Session.Project!.Priorities.Method)
+            Session.History!.Execute("Change search method", p => p.Priorities.Method = method);
     }
 
     private async Task EditPriorities()

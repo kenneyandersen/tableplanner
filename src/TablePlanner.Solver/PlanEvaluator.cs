@@ -118,6 +118,25 @@ public sealed class PlanEvaluator
         return SeatTerms(plan) + GroupTerms(null) + PreferenceTerms(null);
     }
 
+    /// <summary>
+    /// The score of a partly made plan: like <see cref="Score"/>, but groups marked in <paramref name="pending"/> are
+    /// still to be seated, so their missing seats cost nothing (yet).
+    /// </summary>
+    public double ScorePartial(int[] plan, bool[] pending)
+    {
+        _pending = pending;
+        try
+        {
+            return Score(plan);
+        }
+        finally
+        {
+            _pending = null;
+        }
+    }
+
+    private bool[]? _pending;
+
     public PlanSummary Summarize(int[] plan)
     {
         Count(plan);
@@ -190,7 +209,8 @@ public sealed class PlanEvaluator
         {
             var size = _problem.Size[g];
             var placed = _placed[g];
-            score -= (size - placed) * UnplacedPersonPenalty;
+            if (_pending is null || !_pending[g])
+                score -= (size - placed) * UnplacedPersonPenalty;
             if (placed == 0)
                 continue;
 

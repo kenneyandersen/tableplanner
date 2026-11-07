@@ -47,6 +47,12 @@ public sealed record SolverOptions
 
     public SolveMode Mode { get; init; } = SolveMode.Fresh;
 
+    /// <summary>Overrides <see cref="SeatingPriorities.Method"/>.</summary>
+    public SolverMethod? Method { get; init; }
+
+    /// <summary>For comparisons: with beam search, skip the order search that improves the beam's plan.</summary>
+    internal bool BeamOnly { get; init; }
+
     /// <summary>Fixed seed for repeatable results (tests); null = random. With a seed, cooling follows <see cref="MaxIterations"/> only.</summary>
     public int? Seed { get; init; }
 
@@ -87,6 +93,12 @@ public static class SeatingSolver
 
     /// <summary>The share of the time budget for the order search; polishing the seats gets the rest.</summary>
     private const double SearchShare = 0.85;
+
+    /// <summary>With beam search: the share of the search time for the beam; the order search improves its plan in the rest.</summary>
+    private const double BeamShare = 0.4;
+
+    /// <summary>The start temperature of the order search after a beam search.</summary>
+    internal const double AfterBeamTemperature = 3;
 
     public static async Task<SolveResult> SolveAsync(EventProject project, SolverOptions? options = null,
         IProgress<SolveProgress>? progress = null, CancellationToken cancellationToken = default)
@@ -144,7 +156,80 @@ public static class SeatingSolver
         var stop = free.Length < 2 ? StopReason.NothingToSearch : (StopReason?)null;
         var lastYield = clock.Elapsed;
         var yield = options.Yield ?? (ct => Task.Delay(1, ct));
-        var temperature = StartTemperature;
+        var startTemperature = StartTemperature;
+        var temperature = startTemperature;
+        // Where the order search starts (after a beam search, if any), for its cooling.
+        var (searchFrom, iterationsFrom) = (TimeSpan.Zero, 0L);
+
+        // Hands control back now and then (and reports progress); swallows cancellation, which the caller checks.
+        async Task Pause()
+        {
+            if (clock.Elapsed - lastYield < options.YieldInterval)
+                return;
+            progress?.Report(new SolveProgress(clock.Elapsed, budget, iterations, bestScore));
+            try
+            {
+                await yield(cancellationToken);
+            }
+            catch (OperationCanceledException)
+            {
+            }
+            lastYield = clock.Elapsed;
+        }
+
+        // Beam search first: beams of growing width while its share of the time allows (fixed widths with a seed, so
+        // results repeat), keeping the best plan. The order search then goes on from that plan, starting cooler.
+        int[]? beamPlan = null;
+        var beamBudget = !options.BeamOnly ? searchBudget * BeamShare : searchBudget;
+        if (options.Mode == SolveMode.Fresh && (options.Method ?? project.Priorities.Method) == SolverMethod.Beam && free.Length > 0)
+        {
+            var beam = new BeamSearch(problem, sequence, evaluator, free, random);
+            int[] widths = options.Seed is null ? [4, 8, 16, 32, 64, 128, 256, 512, 1024] : [4, 16, 64];
+            stop = StopReason.MaxIterations;
+            foreach (var width in widths)
+            {
+                var started = clock.Elapsed;
+                var result = await beam.RunAsync(width,
+                    () =>
+                    {
+                        iterations = beam.Evaluations;
+                        // The first beam always finishes (unless cancelled), so there is a plan.
+                        return cancellationToken.IsCancellationRequested || (beamPlan is not null && options.Seed is null && clock.Elapsed >= beamBudget);
+                    },
+                    Pause);
+                iterations = beam.Evaluations;
+                if (result is null)
+                {
+                    stop = cancellationToken.IsCancellationRequested ? StopReason.Cancelled : StopReason.TimeBudget;
+                    break;
+                }
+                var score = evaluator.Score(result);
+                if (beamPlan is null || score > bestScore)
+                    (beamPlan, bestScore) = (result, score);
+                // A beam twice as wide takes about twice as long; don't start one that cannot finish.
+                if (options.Seed is null && clock.Elapsed + 2.2 * (clock.Elapsed - started) > beamBudget)
+                {
+                    stop = StopReason.TimeBudget;
+                    break;
+                }
+            }
+            if (cancellationToken.IsCancellationRequested)
+                stop = StopReason.Cancelled;
+            else if (!options.BeamOnly && beamPlan is not null)
+            {
+                // Then improve it with the order search, from the order the beam seated the groups in.
+                current = OrderFromPlan(sequence, beamPlan, free, problem);
+                sequence.Decode(current, plan);
+                currentScore = evaluator.Score(plan);
+                Array.Copy(current, best, current.Length);
+                bestScore = currentScore;
+                stop = free.Length < 2 ? StopReason.NothingToSearch : null;
+                lastImprovement = iterations;
+                // Cooler, so it refines the beam's plan rather than shuffling it; cooling over the time that is left.
+                (startTemperature, temperature) = (AfterBeamTemperature, AfterBeamTemperature);
+                (searchFrom, iterationsFrom) = (clock.Elapsed, iterations);
+            }
+        }
 
         while (stop is null)
         {
@@ -173,9 +258,9 @@ public static class SeatingSolver
             // Reading the clock is slow in the browser, so it is only done every 64 iterations.
             // Cooling follows the time budget, or the iteration limit if that comes first. With a seed it follows only
             // the iterations, so the same seed gives the same plan on any machine.
-            var byIterations = (double)iterations / options.MaxIterations;
-            var progressFraction = options.Seed is null ? Math.Max(clock.Elapsed / searchBudget, byIterations) : byIterations;
-            temperature = StartTemperature * Math.Pow(Math.Max(0, 1 - progressFraction), 2);
+            var byIterations = (double)(iterations - iterationsFrom) / Math.Max(1, options.MaxIterations - iterationsFrom);
+            var progressFraction = options.Seed is null ? Math.Max((clock.Elapsed - searchFrom) / (searchBudget - searchFrom), byIterations) : byIterations;
+            temperature = startTemperature * Math.Pow(Math.Max(0, 1 - progressFraction), 2);
             if (cancellationToken.IsCancellationRequested)
                 stop = StopReason.Cancelled;
             else if (clock.Elapsed >= searchBudget)
@@ -207,25 +292,15 @@ public static class SeatingSolver
         }
 
         sequence.Decode(best, plan);
+        // The beam's own plan, unless the order search made a better one from it.
+        if (beamPlan is not null && evaluator.Score(beamPlan) >= evaluator.Score(plan))
+            Array.Copy(beamPlan, plan, plan.Length);
         if (stop != StopReason.Cancelled)
         {
             var polisher = new PlanPolisher(problem, sequence, evaluator);
             await polisher.PolishAsync(plan,
                 () => cancellationToken.IsCancellationRequested || (options.Seed is null && clock.Elapsed >= budget),
-                async () =>
-                {
-                    if (clock.Elapsed - lastYield < options.YieldInterval)
-                        return;
-                    progress?.Report(new SolveProgress(clock.Elapsed, budget, iterations, bestScore));
-                    try
-                    {
-                        await yield(cancellationToken);
-                    }
-                    catch (OperationCanceledException)
-                    {
-                    }
-                    lastYield = clock.Elapsed;
-                });
+                Pause);
             if (cancellationToken.IsCancellationRequested)
                 stop = StopReason.Cancelled;
         }

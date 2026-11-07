@@ -88,6 +88,7 @@ internal sealed class SeatSequence
             var size = _problem.Size[g];
             if (size > length - pos)
             {
+                // Does not fit at all: skipped, so its people have no seats.
                 _done[i] = true;
                 remainingPeople -= size;
                 continue;
@@ -96,12 +97,7 @@ internal sealed class SeatSequence
             // A group that would run past the end of this area (into another part of the room): first seat a later
             // group that fits in what is left of the area, so that areas fill up with whole groups.
             // Likewise for a group that would run on to the next table with only a few of its people on one of the two.
-            var areaLeft = _areaEnd[pos] - pos;
-            var tableLeft = _tableEnd[pos] - pos;
-            var minimumPart = Math.Min(_minimumPart, size);
-            var gapLeft = size > areaLeft ? areaLeft
-                : size > tableLeft && (tableLeft < minimumPart || size - tableLeft < minimumPart) ? tableLeft
-                : 0;
+            var gapLeft = GapLeft(pos, size);
             if (gapLeft > 0)
                 for (var j = i + 1; j < order.Count; j++)
                     if (!_done[j] && _problem.Size[order[j]] <= gapLeft)
@@ -110,22 +106,59 @@ internal sealed class SeatSequence
                         break;
                     }
             _done[i] = true;
-
-            var spare = length - pos - remainingPeople;
-            var floorEnd = _floorEnd[pos];
-            var areaEnd = _areaEnd[pos];
-            var tableEnd = _tableEnd[pos];
-            if (size > floorEnd - pos && floorEnd - pos <= spare && length - floorEnd >= size)
-                pos = floorEnd;
-            else if (size > areaEnd - pos && areaEnd - pos <= spare && areaEnd < length && size <= _areaEnd[areaEnd] - areaEnd)
-                pos = areaEnd;
-            else if (size > tableEnd - pos && tableEnd - pos <= spare && tableEnd < length && size <= _tableEnd[tableEnd] - tableEnd)
-                pos = tableEnd;
-
-            for (var k = 0; k < size; k++)
-                plan[_seats[pos++]] = g;
+            Place(plan, ref pos, g, remainingPeople);
             remainingPeople -= size;
         }
+    }
+
+    /// <summary>
+    /// When a group of <paramref name="size"/> seated from <paramref name="pos"/> would run past the end of the area, or on
+    /// to the next table with only a few of its people on one of the two: the seats left before that end, which a
+    /// smaller group should fill first. Otherwise 0.
+    /// </summary>
+    public int GapLeft(int pos, int size)
+    {
+        var areaLeft = _areaEnd[pos] - pos;
+        var tableLeft = _tableEnd[pos] - pos;
+        var minimumPart = Math.Min(_minimumPart, size);
+        return size > areaLeft ? areaLeft
+            : size > tableLeft && (tableLeft < minimumPart || size - tableLeft < minimumPart) ? tableLeft
+            : 0;
+    }
+
+    /// <summary>Resets <paramref name="plan"/> to only the pinned seats.</summary>
+    public void Clear(int[] plan) => Array.Copy(_fixed, plan, plan.Length);
+
+    /// <summary>Where the area of tables next to each other that position <paramref name="pos"/> is in ends.</summary>
+    public int AreaEnd(int pos) => _areaEnd[pos];
+
+    /// <summary>
+    /// Seats group <paramref name="g"/> from position <paramref name="pos"/> on, skipping to the next floor, area or
+    /// table when it does not fit in the rest of this one and seats can be spared (<see cref="Decode"/>).
+    /// <paramref name="remainingPeople"/> counts the people still to seat, this group included. Returns false
+    /// (and seats no one) when the group does not fit in the remaining seats.
+    /// </summary>
+    public bool Place(int[] plan, ref int pos, int g, int remainingPeople)
+    {
+        var length = _seats.Length;
+        var size = _problem.Size[g];
+        if (size > length - pos)
+            return false;
+
+        var spare = length - pos - remainingPeople;
+        var floorEnd = _floorEnd[pos];
+        var areaEnd = _areaEnd[pos];
+        var tableEnd = _tableEnd[pos];
+        if (size > floorEnd - pos && floorEnd - pos <= spare && length - floorEnd >= size)
+            pos = floorEnd;
+        else if (size > areaEnd - pos && areaEnd - pos <= spare && areaEnd < length && size <= _areaEnd[areaEnd] - areaEnd)
+            pos = areaEnd;
+        else if (size > tableEnd - pos && tableEnd - pos <= spare && tableEnd < length && size <= _tableEnd[tableEnd] - tableEnd)
+            pos = tableEnd;
+
+        for (var k = 0; k < size; k++)
+            plan[_seats[pos++]] = g;
+        return true;
     }
 
     /// <summary>Every seat of the graph in fill order.</summary>

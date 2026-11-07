@@ -15,7 +15,9 @@ The result can be adjusted by hand, saved, and printed as posters and table card
 - **Static hosting** (e.g. GitHub Pages), with no backend. The app must work under a sub-path
   (`<base href>` set at publish), and Pages needs `.nojekyll` and a `404.html` SPA fallback.
 - **Repository:** a local git repo only. The user creates the public GitHub repo, pushes, and sets up
-  CI and Pages themselves. No GitHub Actions workflow in the repo for now.
+  CI and Pages themselves. No GitHub Actions workflow in the repo for now (confirmed 2026-11-07: deploying stays
+  manual, with `publish.ps1`). The site is served from a separate repo (`TableAssigner`, branch `gh-pages`), so an
+  Actions workflow here would need a token for that repo.
 - **UI library:** MudBlazor.
 - **UI language:** English. No localization framework. Text on cards and posters comes from the
   user-editable templates, so it can be in any language.
@@ -236,8 +238,8 @@ algorithm works on setup + assignment. UI code never goes into model or algorith
 
 - ~~A mobile page~~: done as the guest page (step 9).
 - ~~A drag-and-drop editor for the table cards~~: done, see "card designer" below.
-- Round tables, free rotation angles, partial group moves, per-group priority overrides,
-  "should not sit near" rules.
+- ~~Round tables~~: done (2026-11-07). Free rotation angles (wanted, but later), partial group moves, per-group
+  priority overrides, "should not sit near" rules.
 - **Side-by-side comparison of saved plans:** postponed (2026-11-05); not sure it is needed, since each saved plan
   already shows its key figures in the list.
 
@@ -263,7 +265,8 @@ algorithm works on setup + assignment. UI code never goes into model or algorith
 8. **Background images**
 9. Later: the mobile page
 
-Status (2026-11-05): steps 1–9 done, plus the extras noted after step 9. Postponed: side-by-side comparison.
+Status (2026-11-07): steps 1–9 done, plus the extras noted after step 9 and the changes after testing (end of file).
+Postponed: side-by-side comparison, free rotation angles.
 
 Notes from step 3:
 - Undo/redo stores a snapshot of the project before each edit (`EditHistory`); the edit logic itself lives in
@@ -494,3 +497,50 @@ Notes: tidying (2026-11-05):
   Print / Download page), then its settings (plan, the kind's options, card count, preview size).
 - A MudSelect's outer wrapper grows to fill a toolbar, which spread toolbar items apart; toolbars now keep selects at
   their own (minimum) width.
+
+Notes: changes after testing (2026-11-07):
+- **Quick add of groups:** a row under the groups table: name, Tab, people, Enter (or Add). The fields clear and the
+  cursor returns to Name. People is required; a name already in use is refused with a message. Each add is one undo step.
+- **Resizing tables from both ends:** a handle at each end; the other end stays in place, and seats are added or
+  removed at the dragged end. Seats keep their place in the room, so disabled seats, seat pins and plan seats follow
+  them (`ResizeTable(…, keepRightEnd)`; `RemapSeatIndex` takes a shift from the left).
+- **Resizing floor elements by dragging:** handles on the corners and sides of a selected element; the opposite side
+  stays put, edges snap to the grid (Alt: no snapping), at least 0.5 m (`SetElementBounds`).
+- **Layer order of elements:** Bring to front / forward / backward / Send to back in the element's panel. The order is
+  the order of `Floor.Elements` (no new field), so the plan view, poster and guest page draw it the same way. Tables
+  are always drawn above elements.
+- **Round tables** (`TableShape.Round`, `Table.RoundSeats`, default 8, at least 2): the diameter follows from the
+  seats (each seat gets `SeatSpacing` of the edge, at least 0.9 m: 8 seats ≈ 1.5 m, 10 ≈ 1.9 m). Seats are numbered
+  clockwise from the top; that is also the seat number on seat cards. Rotation only moves where seat 1 is.
+  - Seat graph: only the neighbours on either side are "next to" (also the last and first seat); seats across a
+    round table are too far apart to talk, so they count only as "same table". Seats face the centre, so back-to-back
+    edges between close tables work as before.
+  - Adjacency and distances use the circle (`TableGeometry.Distance`, `Overlap`), not the square around it.
+  - Fill order: around the ring, from the seat nearest the previous table, either way. The empty-seat gap rule works
+    around the ring too.
+  - Group names sit towards the group's seats, half-way out from the middle; the table number is in the middle.
+  - Editor: "Round table, 8/10 seats" presets, a Shape switch (clears the table's seats in the plan, since seat
+    numbers mean something else), a seat count field and one resize handle on the right of the circle.
+  - Drawn as a rectangle with corner radius = half its size, so the three renderers needed no new shape.
+- **Groups split far apart** (*changed*): new `ApartPersonPenalty` (default 200): per person not in the group's largest
+  connected part (tables that are the same or adjacent), × (1 + d / 10 m), d being the distance from their table to
+  the main part, capped at 30 m; another floor counts as 30 m. So 6 people at a table 2 m from the rest cost about 1,400, across the
+  room up to 4,800. Presets: "Keep groups together" 600, "Preferences first" 100. Old projects get 200 when loaded.
+  - The decoder also treats a jump in the fill order to a table that is not adjacent (another area of the room) like
+    the end of a floor: a group that does not fit before the jump starts after it when there are seats to spare.
+  - Found with a new "scattered" benchmark (main hall, side room, two single tables): at 99 % full with a short search
+    (5,000 iterations, like a slow browser) 12 people in 2 groups were apart over 5 seeds; now none. The regular
+    benchmarks did not show the problem, since all their tables are adjacent. First choices unchanged or slightly better.
+  - The plan's warnings say how many of a split group sit away from the rest.
+- **Poster in A2 and A1** (plus A4, A3): the template gets `PageSize` in millimetres (browsers do not all know A1/A2 by
+  name) and `Scale` (1 on A3/A4, 1.41 on A2, 2 on A1); the built-in poster multiplies its text and marks by it.
+  The page notes that A2/A1 are best saved as PDF and printed at a print shop.
+- **Guest page floor plan:** the plan sits in a viewer that fits the screen (about 60 % of its height) instead of growing
+  past it. Pinch zooms around the fingers, one finger drags, a mouse wheel zooms; the page itself does not move on the
+  plan. Zoom stays between 3 m wide and the whole floor (+30 %), and the middle stays on the floor. A group that spans
+  more than 14 m (or several floors) starts zoomed on its first table, with a button per table and "All".
+  Coming back from a group to the Floor plan tab returns to the same zoom and position.
+- **Publishing:** `publish.ps1 -BasePath /<repo>/ [-Target <gh-pages checkout>] [-NoAot]` does the GitHub Pages steps:
+  base href with trailing slash, `.nojekyll`, `.gitattributes` (`* -text`: with `core.autocrlf` git changed line
+  endings in `dotnet.js`, so the browser blocked it for a wrong integrity hash), `404.html`, and drops the stale
+  `index.html.br/.gz`. The target keeps `.git`, `pages/` and `CNAME`.

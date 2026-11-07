@@ -11,9 +11,9 @@ Design decisions are recorded in [DECISIONS.md](DECISIONS.md).
 
 ## What it does
 
-- **Layout:** floors with long tables (0–2 end seats), floor elements (bar, stage, …) and a background image of the
-  venue, with move, resize, rotate, snap to grid and undo.
-- **Groups:** a groups editor with up to 5 ranked preferences per group; CSV and Excel import/export.
+- **Layout:** floors with long tables (0–2 end seats) and round tables, floor elements (bar, stage, …) in layers, and
+  a background image of the venue, with move, resize, rotate, snap to grid and undo.
+- **Groups:** a groups editor with quick add and up to 5 ranked preferences per group; CSV and Excel import/export.
 - **Plan:** the solver seats groups close together and near the groups they prefer, without leaving small parts of
   a group alone at a table; priority presets; re-optimizing with few changes; manual moves and swaps (also by drag
   and drop, from the plan or the group list), locks and pins, saved plans.
@@ -49,10 +49,12 @@ Solver diagnostics for the benchmark setups (scores, preference fulfilment, iter
 dotnet test tests/TablePlanner.Solver.Tests -c Release --filter SolverDiagnostics --logger "console;verbosity=detailed"
 ```
 
-and how many small parts (1–4 people of a group alone at a table) the solver leaves, over several seeds:
+and how many small parts (1–4 people of a group alone at a table), or people away from the rest of their group,
+the solver leaves, over several seeds:
 
 ```sh
 dotnet test tests/TablePlanner.Solver.Tests -c Release --filter FragmentDiagnostics --logger "console;verbosity=detailed"
+dotnet test tests/TablePlanner.Solver.Tests -c Release --filter ApartDiagnostics --logger "console;verbosity=detailed"
 ```
 
 ## Publishing to GitHub Pages
@@ -62,13 +64,16 @@ This needs the WebAssembly build tools once, and publishing takes several minute
 
 ```sh
 dotnet workload install wasm-tools
-dotnet publish src/TablePlanner.Web -c Release -o publish
 ```
 
-Add `-p:RunAOTCompilation=false` for a quick publish without AOT.
+Then publish with the script, giving the path the site is served under (`/<repo-name>/` for a GitHub project
+site, `/` for a custom domain) and, optionally, a checkout of the `gh-pages` branch to copy the result into:
 
-Then, in `publish/wwwroot`:
+```powershell
+./publish.ps1 -BasePath /TableAssigner/ -Target C:\git\tableplanner-ghpages
+```
 
-- set `<base href="/your-repo-name/">` in `index.html`
-- add an empty `.nojekyll` file, so Pages serves the `_framework` folder
-- copy `index.html` to `404.html`, so deep links work
+Add `-NoAot` for a quick publish without AOT. The script sets `<base href>` (with its trailing slash), adds
+`.nojekyll` (so Pages serves `_framework`), `.gitattributes` (so git does not change line endings, which breaks
+Blazor's integrity checks) and `404.html` (so deep links work). In the target it replaces everything except `.git`,
+`pages/` and `CNAME`. It does not commit or push.

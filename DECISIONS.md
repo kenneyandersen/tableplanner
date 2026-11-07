@@ -613,3 +613,6 @@ Notes: changes after testing (2026-11-07):
   base href with trailing slash, `.nojekyll`, `.gitattributes` (`* -text`: with `core.autocrlf` git changed line
   endings in `dotnet.js`, so the browser blocked it for a wrong integrity hash), `404.html`, and drops the stale
   `index.html.br/.gz`. The target keeps `.git`, `pages/` and `CNAME`.
+- **Warnings select their group:** on the plan page, clicking a warning about a group selects that group (as clicking
+  it in the group list does: it is highlighted and its floor shown; clicking again deselects). More than 6 warnings
+  can be shown in full ("… and N more" / "Show fewer").

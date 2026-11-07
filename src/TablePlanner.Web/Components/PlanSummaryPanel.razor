@@ -24,13 +24,26 @@ else
 {
     <MudAlert Severity="@(Summary.Issues.Any(i => i.Severity == Core.Validation.IssueSeverity.Error) ? Severity.Error : Severity.Warning)" Dense="true" Class="mb-2">
         <ul class="message-list">
-            @foreach (var issue in Summary.Issues.Take(MaxIssues))
+            @foreach (var issue in Summary.Issues.Take(_showAllIssues ? int.MaxValue : MaxIssues))
             {
-                <li>@issue.Message</li>
+                @* A warning about a group selects that group, as clicking it in the list does. *@
+                if (issue.GroupId is { } groupId)
+                {
+                    <li class="issue-link @(Highlight == groupId ? "highlighted" : "")" title="Click to select the group"
+                        @onclick="() => HighlightChanged.InvokeAsync(groupId)">@issue.Message</li>
+                }
+                else
+                {
+                    <li>@issue.Message</li>
+                }
             }
             @if (Summary.Issues.Count > MaxIssues)
             {
-                <li>… and @(Summary.Issues.Count - MaxIssues) more.</li>
+                <li>
+                    <MudLink Typo="Typo.body2" OnClick="() => _showAllIssues = !_showAllIssues">
+                        @(_showAllIssues ? "Show fewer" : $"… and {Summary.Issues.Count - MaxIssues} more")
+                    </MudLink>
+                </li>
             }
         </ul>
     </MudAlert>
@@ -72,6 +85,8 @@ else
 
 @code {
     private const int MaxIssues = 6;
+
+    private bool _showAllIssues;
 
     [Parameter, EditorRequired] public PlanSummary Summary { get; set; } = default!;
     [Parameter, EditorRequired] public IReadOnlyDictionary<Guid, string> Colours { get; set; } = default!;

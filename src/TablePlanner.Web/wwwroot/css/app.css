@@ -202,6 +202,10 @@ code {
 .solver-progress { width: 260px; }
 .proposal { border-color: var(--mud-palette-primary); margin-bottom: 12px; }
 .summary-table td:last-child { text-align: right; white-space: nowrap; }
+/* A warning about a group: click to select it. */
+.message-list .issue-link { cursor: pointer; border-radius: 3px; }
+.message-list .issue-link:hover { text-decoration: underline; }
+.message-list .issue-link.highlighted { font-weight: 600; }
 
 .plan-canvas .seat.empty { fill: #ffffff; }
 .plan-canvas .seat.taken { stroke: rgba(0, 0, 0, 0.45); cursor: pointer; }

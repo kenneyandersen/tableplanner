@@ -176,6 +176,10 @@ code {
     stroke-width: 0.03;
     cursor: ew-resize;
 }
+.floor-canvas .resize-handle.resize-ns { cursor: ns-resize; }
+.floor-canvas .resize-handle.resize-ew { cursor: ew-resize; }
+.floor-canvas .resize-handle.resize-nwse { cursor: nwse-resize; }
+.floor-canvas .resize-handle.resize-nesw { cursor: nesw-resize; }
 
 /* ---- Groups ---- */
 

@@ -202,6 +202,95 @@ public class SetupOperationsTests
         Assert.Equal(leftEndBefore.Y, leftEndAfter.Y, Tolerance);
     }
 
+    [Theory]
+    [InlineData(Rotation.R0)]
+    [InlineData(Rotation.R90)]
+    [InlineData(Rotation.R180)]
+    [InlineData(Rotation.R270)]
+    public void Resizing_from_the_left_keeps_the_right_end_in_place(Rotation rotation)
+    {
+        var (project, floor) = NewProject();
+        var table = SetupOperations.AddTable(project, floor.Id, 10, 10, seatsPerSide: 4);
+        table.Rotation = rotation;
+        var rightEndBefore = TableGeometry.GetSeats(table)[3].Position;
+
+        SetupOperations.ResizeTable(project, table.Id, 7, 0, keepRightEnd: true);
+
+        var rightEndAfter = TableGeometry.GetSeats(table)[6].Position;
+        Assert.Equal(rightEndBefore.X, rightEndAfter.X, Tolerance);
+        Assert.Equal(rightEndBefore.Y, rightEndAfter.Y, Tolerance);
+    }
+
+    [Fact]
+    public void Resizing_from_the_left_keeps_seats_and_assignments_where_they_are()
+    {
+        var (project, floor) = NewProject();
+        var table = SetupOperations.AddTable(project, floor.Id, 0, 0, seatsPerSide: 4, endSeats: 2);
+        var group = SetupOperations.AddGroup(project, "A", 3);
+        // Top seats 0..3, bottom 4..7, ends 8 (left) and 9 (right).
+        table.DisabledSeats = [0, 3];
+        project.CurrentAssignment.Seats.AddRange([new(new(table.Id, 5), group.Id), new(new(table.Id, 7), group.Id), new(new(table.Id, 9), group.Id)]);
+        var positions = project.CurrentAssignment.SeatsOf(group.Id).Select(Position).ToList();
+
+        // Two seats more per side, added at the left: top 0..5, bottom 6..11, ends 12 and 13.
+        SetupOperations.ResizeTable(project, table.Id, 6, 2, keepRightEnd: true);
+
+        Assert.Equal([2, 5], table.DisabledSeats.Order());
+        var seats = project.CurrentAssignment.SeatsOf(group.Id).OrderBy(s => s.Index).ToList();
+        Assert.Equal([new SeatId(table.Id, 9), new SeatId(table.Id, 11), new SeatId(table.Id, 13)], seats);
+        Assert.Equal(positions.OrderBy(p => p.X).ThenBy(p => p.Y), seats.Select(Position).OrderBy(p => p.X).ThenBy(p => p.Y),
+            new PointComparer());
+
+        // Shrinking from the left drops the left-most seats.
+        SetupOperations.ResizeTable(project, table.Id, 3, 2, keepRightEnd: true);
+        Assert.Equal([2], table.DisabledSeats);
+
+        Point Position(SeatId id) => TableGeometry.GetSeats(table).First(s => s.Id == id).Position;
+    }
+
+    private sealed class PointComparer : IEqualityComparer<Point>
+    {
+        public bool Equals(Point a, Point b) => Math.Abs(a.X - b.X) < 1e-6 && Math.Abs(a.Y - b.Y) < 1e-6;
+        public int GetHashCode(Point p) => 0;
+    }
+
+    [Fact]
+    public void Element_bounds_respect_rotation_and_minimum_size()
+    {
+        var (project, floor) = NewProject();
+        var element = SetupOperations.AddElement(project, floor.Id, FloorElementKind.Bar, 0, 0);
+        element.Rotation = Rotation.R90;
+
+        SetupOperations.SetElementBounds(project, floor.Id, element.Id, new Rect(1, 2, 3, 6));
+
+        Assert.Equal((2.5, 5.0), (element.X, element.Y));
+        Assert.Equal((6.0, 3.0), (element.Width, element.Depth));
+        Assert.Equal(new Rect(1, 2, 3, 6), FloorElementGeometry.GetBounds(element));
+
+        SetupOperations.SetElementBounds(project, floor.Id, element.Id, new Rect(0, 0, 0.1, 2));
+        Assert.Equal(SetupOperations.MinElementSize, element.Depth);
+    }
+
+    [Fact]
+    public void Elements_can_be_brought_to_front_and_sent_back()
+    {
+        var (project, floor) = NewProject();
+        var a = SetupOperations.AddElement(project, floor.Id, FloorElementKind.DanceFloor, 0, 0);
+        var b = SetupOperations.AddElement(project, floor.Id, FloorElementKind.Bar, 0, 0);
+        var c = SetupOperations.AddElement(project, floor.Id, FloorElementKind.Toilets, 0, 0);
+
+        SetupOperations.ReorderElement(project, floor.Id, a.Id, LayerMove.ToFront);
+        Assert.Equal([b, c, a], floor.Elements);
+        SetupOperations.ReorderElement(project, floor.Id, a.Id, LayerMove.Backward);
+        Assert.Equal([b, a, c], floor.Elements);
+        SetupOperations.ReorderElement(project, floor.Id, c.Id, LayerMove.ToBack);
+        Assert.Equal([c, b, a], floor.Elements);
+        SetupOperations.ReorderElement(project, floor.Id, c.Id, LayerMove.Forward);
+        Assert.Equal([b, c, a], floor.Elements);
+        SetupOperations.ReorderElement(project, floor.Id, a.Id, LayerMove.Forward);
+        Assert.Equal([b, c, a], floor.Elements);
+    }
+
     [Fact]
     public void Resizing_moves_disabled_seats_and_assignments_with_their_seats()
     {

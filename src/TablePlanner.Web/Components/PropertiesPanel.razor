@@ -54,6 +54,15 @@
                             XChanged="@(v => EditElement(element.Id, "Move", el => el.X = v))"
                             YChanged="@(v => EditElement(element.Id, "Move", el => el.Y = v))"
                             OnRotate="@(() => History.Execute("Rotate", p => SetupOperations.RotateItems(p, FloorId, [element.Id])))" />
+            <div>
+                <MudText Typo="Typo.caption" Class="mud-text-secondary">Layer (tables are always on top)</MudText>
+                <MudButtonGroup Size="Size.Small" Variant="Variant.Outlined">
+                    <MudTooltip Text="Bring to front"><MudIconButton Icon="@Icons.Material.Filled.FlipToFront" OnClick="@(() => Reorder(element.Id, LayerMove.ToFront))" /></MudTooltip>
+                    <MudTooltip Text="Bring forward"><MudIconButton Icon="@Icons.Material.Filled.KeyboardArrowUp" OnClick="@(() => Reorder(element.Id, LayerMove.Forward))" /></MudTooltip>
+                    <MudTooltip Text="Send backward"><MudIconButton Icon="@Icons.Material.Filled.KeyboardArrowDown" OnClick="@(() => Reorder(element.Id, LayerMove.Backward))" /></MudTooltip>
+                    <MudTooltip Text="Send to back"><MudIconButton Icon="@Icons.Material.Filled.FlipToBack" OnClick="@(() => Reorder(element.Id, LayerMove.ToBack))" /></MudTooltip>
+                </MudButtonGroup>
+            </div>
         </MudStack>
     }
     else if (Selection.Count > 1)
@@ -119,6 +128,15 @@
 
     private void EditElement(Guid id, string description, Action<FloorElement> edit) =>
         History.Execute(description, p => edit(p.Setup.Floors.SelectMany(f => f.Elements).First(e => e.Id == id)));
+
+    private void Reorder(Guid elementId, LayerMove move) =>
+        History.Execute(move switch
+        {
+            LayerMove.ToFront => "Bring to front",
+            LayerMove.ToBack => "Send to back",
+            LayerMove.Forward => "Bring forward",
+            _ => "Send backward",
+        }, p => SetupOperations.ReorderElement(p, FloorId, elementId, move));
 
     private void EditFloor(Guid id, string description, Action<Floor> edit) =>
         History.Execute(description, p => edit(p.Setup.Floors.First(f => f.Id == id)));

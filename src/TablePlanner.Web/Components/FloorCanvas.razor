@@ -75,12 +75,31 @@
         @* Drawn last, so neighbouring tables can't cover it. *@
         @if (Selection.Count == 1 && !EditSeats && floor.Tables.FirstOrDefault(t => Selection.Contains(t.Id)) is { } resizable)
         {
-            var handle = ResizeHandle(resizable);
             var id = resizable.Id;
-            <rect class="resize-handle" x="@Svg(handle.X - HandleSize / 2)" y="@Svg(handle.Y - HandleSize / 2)" width="@Svg(HandleSize)" height="@Svg(HandleSize)"
-                  @onpointerdown="e => OnHandleDown(e, id)" @onpointerdown:stopPropagation="true">
-                <title>Drag to add or remove seats</title>
-            </rect>
+            foreach (var rightEnd in new[] { false, true })
+            {
+                var handle = ResizeHandle(resizable, rightEnd);
+                var keepRight = !rightEnd;
+                <rect class="resize-handle @(resizable.Rotation is Rotation.R90 or Rotation.R270 ? "resize-ns" : "resize-ew")" x="@Svg(handle.X - HandleSize / 2)" y="@Svg(handle.Y - HandleSize / 2)" width="@Svg(HandleSize)" height="@Svg(HandleSize)"
+                      @onpointerdown="e => OnHandleDown(e, id, keepRight)" @onpointerdown:stopPropagation="true">
+                    <title>Drag to add or remove seats at this end</title>
+                </rect>
+            }
+        }
+        else if (Selection.Count == 1 && floor.Elements.FirstOrDefault(el => Selection.Contains(el.Id)) is { } sizable)
+        {
+            var bounds = FloorElementGeometry.GetBounds(sizable);
+            var id = sizable.Id;
+            foreach (var (hx, hy) in ElementHandles)
+            {
+                var x = bounds.Left + bounds.Width * (hx + 1) / 2;
+                var y = bounds.Top + bounds.Height * (hy + 1) / 2;
+                var direction = (hx, hy);
+                <rect class="resize-handle element-handle @HandleCursor(hx, hy)" x="@Svg(x - HandleSize / 2)" y="@Svg(y - HandleSize / 2)" width="@Svg(HandleSize)" height="@Svg(HandleSize)"
+                      @onpointerdown="e => OnElementHandleDown(e, id, direction)" @onpointerdown:stopPropagation="true">
+                    <title>Drag to resize</title>
+                </rect>
+            }
         }
 
         @* While setting the image scale, a layer on top takes the clicks: first and second point. *@
@@ -96,7 +115,24 @@
 }
 
 @code {
-    private enum DragMode { None, Move, Resize, MoveBackground }
+    private enum DragMode { None, Move, Resize, ResizeElement, MoveBackground }
+
+    /// <summary>Element handles as directions from the centre: corners and the middle of each side.</summary>
+    private static readonly (int X, int Y)[] ElementHandles =
+        [(-1, -1), (0, -1), (1, -1), (1, 0), (1, 1), (0, 1), (-1, 1), (-1, 0)];
+
+    private static string HandleCursor(int hx, int hy) => (hx, hy) switch
+    {
+        (0, _) => "resize-ns",
+        (_, 0) => "resize-ew",
+        _ when hx == hy => "resize-nwse",
+        _ => "resize-nesw",
+    };
+
+    private Guid _resizeElementId;
+    private (int X, int Y) _elementHandle;
+    private Rect _startElementBounds;
+    private bool _keepRightEnd;
 
     private ElementReference _svg;
     private DragMode _mode;
@@ -136,11 +172,11 @@
     private const double HandleSize = 0.3;
 
     /// <summary>
-    /// The handle sits against the table's right end (in the table's own frame), within the narrow gap
+    /// A handle sits against each end of the table (in the table's own frame), within the narrow gap
     /// usually left between tables placed end to end.
     /// </summary>
-    private static Point ResizeHandle(Table table) =>
-        new Point(table.Length / 2 + HandleSize / 2 + 0.02, 0).Rotate(table.Rotation).Offset(table.X, table.Y);
+    private static Point ResizeHandle(Table table, bool rightEnd) =>
+        new Point((rightEnd ? 1 : -1) * (table.Length / 2 + HandleSize / 2 + 0.02), 0).Rotate(table.Rotation).Offset(table.X, table.Y);
 
     private async Task OnItemDown(PointerEventArgs e, Guid id)
     {
@@ -167,13 +203,42 @@
         await BeginDrag(e, DragMode.Move);
     }
 
-    private async Task OnHandleDown(PointerEventArgs e, Guid tableId)
+    private async Task OnHandleDown(PointerEventArgs e, Guid tableId, bool keepRightEnd)
     {
         if (e.Button != 0)
             return;
         _resizeTableId = tableId;
+        _keepRightEnd = keepRightEnd;
         _startSeatsPerSide = History.Project.Setup.FindTable(tableId)!.SeatsPerSide;
         await BeginDrag(e, DragMode.Resize);
+    }
+
+    private async Task OnElementHandleDown(PointerEventArgs e, Guid elementId, (int X, int Y) direction)
+    {
+        if (e.Button != 0 || Floor?.Elements.FirstOrDefault(el => el.Id == elementId) is not { } element)
+            return;
+        _resizeElementId = elementId;
+        _elementHandle = direction;
+        _startElementBounds = FloorElementGeometry.GetBounds(element);
+        await BeginDrag(e, DragMode.ResizeElement);
+    }
+
+    /// <summary>
+    /// The element's bounds with the dragged edges moved by (dx, dy). A moved edge snaps to the grid (unless Alt is
+    /// held) and stops at the minimum size from the opposite edge.
+    /// </summary>
+    private Rect ResizedElementBounds(double dx, double dy, bool snap)
+    {
+        var b = _startElementBounds;
+        var (left, top, right, bottom) = (b.Left, b.Top, b.Right, b.Bottom);
+        double Edge(double value) => snap ? Grid.Snap(value) : value;
+        const double min = SetupOperations.MinElementSize;
+
+        if (_elementHandle.X < 0) left = Math.Min(Edge(left + dx), right - min);
+        if (_elementHandle.X > 0) right = Math.Max(Edge(right + dx), left + min);
+        if (_elementHandle.Y < 0) top = Math.Min(Edge(top + dy), bottom - min);
+        if (_elementHandle.Y > 0) bottom = Math.Max(Edge(bottom + dy), top + min);
+        return new Rect(left, top, right - left, bottom - top);
     }
 
     private void OnSeatDown(PointerEventArgs e, Guid tableId, int index)
@@ -254,12 +319,18 @@
             if (floor.Background is { } background)
                 (background.X, background.Y) = (_startBackground.X + dx, _startBackground.Y + dy);
         }
+        else if (_mode == DragMode.ResizeElement)
+        {
+            if (floor.Elements.Any(el => el.Id == _resizeElementId))
+                SetupOperations.SetElementBounds(History.Project, floor.Id, _resizeElementId, ResizedElementBounds(dx, dy, !e.AltKey));
+        }
         else if (History.Project.Setup.FindTable(_resizeTableId) is { } table)
         {
-            var axis = new Point(1, 0).Rotate(table.Rotation);
-            var alongTable = dx * axis.X + dy * axis.Y;
-            var seats = Math.Max(1, _startSeatsPerSide + (int)Math.Round(alongTable / table.SeatSpacing));
-            SetupOperations.ResizeTable(History.Project, table.Id, seats, table.EndSeats);
+            // Dragging the left handle to the left (or the right handle to the right) adds seats.
+            var axis = new Point(_keepRightEnd ? -1 : 1, 0).Rotate(table.Rotation);
+            var outwards = dx * axis.X + dy * axis.Y;
+            var seats = Math.Max(1, _startSeatsPerSide + (int)Math.Round(outwards / table.SeatSpacing));
+            SetupOperations.ResizeTable(History.Project, table.Id, seats, table.EndSeats, _keepRightEnd);
         }
     }
 
@@ -271,6 +342,7 @@
         {
             DragMode.Move => _startPositions.Count == 1 ? "Move item" : "Move items",
             DragMode.MoveBackground => "Move background image",
+            DragMode.ResizeElement => "Resize element",
             _ => "Resize table",
         };
         _mode = DragMode.None;

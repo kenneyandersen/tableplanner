@@ -87,19 +87,21 @@ public sealed class LongTableGeometry : ITableShapeGeometry
 
     /// <summary>
     /// Where a seat ends up when the table changes from <paramref name="oldPerSide"/>/<paramref name="oldEnds"/>
-    /// to <paramref name="newPerSide"/>/<paramref name="newEnds"/>, keeping its side and position from the left.
-    /// Returns null when the seat no longer exists.
+    /// to <paramref name="newPerSide"/>/<paramref name="newEnds"/>. A side seat keeps its side; its position from the
+    /// left moves by <paramref name="shiftFromLeft"/> (seats added at the left end; negative when seats are removed
+    /// there). Returns null when the seat no longer exists.
     /// </summary>
-    public static int? RemapSeatIndex(int index, int oldPerSide, int oldEnds, int newPerSide, int newEnds)
+    public static int? RemapSeatIndex(int index, int oldPerSide, int oldEnds, int newPerSide, int newEnds, int shiftFromLeft = 0)
     {
         if (index < 0)
             return null;
-        if (index < oldPerSide)
-            return index < newPerSide ? index : null;
         if (index < 2 * oldPerSide)
         {
-            var along = index - oldPerSide;
-            return along < newPerSide ? newPerSide + along : null;
+            var bottom = index >= oldPerSide;
+            var along = (bottom ? index - oldPerSide : index) + shiftFromLeft;
+            if (along < 0 || along >= newPerSide)
+                return null;
+            return bottom ? newPerSide + along : along;
         }
 
         var end = index - 2 * oldPerSide; // 0 = left end, 1 = right end

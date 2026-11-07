@@ -3,6 +3,15 @@ using TablePlanner.Core.Model;
 
 namespace TablePlanner.Core.Editing;
 
+/// <summary>A change in a floor element's drawing order.</summary>
+public enum LayerMove
+{
+    ToFront,
+    Forward,
+    Backward,
+    ToBack,
+}
+
 /// <summary>
 /// Edits to a project's setup. Each operation keeps the project consistent, e.g. removing a table
 /// also removes pins and seat assignments that refer to it. Run them through <see cref="EditHistory"/> for undo.
@@ -154,10 +163,11 @@ public static class SetupOperations
     }
 
     /// <summary>
-    /// Changes a table's size while keeping its left end (in the table's own frame) in place.
+    /// Changes a table's size while keeping its left end (in the table's own frame) in place, or its right end when
+    /// <paramref name="keepRightEnd"/> is set, so seats are added or removed at the other end.
     /// Disabled seats, seat pins and seat assignments move with their seats; seats that disappear are dropped.
     /// </summary>
-    public static void ResizeTable(EventProject project, Guid tableId, int seatsPerSide, int endSeats)
+    public static void ResizeTable(EventProject project, Guid tableId, int seatsPerSide, int endSeats, bool keepRightEnd = false)
     {
         var table = GetTable(project, tableId);
         seatsPerSide = Math.Max(1, seatsPerSide);
@@ -165,8 +175,9 @@ public static class SetupOperations
         if (seatsPerSide == table.SeatsPerSide && endSeats == table.EndSeats)
             return;
 
+        var shiftFromLeft = keepRightEnd ? seatsPerSide - table.SeatsPerSide : 0;
         int? Remap(int index) =>
-            LongTableGeometry.RemapSeatIndex(index, table.SeatsPerSide, table.EndSeats, seatsPerSide, endSeats);
+            LongTableGeometry.RemapSeatIndex(index, table.SeatsPerSide, table.EndSeats, seatsPerSide, endSeats, shiftFromLeft);
 
         table.DisabledSeats = table.DisabledSeats.Select(Remap).OfType<int>().ToHashSet();
 
@@ -185,14 +196,53 @@ public static class SetupOperations
         foreach (var pin in project.Setup.Pins.Where(p => p.Scope == PinScope.Seats))
             pin.Seats = pin.Seats.Select(s => s.TableId == tableId ? new SeatId(tableId, Remap(s.Index)!.Value) : s).ToList();
 
-        // Keep the left end fixed: shift the centre by half the change in length along the table's axis.
-        var shift = (seatsPerSide - table.SeatsPerSide) * table.SeatSpacing / 2;
+        // Keep one end fixed: shift the centre by half the change in length along the table's axis, away from that end.
+        var shift = (seatsPerSide - table.SeatsPerSide) * table.SeatSpacing / 2 * (keepRightEnd ? -1 : 1);
         var axis = new Point(1, 0).Rotate(table.Rotation);
         // Rounded to millimetres, so repeated resizing doesn't leave values like 6.8999999.
         table.X = Math.Round(table.X + axis.X * shift, 3);
         table.Y = Math.Round(table.Y + axis.Y * shift, 3);
         table.SeatsPerSide = seatsPerSide;
         table.EndSeats = endSeats;
+    }
+
+    /// <summary>Smallest width or depth of a floor element, in metres.</summary>
+    public const double MinElementSize = 0.5;
+
+    /// <summary>
+    /// Gives an element new outer bounds (in floor coordinates, as drawn), keeping its rotation: for an element turned a
+    /// quarter, the drawn width is its depth. Sizes below <see cref="MinElementSize"/> are raised to it.
+    /// </summary>
+    public static void SetElementBounds(EventProject project, Guid floorId, Guid elementId, Rect bounds)
+    {
+        var element = GetElement(project, floorId, elementId);
+        var drawnWidth = Math.Round(Math.Max(MinElementSize, bounds.Width), 3);
+        var drawnHeight = Math.Round(Math.Max(MinElementSize, bounds.Height), 3);
+        var quarterTurn = element.Rotation is Rotation.R90 or Rotation.R270;
+        (element.Width, element.Depth) = quarterTurn ? (drawnHeight, drawnWidth) : (drawnWidth, drawnHeight);
+        element.X = Math.Round(bounds.Left + bounds.Width / 2, 3);
+        element.Y = Math.Round(bounds.Top + bounds.Height / 2, 3);
+    }
+
+    /// <summary>
+    /// Changes the drawing order of floor elements (later ones are drawn on top, e.g. toilets inside a hall).
+    /// Tables are always drawn above elements.
+    /// </summary>
+    public static void ReorderElement(EventProject project, Guid floorId, Guid elementId, LayerMove move)
+    {
+        var floor = GetFloor(project, floorId);
+        var element = GetElement(project, floorId, elementId);
+        var index = floor.Elements.IndexOf(element);
+        var target = move switch
+        {
+            LayerMove.ToFront => floor.Elements.Count - 1,
+            LayerMove.ToBack => 0,
+            LayerMove.Forward => Math.Min(floor.Elements.Count - 1, index + 1),
+            LayerMove.Backward => Math.Max(0, index - 1),
+            _ => index,
+        };
+        floor.Elements.RemoveAt(index);
+        floor.Elements.Insert(target, element);
     }
 
     public static void ToggleSeatDisabled(EventProject project, Guid tableId, int seatIndex)
@@ -254,6 +304,10 @@ public static class SetupOperations
 
     private static Table GetTable(EventProject project, Guid tableId) =>
         project.Setup.FindTable(tableId) ?? throw new ArgumentException("Unknown table.", nameof(tableId));
+
+    private static FloorElement GetElement(EventProject project, Guid floorId, Guid elementId) =>
+        GetFloor(project, floorId).Elements.FirstOrDefault(e => e.Id == elementId)
+        ?? throw new ArgumentException("Unknown element.", nameof(elementId));
 
     private static Rotation Next(Rotation rotation) => (Rotation)(((int)rotation + 1) % 4);
 

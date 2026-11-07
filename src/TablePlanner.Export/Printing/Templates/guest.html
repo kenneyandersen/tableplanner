@@ -6,7 +6,8 @@
 <title>Find your table · {{EventName}}</title>
 {{! The guest page: put the downloaded file on any web host and share the link (or a QR code to it).
     Guests type their group's name and see their table on the floor plan, or look around the floor plan and tap a
-    table to see who sits there. Placeholders are listed next to the editor. }}
+    table to see who sits there. The plan fits the screen; pinch or drag on it to zoom and look around.
+    Placeholders are listed next to the editor. }}
 <style>
   * { box-sizing: border-box; }
   html { -webkit-text-size-adjust: 100%; }
@@ -41,8 +42,16 @@
   .floor-name { margin: 0; color: #555; font-size: 1.1rem; }
   figure { margin: 0 0 16px; background: #fff; border-radius: 10px; padding: 8px; }
   figcaption { font-weight: 600; margin: 0 0 4px; }
-  figure svg { width: 100%; height: auto; display: block; user-select: none; -webkit-user-select: none; }
-  figure svg.zoomed { touch-action: none; cursor: grab; }
+  /* The plan stays inside the screen; pinch or drag on it to zoom and look around (the page itself does not move). */
+  .viewport { height: 62vh; height: clamp(260px, 62dvh, 640px); background: #fbfbfc; border-radius: 6px; overflow: hidden; }
+  .focus .viewport { height: calc(100vh - 300px); height: clamp(260px, calc(100dvh - 290px), 640px); }
+  .viewport svg { width: 100%; height: 100%; display: block; user-select: none; -webkit-user-select: none; touch-action: none; cursor: grab; }
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 10px 0 0; }
+  .chips button {
+    border: 1px solid #c8c8d0; background: #fff; border-radius: 16px; font: inherit; font-weight: 600; color: #3f3d9e;
+    padding: 4px 12px; cursor: pointer;
+  }
+  .chips button.active { background: #3f3d9e; color: #fff; border-color: #3f3d9e; }
   .controls { display: flex; gap: 6px; align-items: center; padding-top: 6px; }
   .controls button {
     border: 1px solid #c8c8d0; background: #fff; border-radius: 8px; font: inherit; color: #3f3d9e;
@@ -94,14 +103,15 @@
   <h2 id="detail-name"></h2>
   <p class="big" id="detail-tables"></p>
   <p class="floor-name" id="detail-floor"></p>
+  <div class="chips" id="detail-chips" hidden></div>
 </section>
 
 <section id="floors" hidden>
-  <p class="hint" id="plan-hint">Tap a table to see who sits there. Zoom in with +, then drag to look around.</p>
+  <p class="hint" id="plan-hint">Tap a table to see who sits there. Pinch to zoom, drag to look around.</p>
   {{#Floors}}
   <figure>
     {{#ShowFloorNames}}<figcaption>{{FloorName}}</figcaption>{{/ShowFloorNames}}
-    {{FloorPlan}}
+    <div class="viewport">{{FloorPlan}}</div>
     <div class="controls">
       <button type="button" data-zoom="0.6" aria-label="Zoom in">+</button>
       <button type="button" data-zoom="1.6" aria-label="Zoom out">−</button>
@@ -140,58 +150,143 @@
     nothing.hidden = shown > 0;
   });
 
-  // ---- Zooming and moving a floor plan (its viewBox) ----
-  const ZoomMargin = 3, MinWidth = 4;
+  // ---- Zooming and moving a floor plan (its viewBox): pinch, drag, mouse wheel, or the buttons ----
+  const ZoomMargin = 2, MinWidth = 3, MaxZoomOut = 1.3, BigGroupWidth = 14;
   const box = svg => svg.getAttribute("viewBox").split(" ").map(Number);
-  function setBox(svg, [x, y, w, h]) {
-    svg.setAttribute("viewBox", `${x} ${y} ${w} ${h}`);
-    svg.classList.toggle("zoomed", w < svg.dataset.wholeWidth - 0.01);
+  const wholeBox = svg => svg.dataset.whole.split(" ").map(Number);
+  const setBox = (svg, [x, y, w, h]) => svg.setAttribute("viewBox", `${x} ${y} ${w} ${h}`);
+
+  // A point on the screen in plan coordinates (metres), and metres per screen pixel.
+  function toPlan(svg, clientX, clientY) {
+    const m = svg.getScreenCTM();
+    if (!m) return { x: 0, y: 0 };
+    const p = new DOMPoint(clientX, clientY).matrixTransform(m.inverse());
+    return { x: p.x, y: p.y };
   }
+  const perPixel = svg => 1 / (svg.getScreenCTM()?.a || 1);
+
+  // Keeps the zoom within limits and the middle of the view on the floor, so the plan cannot get lost.
+  function limit(svg, [x, y, w, h]) {
+    const [wx, wy, ww, wh] = wholeBox(svg);
+    const f = Math.min(Math.max(w, MinWidth), ww * MaxZoomOut) / w;
+    const cx = Math.min(Math.max(x + w / 2, wx), wx + ww);
+    const cy = Math.min(Math.max(y + h / 2, wy), wy + wh);
+    return [cx - w * f / 2, cy - h * f / 2, w * f, h * f];
+  }
+
+  function zoomAt(svg, clientX, clientY, factor) {
+    const [x, y, w, h] = box(svg);
+    const [, , ww] = wholeBox(svg);
+    const f = Math.min(Math.max(factor, MinWidth / w), ww * MaxZoomOut / w);
+    const p = toPlan(svg, clientX, clientY);
+    setBox(svg, limit(svg, [p.x - (p.x - x) * f, p.y - (p.y - y) * f, w * f, h * f]));
+  }
+
+  function panBy(svg, dx, dy) {
+    const u = perPixel(svg);
+    const [x, y, w, h] = box(svg);
+    setBox(svg, limit(svg, [x - dx * u, y - dy * u, w, h]));
+  }
+
+  function zoomToCentre(svg, factor) {
+    const r = svg.getBoundingClientRect();
+    zoomAt(svg, r.left + r.width / 2, r.top + r.height / 2, factor);
+  }
+
   for (const figure of figures) {
     const svg = figure.querySelector("svg");
     if (!svg) continue;
     svg.dataset.whole = svg.getAttribute("viewBox");
-    svg.dataset.wholeWidth = box(svg)[2];
-    figure.querySelector(".whole").addEventListener("click", () => setBox(svg, svg.dataset.whole.split(" ").map(Number)));
-    figure.querySelectorAll("[data-zoom]").forEach(b => b.addEventListener("click", () => {
-      const [x, y, w, h] = box(svg);
-      const whole = svg.dataset.whole.split(" ").map(Number);
-      const factor = Math.min(Math.max(Number(b.dataset.zoom), MinWidth / w), whole[2] / w);
-      setBox(svg, [x + w * (1 - factor) / 2, y + h * (1 - factor) / 2, w * factor, h * factor]);
-    }));
+    svg.setAttribute("preserveAspectRatio", "xMidYMid meet");
+    figure.querySelector(".whole").addEventListener("click", () => setBox(svg, wholeBox(svg)));
+    figure.querySelectorAll("[data-zoom]").forEach(b => b.addEventListener("click", () => zoomToCentre(svg, Number(b.dataset.zoom))));
+    svg.addEventListener("wheel", e => {
+      e.preventDefault();
+      zoomAt(svg, e.clientX, e.clientY, Math.exp(e.deltaY * 0.0015));
+    }, { passive: false });
+    // Safari's own pinch gesture would zoom the whole page.
+    svg.addEventListener("gesturestart", e => e.preventDefault());
 
-    // Drag moves a zoomed plan; a tap without moving picks what is under it.
-    let press = null;
+    // One finger (or the mouse) drags; two fingers pinch. A tap without moving picks what is under it.
+    const pointers = new Map();
+    let tap = null;
     svg.addEventListener("pointerdown", e => {
-      press = { x: e.clientX, y: e.clientY, box: box(svg), moved: false, target: e.target, id: e.pointerId };
+      svg.setPointerCapture(e.pointerId);
+      pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      tap = pointers.size === 1 ? { x: e.clientX, y: e.clientY, target: e.target } : null;
     });
     svg.addEventListener("pointermove", e => {
-      if (!press || !svg.classList.contains("zoomed")) return;
-      const dx = e.clientX - press.x, dy = e.clientY - press.y;
-      if (!press.moved && Math.hypot(dx, dy) < 6) return;
-      if (!press.moved) svg.setPointerCapture(press.id);
-      press.moved = true;
-      const [x, y, w, h] = press.box;
-      const scale = w / svg.clientWidth;
-      setBox(svg, [x - dx * scale, y - dy * scale, w, h]);
+      const last = pointers.get(e.pointerId);
+      if (!last) return;
+      if (tap && Math.hypot(e.clientX - tap.x, e.clientY - tap.y) < 6) return;
+      tap = null;
+      if (pointers.size === 1) {
+        panBy(svg, e.clientX - last.x, e.clientY - last.y);
+      } else if (pointers.size === 2) {
+        const other = [...pointers].find(([id]) => id !== e.pointerId)[1];
+        const before = Math.hypot(last.x - other.x, last.y - other.y);
+        const after = Math.hypot(e.clientX - other.x, e.clientY - other.y);
+        const mid = { x: (e.clientX + other.x) / 2, y: (e.clientY + other.y) / 2 };
+        if (before > 0 && after > 0) zoomAt(svg, mid.x, mid.y, before / after);
+        panBy(svg, (e.clientX - last.x) / 2, (e.clientY - last.y) / 2);
+      }
+      pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
     });
-    svg.addEventListener("pointerup", () => {
-      if (press && !press.moved) tapped(figure, press.target);
-      press = null;
-    });
-    svg.addEventListener("pointercancel", () => press = null);
+    const release = e => {
+      if (e.type === "pointerup" && tap && pointers.size === 1) tapped(figure, tap.target);
+      pointers.delete(e.pointerId);
+      tap = null;
+    };
+    svg.addEventListener("pointerup", release);
+    svg.addEventListener("pointercancel", release);
   }
 
-  function zoomToGroup(figure) {
+  // Zooms to the given tables (all of the group's tables on this floor by default).
+  function zoomToTables(figure, tables) {
     const svg = figure.querySelector("svg");
-    const tables = [...figure.querySelectorAll(".table.mine")];
     if (!svg || tables.length === 0) return;
     const boxes = tables.map(t => t.getBBox());
     const left = Math.min(...boxes.map(b => b.x)) - ZoomMargin;
     const top = Math.min(...boxes.map(b => b.y)) - ZoomMargin;
     const right = Math.max(...boxes.map(b => b.x + b.width)) + ZoomMargin;
     const bottom = Math.max(...boxes.map(b => b.y + b.height)) + ZoomMargin;
-    setBox(svg, [left, top, right - left, bottom - top]);
+    setBox(svg, limit(svg, [left, top, right - left, bottom - top]));
+  }
+
+  // A big group spread over many tables starts on its first table, with a button per table to look at the others.
+  function showGroupTables() {
+    const chips = document.getElementById("detail-chips");
+    chips.replaceChildren();
+    const mine = figures.filter(f => !f.hidden).flatMap(f => [...f.querySelectorAll(".table.mine")].map(t => ({ figure: f, table: t })));
+    const boxes = mine.map(m => m.table.getBBox());
+    const wide = boxes.length > 0
+      && Math.max(...boxes.map(b => b.x + b.width)) - Math.min(...boxes.map(b => b.x)) > BigGroupWidth
+      || new Set(mine.map(m => m.figure)).size > 1;
+    figures.filter(f => !f.hidden).forEach(f => zoomToTables(f, [...f.querySelectorAll(".table.mine")]));
+    chips.hidden = mine.length < 2;
+    if (mine.length < 2) return;
+
+    const choose = (button, show) => {
+      chips.querySelectorAll("button").forEach(b => b.classList.toggle("active", b === button));
+      show();
+    };
+    const all = document.createElement("button");
+    all.type = "button";
+    all.textContent = "All";
+    all.addEventListener("click", () => choose(all, () =>
+      figures.filter(f => !f.hidden).forEach(f => zoomToTables(f, [...f.querySelectorAll(".table.mine")]))));
+    chips.append(all);
+    for (const { figure, table } of mine) {
+      const b = document.createElement("button");
+      b.type = "button";
+      b.textContent = table.dataset.table;
+      b.addEventListener("click", () => choose(b, () => {
+        zoomToTables(figure, [table]);
+        figure.scrollIntoView({ block: "nearest", behavior: "smooth" });
+      }));
+      chips.append(b);
+    }
+    if (wide) chips.children[1].click(); else all.classList.add("active");
   }
 
   // A seat or name opens its group; a table with several groups offers them to choose from.
@@ -238,8 +333,13 @@
   // page works without it. ----
   let view = "list", from = "list", inHistory = false;
 
+  // Where each floor plan was zoomed on the plan tab, so coming back from a group returns to the same spot.
+  const planBoxes = new Map();
+
   function render(next) {
     const group = groups.get(next);
+    if (view === "plan" && group)
+      figures.forEach(f => f.querySelector("svg") && planBoxes.set(f, f.querySelector("svg").getAttribute("viewBox")));
     view = group ? next : next === "plan" ? "plan" : "list";
     list.hidden = view !== "list";
     detail.hidden = !group;
@@ -254,7 +354,7 @@
       const svg = figure.querySelector("svg");
       if (!group) {
         figure.hidden = false;
-        if (svg) setBox(svg, svg.dataset.whole.split(" ").map(Number));
+        if (svg) svg.setAttribute("viewBox", view === "plan" && planBoxes.get(figure) || svg.dataset.whole);
         continue;
       }
       const seats = figure.querySelectorAll(`[data-group="${next}"]`);
@@ -270,8 +370,11 @@
       document.getElementById("detail-tables").textContent = (tables.includes(",") ? "Tables " : "Table ") + tables;
       document.getElementById("detail-floor").textContent = group.dataset.floor;
       // Sizes can only be measured once the plans are shown.
-      figures.filter(f => !f.hidden).forEach(zoomToGroup);
+      showGroupTables();
+    } else {
+      document.getElementById("detail-chips").hidden = true;
     }
+    if (view === "list") planBoxes.clear();
     window.scrollTo(0, 0);
   }
 

@@ -153,6 +153,21 @@ public enum PaperSize
     A3,
     A4,
     A5,
+    A2,
+    A1,
+}
+
+public static class PaperSizes
+{
+    /// <summary>Short and long side in millimetres.</summary>
+    public static (int Short, int Long) Millimetres(PaperSize paper) => paper switch
+    {
+        PaperSize.A1 => (594, 841),
+        PaperSize.A2 => (420, 594),
+        PaperSize.A3 => (297, 420),
+        PaperSize.A5 => (148, 210),
+        _ => (210, 297),
+    };
 }
 
 /// <summary>What the poster shows and the paper it is printed on.</summary>
@@ -164,8 +179,10 @@ public static class Poster
     public static readonly IReadOnlyList<Placeholder> Placeholders =
     [
         new("EventName", "The project's name."),
-        new("PaperSize", "A3 or A4, for @page { size: … }."),
+        new("PaperSize", "A1, A2, A3 or A4."),
         new("Orientation", "landscape or portrait."),
+        new("PageSize", "For @page { size: … }: the page size in millimetres, e.g. \"594mm 420mm\" (A2 landscape). Browsers don't all know A1 and A2 by name."),
+        new("Scale", "How much bigger text and marks should be than on A3/A4: 1 on A3 and A4, 1.41 on A2, 2 on A1. Use as calc(12pt * {{Scale}})."),
         new("PageWidthMm", "The page width in millimetres, in the chosen orientation."),
         new("PageHeightMm", "The page height in millimetres, in the chosen orientation."),
         new("ShowFloorPlans", "True when the floor plan pages are wanted."),
@@ -203,7 +220,8 @@ public static class Poster
         string? guestPageUrl = null)
     {
         var colours = GroupColours.For(plan.Setup);
-        var (shortSide, longSide) = options.Paper == PaperSize.A3 ? (297, 420) : (210, 297);
+        var (shortSide, longSide) = PaperSizes.Millimetres(options.Paper);
+        var (width, height) = options.Landscape ? (longSide, shortSide) : (shortSide, longSide);
         var groups = GroupList(plan, colours);
 
         var data = new TemplateData
@@ -211,8 +229,10 @@ public static class Poster
             ["EventName"] = eventName,
             ["PaperSize"] = options.Paper.ToString(),
             ["Orientation"] = options.Landscape ? "landscape" : "portrait",
-            ["PageWidthMm"] = options.Landscape ? longSide : shortSide,
-            ["PageHeightMm"] = options.Landscape ? shortSide : longSide,
+            ["PageSize"] = $"{width}mm {height}mm",
+            ["Scale"] = options.Paper switch { PaperSize.A1 => "2", PaperSize.A2 => "1.41", _ => "1" },
+            ["PageWidthMm"] = width,
+            ["PageHeightMm"] = height,
             ["ShowFloorPlans"] = options.ShowFloorPlans,
             ["ShowGroupList"] = options.ShowGroupList,
             ["ShowFloorNames"] = plan.Setup.Floors.Count(f => f.Tables.Count > 0) > 1,

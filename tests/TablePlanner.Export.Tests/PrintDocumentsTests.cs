@@ -187,9 +187,11 @@ public class PrintDocumentsTests
     }
 
     [Theory]
-    [InlineData(PaperSize.A3, true, 420, 297, "landscape")]
-    [InlineData(PaperSize.A4, false, 210, 297, "portrait")]
-    public void The_poster_page_size_follows_the_paper_and_orientation(PaperSize paper, bool landscape, int width, int height, string orientation)
+    [InlineData(PaperSize.A3, true, 420, 297, "landscape", "1")]
+    [InlineData(PaperSize.A4, false, 210, 297, "portrait", "1")]
+    [InlineData(PaperSize.A2, true, 594, 420, "landscape", "1.41")]
+    [InlineData(PaperSize.A1, false, 594, 841, "portrait", "2")]
+    public void The_poster_page_size_follows_the_paper_and_orientation(PaperSize paper, bool landscape, int width, int height, string orientation, string scale)
     {
         var (project, _, _, _, _) = Setup();
 
@@ -199,6 +201,8 @@ public class PrintDocumentsTests
         Assert.Equal(height, data["PageHeightMm"]);
         Assert.Equal(orientation, data["Orientation"]);
         Assert.Equal(paper.ToString(), data["PaperSize"]);
+        Assert.Equal($"{width}mm {height}mm", data["PageSize"]);
+        Assert.Equal(scale, data["Scale"]);
     }
 
     [Fact]

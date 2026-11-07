@@ -86,9 +86,17 @@
             {
                 <MudSelect T="PaperSize" Value="_poster.Paper" ValueChanged="@(v => SetPoster(_poster with { Paper = v }))" Label="Paper"
                            Dense="true" Margin="Margin.Dense" Variant="Variant.Outlined" Class="ml-3 print-option" Style="min-width: 90px">
-                    <MudSelectItem Value="PaperSize.A3">A3</MudSelectItem>
                     <MudSelectItem Value="PaperSize.A4">A4</MudSelectItem>
+                    <MudSelectItem Value="PaperSize.A3">A3</MudSelectItem>
+                    <MudSelectItem Value="PaperSize.A2">A2</MudSelectItem>
+                    <MudSelectItem Value="PaperSize.A1">A1</MudSelectItem>
                 </MudSelect>
+                @if (_poster.Paper is PaperSize.A2 or PaperSize.A1)
+                {
+                    <MudTooltip Text="Most office printers can't print this size. Print to &quot;Save as PDF&quot; (it keeps the size) and take the PDF to a print shop.">
+                        <MudIcon Icon="@Icons.Material.Outlined.Info" Size="Size.Small" Class="ml-1 mud-text-secondary" />
+                    </MudTooltip>
+                }
                 <MudSwitch T="bool" Value="_poster.Landscape" ValueChanged="@(v => SetPoster(_poster with { Landscape = v }))" Label="Landscape" Color="Color.Primary" Class="ml-3" />
                 <MudCheckBox T="bool" Value="_poster.ShowFloorPlans" ValueChanged="@(v => SetPoster(_poster with { ShowFloorPlans = v }))" Label="Floor plans" Dense="true" />
                 <MudCheckBox T="bool" Value="_poster.ShowGroupList" ValueChanged="@(v => SetPoster(_poster with { ShowGroupList = v }))" Label="Group list" Dense="true" />
@@ -222,7 +230,7 @@
 
 @code {
     private const long MaxTemplateBytes = 1024 * 1024;
-    private static readonly double[] ZoomLevels = [0.25, 0.5, 0.75, 1];
+    private static readonly double[] ZoomLevels = [0.1, 0.25, 0.5, 0.75, 1];
 
     // An A3 poster page is about 1,600 pixels wide, so it starts at half size.
     private readonly Dictionary<PrintKind, double> _zoom = new() { [PrintKind.TableCards] = 0.75, [PrintKind.Poster] = 0.5, [PrintKind.GuestPage] = 1 };

@@ -8,6 +8,54 @@ namespace TablePlanner.Export.Printing;
 /// <param name="Items">For a list: the placeholders available inside <c>{{#Name}}…{{/Name}}</c>.</param>
 public sealed record Placeholder(string Name, string Description, IReadOnlyList<Placeholder>? Items = null);
 
+/// <summary>How a group's name is shown in print and on the guest page when groups have levels (department › team).</summary>
+public enum GroupNaming
+{
+    /// <summary>The group's own name, e.g. "North".</summary>
+    Group,
+
+    /// <summary>The whole path, e.g. "Sales › North › Key accounts".</summary>
+    Path,
+
+    /// <summary>The top-level group and the group, e.g. "Sales · Key accounts": short, and still shows the department.</summary>
+    TopAndGroup,
+}
+
+/// <summary>The fields about a group that cards, the poster and the guest page share: its name as chosen, and its levels.</summary>
+public static class GroupFields
+{
+    public static IReadOnlyList<Placeholder> Placeholders(string namesDescription) =>
+    [
+        new("GroupName", "The group's name, as chosen under \"Group names\" (its own name, the full path, or department and group)."),
+        new("OwnName", "The group's own name, e.g. \"North\"."),
+        new("GroupPath", "The group's full path, e.g. \"Sales › North\" (just the name without levels)."),
+        new("TopGroupName", "The top-level group (department) the group is in; empty for a top-level group."),
+        new("ParentGroupName", "The group directly above; empty for a top-level group."),
+        new("HasParent", "True when the group is part of another group."),
+        new("Names", namesDescription),
+    ];
+
+    public static string Display(EventSetup setup, Group group, GroupNaming naming) => naming switch
+    {
+        GroupNaming.Path => setup.PathOf(group),
+        GroupNaming.TopAndGroup when setup.TopOf(group) is var top && top != group => $"{top.Name} · {group.Name}",
+        _ => group.Name,
+    };
+
+    /// <param name="names">Whether to fill in the people's names (otherwise empty).</param>
+    public static void AddTo(TemplateData data, EventSetup setup, Group group, GroupNaming naming, bool names)
+    {
+        var top = setup.TopOf(group);
+        data["GroupName"] = Display(setup, group, naming);
+        data["OwnName"] = group.Name;
+        data["GroupPath"] = setup.PathOf(group);
+        data["TopGroupName"] = top == group ? "" : top.Name;
+        data["ParentGroupName"] = setup.ParentOf(group)?.Name ?? "";
+        data["HasParent"] = group.ParentId is not null;
+        data["Names"] = names ? string.Join(", ", group.Members.Select(m => m.Name)) : "";
+    }
+}
+
 /// <summary>What the table cards are printed for.</summary>
 public enum CardsFor
 {
@@ -24,7 +72,7 @@ public enum CardsFor
 /// Only on A4: an A5 tent would make cards of A6.
 /// </param>
 /// <param name="Paper">A4 (two A5 cards per sheet) or A5 (one card per sheet, nothing to cut).</param>
-public sealed record CardOptions(CardsFor For = CardsFor.GroupAtTable, bool Folded = false, PaperSize Paper = PaperSize.A4)
+public sealed record CardOptions(CardsFor For = CardsFor.GroupAtTable, bool Folded = false, PaperSize Paper = PaperSize.A4, GroupNaming Naming = GroupNaming.Group)
 {
     /// <summary>Whether tent cards are printed: they need A4 paper.</summary>
     public bool IsFolded => Folded && Paper == PaperSize.A4;
@@ -59,7 +107,7 @@ public static class TableCards
 
     private static IReadOnlyList<Placeholder> CardItems =>
     [
-        new("GroupName", "The group's name."),
+        .. GroupFields.Placeholders("The names of the group's people, e.g. \"Ann, Bo\" (those who are named)."),
         new("PeopleCount", "How many people are in the group."),
         new("PeopleHere", "How many of them sit at this table."),
         new("OnePerson", "True when the group is one person (for \"person\" or \"people\")."),
@@ -93,9 +141,8 @@ public static class TableCards
         {
             var (part, seat) = item;
             var others = plan.Parts.Where(p => p.Group == part.Group && p.Table != part.Table).Select(p => p.Table.Number).Distinct().ToList();
-            return new TemplateData
+            var card = new TemplateData
             {
-                ["GroupName"] = part.Group.Name,
                 ["PeopleCount"] = part.Group.PeopleCount,
                 ["PeopleHere"] = part.People,
                 ["OnePerson"] = part.Group.PeopleCount == 1,
@@ -111,6 +158,9 @@ public static class TableCards
                 ["DietaryInfo"] = part.Group.DietaryInfo ?? "",
                 ["Notes"] = part.Group.Notes ?? "",
             };
+            // Cards are printed, not published, so they always have the names.
+            GroupFields.AddTo(card, plan.Setup, part.Group, options.Naming, names: true);
+            return card;
         }).ToList();
 
         // A tent card is the same card on both halves, the top one upside down. An A5 sheet holds one card.
@@ -171,7 +221,8 @@ public static class PaperSizes
 }
 
 /// <summary>What the poster shows and the paper it is printed on.</summary>
-public sealed record PosterOptions(PaperSize Paper = PaperSize.A3, bool Landscape = true, bool ShowFloorPlans = true, bool ShowGroupList = true);
+public sealed record PosterOptions(PaperSize Paper = PaperSize.A3, bool Landscape = true, bool ShowFloorPlans = true, bool ShowGroupList = true,
+    GroupNaming Naming = GroupNaming.Group);
 
 /// <summary>The poster: a floor plan page per floor and an alphabetical "find your table" list.</summary>
 public static class Poster
@@ -206,7 +257,7 @@ public static class Poster
 
     internal static IReadOnlyList<Placeholder> GroupItems =>
     [
-        new("GroupName", "The group's name."),
+        .. GroupFields.Placeholders("The names of the group's people (on the guest page only when \"Include people's names\" is on)."),
         new("GroupKey", "A short ID of the group, as in the floor plans' data-group attributes."),
         new("PeopleCount", "How many people are in the group."),
         new("Tables", "The group's table numbers, e.g. \"104, 105\"."),
@@ -222,7 +273,7 @@ public static class Poster
         var colours = GroupColours.For(plan.Setup);
         var (shortSide, longSide) = PaperSizes.Millimetres(options.Paper);
         var (width, height) = options.Landscape ? (longSide, shortSide) : (shortSide, longSide);
-        var groups = GroupList(plan, colours);
+        var groups = GroupList(plan, colours, options.Naming);
 
         var data = new TemplateData
         {
@@ -249,21 +300,29 @@ public static class Poster
         return data;
     }
 
-    /// <summary>The seated groups by name, each with its first letter.</summary>
-    internal static List<(string Letter, TemplateData Data)> GroupList(PrintedPlan plan, IReadOnlyDictionary<Guid, string> colours)
+    /// <summary>The seated groups by name (as shown), each with its first letter.</summary>
+    /// <param name="names">Whether the groups' people's names are filled in.</param>
+    internal static List<(string Letter, TemplateData Data)> GroupList(PrintedPlan plan, IReadOnlyDictionary<Guid, string> colours,
+        GroupNaming naming = GroupNaming.Group, bool names = true)
     {
         var comparer = StringComparer.Create(CultureInfo.InvariantCulture, ignoreCase: true);
         return plan.Parts.GroupBy(p => p.Group)
-            .OrderBy(g => g.Key.Name, comparer)
-            .Select(g => (LetterOf(g.Key.Name), new TemplateData
+            .Select(g => (Parts: g, Shown: GroupFields.Display(plan.Setup, g.Key, naming)))
+            .OrderBy(x => x.Shown, comparer)
+            .Select(x =>
             {
-                ["GroupName"] = g.Key.Name,
-                ["GroupKey"] = FloorPlanSvg.GroupKey(g.Key.Id),
-                ["PeopleCount"] = g.Key.PeopleCount,
-                ["Tables"] = string.Join(", ", g.Select(p => p.Table.Number).Distinct()),
-                ["FloorName"] = string.Join(", ", g.Select(p => p.Floor.Name).Distinct()),
-                ["Colour"] = colours.GetValueOrDefault(g.Key.Id, "#cccccc"),
-            }))
+                var g = x.Parts;
+                var data = new TemplateData
+                {
+                    ["GroupKey"] = FloorPlanSvg.GroupKey(g.Key.Id),
+                    ["PeopleCount"] = g.Key.PeopleCount,
+                    ["Tables"] = string.Join(", ", g.Select(p => p.Table.Number).Distinct()),
+                    ["FloorName"] = string.Join(", ", g.Select(p => p.Floor.Name).Distinct()),
+                    ["Colour"] = colours.GetValueOrDefault(g.Key.Id, "#cccccc"),
+                };
+                GroupFields.AddTo(data, plan.Setup, g.Key, naming, names);
+                return (LetterOf(x.Shown), data);
+            })
             .ToList();
     }
 
@@ -294,6 +353,7 @@ public static class GuestPage
     [
         new("EventName", "The project's name."),
         new("ShowFloorNames", "True when there is more than one floor with tables."),
+        new("HasNames", "True when people's names are included, so guests can search for their own name."),
         new("GroupCount", "How many groups are seated."),
         new("Floors", "The floors with tables.",
         [
@@ -304,14 +364,20 @@ public static class GuestPage
     ];
 
     /// <param name="images">The project's images by ID, for floor backgrounds set to show on the poster.</param>
-    public static TemplateData BuildData(string eventName, PrintedPlan plan, IReadOnlyDictionary<Guid, string>? images = null)
+    /// <param name="includeNames">
+    /// Whether people's names go on the page, so guests can search for their own name. Off by default: the page is
+    /// published on the web.
+    /// </param>
+    public static TemplateData BuildData(string eventName, PrintedPlan plan, IReadOnlyDictionary<Guid, string>? images = null,
+        GroupNaming naming = GroupNaming.Group, bool includeNames = false)
     {
         var colours = GroupColours.For(plan.Setup);
-        var groups = Poster.GroupList(plan, colours);
+        var groups = Poster.GroupList(plan, colours, naming, includeNames);
         return new TemplateData
         {
             ["EventName"] = eventName,
             ["ShowFloorNames"] = plan.Setup.Floors.Count(f => f.Tables.Count > 0) > 1,
+            ["HasNames"] = includeNames && plan.Parts.Any(p => p.Group.Members.Count > 0),
             ["GroupCount"] = groups.Count,
             ["Floors"] = Poster.FloorList(plan, colours, images, draw: true),
             ["Groups"] = groups.Select(g => g.Data).ToList(),

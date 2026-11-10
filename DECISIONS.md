@@ -704,3 +704,12 @@ Notes: changes after testing (2026-11-07):
     app's own format, people with 3 levels and an updated version (moved, added, removed people, a +1), mixed people and
     groups, a messy sheet (2 sheets, title, header on row 3, first/last name, a column to ignore), a Danish Excel CSV,
     errors on purpose, and 700 people. Each has a test.
+- **Levels and names in print and on the guest page** (*new*): with group levels, the print page has "Group names":
+  group only ("North", the default), department · group ("Sales · North") or the full path ("Sales › North"), for cards,
+  the poster's list (sorted by the name as shown) and the guest page. Every template gets `OwnName`, `GroupPath`,
+  `TopGroupName`, `ParentGroupName`, `HasParent` and `Names` (`GroupFields`), so own templates and the card designer
+  can show e.g. the department as a small heading.
+  - Names: cards always have them (printed, not published); the poster's data has them (the built-in poster does not
+    show them). The guest page has them only with "Include people's names" (off by default, with a note that the page
+    is public); then guests can search for their own name, and the matching name shows next to the group. The guest
+    page also finds a group by its path, so searching a department lists its teams.

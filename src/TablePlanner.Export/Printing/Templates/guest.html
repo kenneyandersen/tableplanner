@@ -34,6 +34,7 @@
   }
   .dot { width: 14px; height: 14px; border-radius: 50%; flex: none; }
   .name { flex: 1; font-weight: 500; }
+  .name .found { font-weight: 400; color: #555; }
   .where { color: #555; white-space: nowrap; }
   .message, .hint { color: #555; text-align: center; padding: 8px 16px; margin: 0; }
   #back { border: 0; background: none; font: inherit; color: #3f3d9e; padding: 4px 0; cursor: pointer; }
@@ -81,14 +82,14 @@
 <main id="list">
   {{! GroupCount, not Groups: a list section would repeat the search box for every group. }}
   {{#GroupCount}}
-  <input id="search" type="search" placeholder="Type your group's name" autocomplete="off" aria-label="Group name">
+  <input id="search" type="search" placeholder="{{#HasNames}}Type your name or your group's{{/HasNames}}{{^HasNames}}Type your group's name{{/HasNames}}" autocomplete="off" aria-label="Name">
   {{/GroupCount}}
   <ul id="groups">
     {{#Groups}}
     <li>
-      <button type="button" data-group="{{GroupKey}}" data-name="{{GroupName}}" data-tables="{{Tables}}" data-floor="{{FloorName}}" data-colour="{{Colour}}">
+      <button type="button" data-group="{{GroupKey}}" data-name="{{GroupName}}" data-path="{{GroupPath}}" data-names="{{Names}}" data-tables="{{Tables}}" data-floor="{{FloorName}}" data-colour="{{Colour}}">
         <span class="dot" style="background: {{Colour}}"></span>
-        <span class="name">{{GroupName}}</span>
+        <span class="name">{{GroupName}}<span class="found"></span></span>
         <span class="where">{{Tables}}</span>
       </button>
     </li>
@@ -138,13 +139,20 @@
 
   // ---- Search: ignores case and accents, so "rene" finds "René" ----
   const fold = text => text.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase();
-  buttons.forEach(b => b.dataset.search = fold(b.dataset.name));
+  // A group is found by its name or path (e.g. its department), and, when the page has them, by its people's names; a
+  // match on a person shows their name next to the group.
+  buttons.forEach(b => {
+    b.dataset.search = fold(`${b.dataset.name} ${b.dataset.path}`);
+    b.people = (b.dataset.names || "").split(", ").filter(n => n).map(n => ({ name: n, folded: fold(n) }));
+  });
   search?.addEventListener("input", () => {
     const query = fold(search.value.trim());
     let shown = 0;
     for (const b of buttons) {
-      const match = b.dataset.search.includes(query);
+      const people = query ? b.people.filter(p => p.folded.includes(query)) : [];
+      const match = b.dataset.search.includes(query) || people.length > 0;
       b.parentElement.hidden = !match;
+      b.querySelector(".found").textContent = people.length ? ` · ${people.map(p => p.name).join(", ")}` : "";
       if (match) shown++;
     }
     nothing.hidden = shown > 0;

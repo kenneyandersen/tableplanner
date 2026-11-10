@@ -102,6 +102,24 @@
                 <MudCheckBox T="bool" Value="_poster.ShowGroupList" ValueChanged="@(v => SetPoster(_poster with { ShowGroupList = v }))" Label="Group list" Dense="true" />
             }
 
+            @if (project.Setup.HasLevels())
+            {
+                @* With group levels: how a group's name is shown on cards, the poster and the guest page. *@
+                <MudSelect T="GroupNaming" Value="_naming" ValueChanged="SetNaming" Label="Group names" Dense="true" Margin="Margin.Dense"
+                           Variant="Variant.Outlined" Class="ml-3 print-option" Style="min-width: 210px">
+                    <MudSelectItem Value="GroupNaming.Group">Group only (North)</MudSelectItem>
+                    <MudSelectItem Value="GroupNaming.TopAndGroup">Department · group (Sales · North)</MudSelectItem>
+                    <MudSelectItem Value="GroupNaming.Path">Full path (Sales › North)</MudSelectItem>
+                </MudSelect>
+            }
+
+            @if (IsGuestPage && project.Setup.Groups.Any(g => g.Members.Count > 0))
+            {
+                <MudTooltip Text="Guests can then search for their own name. The guest page is published on the web, so anyone with the address can see the names.">
+                    <MudSwitch T="bool" Value="_guestNames" ValueChanged="SetGuestNames" Label="Include people's names" Color="Color.Warning" Class="ml-3" />
+                </MudTooltip>
+            }
+
             @if (IsGuestPage)
             {
                 <MudTextField T="string" Value="project.GuestPageUrl" ValueChanged="SetGuestPageUrl" Label="Web address of the guest page"
@@ -240,6 +258,22 @@
     private Guid _planId = Guid.Empty;
     private PosterOptions _poster = new();
     private CardOptions _cards = new();
+
+    // How group names are shown (with levels), and whether the guest page has people's names (off: it is published).
+    private GroupNaming _naming;
+    private bool _guestNames;
+
+    private void SetNaming(GroupNaming naming)
+    {
+        _naming = naming;
+        Rebuild();
+    }
+
+    private void SetGuestNames(bool include)
+    {
+        _guestNames = include;
+        Rebuild();
+    }
     private int _cardCount, _sheetCount;
     private bool _editing;
     private int _fileKey;
@@ -300,9 +334,9 @@
         _notSeated = project.Setup.Groups.Count(g => g.PeopleCount > 0 && plan.Seated(g) < g.PeopleCount);
         var data = _kind switch
         {
-            PrintKind.TableCards => TableCards.BuildData(project.Name, plan, _cards, project.GuestPageUrl),
-            PrintKind.Poster => Poster.BuildData(project.Name, plan, _poster, Session.Images, project.GuestPageUrl),
-            _ => GuestPage.BuildData(project.Name, plan, Session.Images),
+            PrintKind.TableCards => TableCards.BuildData(project.Name, plan, _cards with { Naming = _naming }, project.GuestPageUrl),
+            PrintKind.Poster => Poster.BuildData(project.Name, plan, _poster with { Naming = _naming }, Session.Images, project.GuestPageUrl),
+            _ => GuestPage.BuildData(project.Name, plan, Session.Images, _naming, _guestNames),
         };
         (_cardCount, _sheetCount) = _kind == PrintKind.TableCards ? ((int)data["CardCount"]!, (int)data["SheetCount"]!) : (0, 0);
         try

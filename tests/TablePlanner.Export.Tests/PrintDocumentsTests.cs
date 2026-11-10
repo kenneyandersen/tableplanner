@@ -269,6 +269,48 @@ public class PrintDocumentsTests
     }
 
     /// <summary>A plan that seats every group of the example project, table by table.</summary>
+    [Theory]
+    [InlineData(GroupNaming.Group, "Alpha")]
+    [InlineData(GroupNaming.TopAndGroup, "Sales · Alpha")]
+    [InlineData(GroupNaming.Path, "Sales › Alpha")]
+    public void With_levels_cards_and_lists_show_the_group_name_as_chosen(GroupNaming naming, string expected)
+    {
+        var (project, _, _, alpha, zeta) = Setup();
+        Core.Editing.SetupOperations.GroupInto(project, [alpha.Id], "Sales");
+        Core.Editing.SetupOperations.AddPeople(project, alpha.Id, ["Ann", "Bo"]);
+        var plan = new PrintedPlan(project.Setup, project.CurrentAssignment);
+
+        var card = List(TableCards.BuildData("Gala", plan, new CardOptions(Naming: naming)), "Cards").First(c => (string)c["OwnName"]! == "Alpha");
+        var listed = List(Poster.BuildData("Gala", plan, new PosterOptions(Naming: naming)), "Groups").First(g => (string)g["OwnName"]! == "Alpha");
+
+        Assert.Equal(expected, card["GroupName"]);
+        Assert.Equal("Sales", card["TopGroupName"]);
+        Assert.Equal("Sales › Alpha", card["GroupPath"]);
+        Assert.Equal(true, card["HasParent"]);
+        Assert.Equal("Ann, Bo", card["Names"]);
+        Assert.Equal(expected, listed["GroupName"]);
+        Assert.Equal("", List(TableCards.BuildData("Gala", plan), "Cards").First(c => (string)c["OwnName"]! == zeta.Name)["TopGroupName"]);
+    }
+
+    [Fact]
+    public void The_guest_page_has_names_only_when_asked_and_searches_them()
+    {
+        var (project, _, _, alpha, _) = Setup();
+        Core.Editing.SetupOperations.AddPeople(project, alpha.Id, ["Ann Holm"]);
+        var plan = new PrintedPlan(project.Setup, project.CurrentAssignment);
+
+        var without = GuestPage.BuildData("Gala", plan);
+        var with = GuestPage.BuildData("Gala", plan, includeNames: true);
+        var html = HtmlTemplate.Render(DefaultTemplates.For(PrintKind.GuestPage), with).Html;
+
+        Assert.Equal(false, without["HasNames"]);
+        Assert.All(List(without, "Groups"), g => Assert.Equal("", g["Names"]));
+        Assert.DoesNotContain("Ann Holm", HtmlTemplate.Render(DefaultTemplates.For(PrintKind.GuestPage), without).Html);
+        Assert.Equal(true, with["HasNames"]);
+        Assert.Contains("data-names=\"Ann Holm\"", html);
+        Assert.Contains("Type your name or your group's", html);
+    }
+
     private static EventProject SeatedExample()
     {
         var project = ExampleProject.Create();

@@ -11,6 +11,9 @@ public enum FloorElementKind
     Stage,
     DanceFloor,
     Cloakroom,
+    Pillar,
+    DjBooth,
+    PhotoBooth,
     Custom,
 }
 
@@ -30,4 +33,7 @@ public sealed class FloorElement
     public double Width { get; set; } = 2;
     public double Depth { get; set; } = 1;
     public Rotation Rotation { get; set; } = Rotation.R0;
+
+    /// <summary>For a pillar: drawn round (an ellipse in its box) rather than square.</summary>
+    public bool IsRound { get; set; }
 }

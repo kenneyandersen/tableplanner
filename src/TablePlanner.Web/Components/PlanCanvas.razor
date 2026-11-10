@@ -29,9 +29,11 @@
         @foreach (var element in floor.Elements)
         {
             var bounds = FloorElementGeometry.GetBounds(element);
-            <g class="element kind-@element.Kind.ToString().ToLowerInvariant()">
-                <rect x="@Svg(bounds.Left)" y="@Svg(bounds.Top)" width="@Svg(bounds.Width)" height="@Svg(bounds.Height)" rx="0.05" />
-                <text x="@Svg(element.X)" y="@Svg(element.Y)" font-size="@Svg(Math.Min(0.45, Math.Min(bounds.Height, bounds.Width) * 0.45))">@element.Label</text>
+            var label = ElementDrawing.Label(element);
+            <g class="element kind-@element.Kind.ToString().ToLowerInvariant() @(element.IsRound ? "round" : "")">
+                <rect x="@Svg(bounds.Left)" y="@Svg(bounds.Top)" width="@Svg(bounds.Width)" height="@Svg(bounds.Height)" rx="0.05" fill="@ElementDrawing.Fill(element.Kind)" />
+                @((MarkupString)ElementDrawing.Svg(element))
+                <text x="@Svg(label.X)" y="@Svg(label.Y)" font-size="@Svg(label.FontSize)">@element.Label</text>
             </g>
         }
 

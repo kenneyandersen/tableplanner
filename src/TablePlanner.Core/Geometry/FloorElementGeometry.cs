@@ -15,6 +15,8 @@ public static class FloorElementGeometry
     public static string DisplayName(FloorElementKind kind) => kind switch
     {
         FloorElementKind.DanceFloor => "Dance floor",
+        FloorElementKind.DjBooth => "DJ booth",
+        FloorElementKind.PhotoBooth => "Photo booth",
         _ => kind.ToString(),
     };
 
@@ -30,6 +32,9 @@ public static class FloorElementGeometry
         FloorElementKind.Stage => (6, 3),
         FloorElementKind.DanceFloor => (5, 5),
         FloorElementKind.Cloakroom => (3, 2),
+        FloorElementKind.Pillar => (0.5, 0.5),
+        FloorElementKind.DjBooth => (2.5, 1.2),
+        FloorElementKind.PhotoBooth => (2, 2),
         _ => (2, 1),
     };
 }

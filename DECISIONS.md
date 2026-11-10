@@ -713,3 +713,13 @@ Notes: changes after testing (2026-11-07):
     show them). The guest page has them only with "Include people's names" (off by default, with a note that the page
     is public); then guests can search for their own name, and the matching name shows next to the group. The guest
     page also finds a group by its path, so searching a department lists its teams.
+- **Drawings of floor elements** (*new*): instead of a plain box, each kind has a simple drawing (`ElementDrawing`),
+  the same in the layout editor, on the plan page, and on the poster and guest page: stairs with a step every 30 cm and
+  an arrow up; a bar's counter with stools in front; dishes on a buffet; a stage's thick front edge; a light chequered
+  dance floor; a door and its swing for an entrance (and a green arrow out for an exit); WC figures; a cloakroom rail
+  with hangers. Kinds with a direction turn with the element (the bottom side is the front); icons stay upright, with
+  the label moved below them. Drawings bring their own colours (attributes), so the poster needs no stylesheet; the
+  editor's CSS only styles the box's outline (`> rect`).
+  - New kinds: Pillar (filled grey; square, or round with the "Round" switch), DJ booth (turntables and a mixer) and
+    Photo booth (a camera). Existing "Custom" elements stay as they are.
+  - `ElementGallery` (with TABLEPLANNER_GALLERY set to a file path) writes all kinds, upright and turned, to one page.

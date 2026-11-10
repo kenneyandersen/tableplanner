@@ -58,6 +58,11 @@
                     <MudSelectItem Value="kind">@FloorElementGeometry.DisplayName(kind)</MudSelectItem>
                 }
             </MudSelect>
+            @if (element.Kind == FloorElementKind.Pillar)
+            {
+                <MudSwitch T="bool" Value="element.IsRound" Label="Round" Color="Color.Primary"
+                           ValueChanged="@(v => EditElement(element.Id, "Change pillar shape", el => el.IsRound = v))" />
+            }
             <MudStack Row="true">
                 <MudNumericField T="double" Label="Width (m)" Value="element.Width" Min="0.1" Step="0.5" Variant="Variant.Outlined" Margin="Margin.Dense"
                                  ValueChanged="@(v => EditElement(element.Id, "Resize", el => el.Width = v))" />

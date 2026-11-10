@@ -1,0 +1,244 @@
+@* The import wizard: choose the sheet and the header row, then what each column holds. Returns the GroupFile to
+   preview and apply (GroupImportDialog). The column choices are remembered in this browser for files with the same
+   headers. *@
+@using TablePlanner.Export.Groups
+@using TablePlanner.Export.Tabular
+@inject IJSRuntime JS
+
+<MudDialog>
+    <DialogContent>
+        @if (_error is not null)
+        {
+            <MudAlert Severity="Severity.Error" Dense="true">@_error</MudAlert>
+        }
+        else if (_step == 1)
+        {
+            <MudText Typo="Typo.body2" Class="mb-2"><b>1. Where is the list?</b> Pick the sheet and the row with the column headings.</MudText>
+            <MudStack Row="true" Spacing="2" Class="mb-2" Wrap="Wrap.Wrap">
+                @if (_sheets.Count > 1)
+                {
+                    <MudSelect T="int" Value="_sheet" ValueChanged="SetSheet" Label="Sheet" Variant="Variant.Outlined" Margin="Margin.Dense" Style="min-width: 180px">
+                        @for (var i = 0; i < _sheets.Count; i++)
+                        {
+                            var index = i;
+                            <MudSelectItem Value="index">@_sheets[index].Name</MudSelectItem>
+                        }
+                    </MudSelect>
+                }
+                <MudSelect T="int" @bind-Value="_headerRow" Label="Headings are on" Variant="Variant.Outlined" Margin="Margin.Dense" Style="min-width: 320px">
+                    @foreach (var row in Rows.Where(r => !r.IsBlank).Take(15))
+                    {
+                        <MudSelectItem Value="row.RowNumber">Row @row.RowNumber: @Shorten(string.Join(", ", row.Cells.Where(c => c.Trim().Length > 0)))</MudSelectItem>
+                    }
+                </MudSelect>
+            </MudStack>
+            <div class="import-preview">
+                <table>
+                    @{ var data = ImportMapping.WithHeaderAt(Rows, _headerRow); }
+                    <tr>@foreach (var cell in data.Header) { <th>@cell</th> }</tr>
+                    @foreach (var row in data.Rows.Take(8))
+                    {
+                        <tr>@for (var c = 0; c < data.Header.Count; c++) { <td>@row.Cell(c)</td> }</tr>
+                    }
+                </table>
+                <MudText Typo="Typo.caption" Class="mud-text-secondary">@data.Rows.Count rows below the headings.</MudText>
+            </div>
+        }
+        else
+        {
+            var data = Data;
+            <MudText Typo="Typo.body2" Class="mb-2">
+                <b>2. What is in each column?</b> Rows can be groups (with a number of people), people (with their department,
+                team or group), or a mix. Columns set to "ignore" are not imported.
+            </MudText>
+            <div class="import-columns">
+                <table>
+                    @for (var c = 0; c < data.Header.Count; c++)
+                    {
+                        var column = c;
+                        <tr>
+                            <td><b>@(data.Header[c].Trim().Length > 0 ? data.Header[c] : $"Column {c + 1}")</b></td>
+                            <td class="mud-text-secondary">@Shorten(string.Join(", ", data.Rows.Select(r => r.Cell(column).Trim()).Where(v => v.Length > 0).Distinct().Take(3)))</td>
+                            <td>
+                                <MudSelect T="ColumnRole" Value="_roles[column]" ValueChanged="@(r => SetRole(column, r))" Margin="Margin.Dense" Dense="true" Variant="Variant.Outlined">
+                                    @foreach (var role in Enum.GetValues<ColumnRole>())
+                                    {
+                                        <MudSelectItem Value="role">@RoleLabel(role)</MudSelectItem>
+                                    }
+                                </MudSelect>
+                            </td>
+                        </tr>
+                    }
+                </table>
+            </div>
+
+            @if (_result is { } result)
+            {
+                var people = result.Groups.Sum(g => g.PeopleCount);
+                var named = result.Groups.Sum(g => g.Names?.Count ?? 0);
+                var parents = result.Groups.Count(g => result.Groups.Any(o => string.Equals(o.Parent, g.Name, StringComparison.OrdinalIgnoreCase)));
+                <MudText Typo="Typo.subtitle2" Class="mt-3">
+                    @(result.Groups.Count - parents) groups@(parents > 0 ? $" in {parents} parent groups" : ""), @people people@(named > 0 ? $", {named} named" : "")
+                </MudText>
+                <div class="import-tree">
+                    @foreach (var (group, level) in Tree(result).Take(MaxTreeLines))
+                    {
+                        <div style="padding-left: @((level - 1) * 16)px">
+                            @group.Name
+                            <span class="mud-text-secondary">@(group.PeopleCount > 0 ? $"({group.PeopleCount}{(group.Names is { Count: > 0 } n ? $", {n.Count} named" : "")})" : "")</span>
+                        </div>
+                    }
+                    @if (result.Groups.Count > MaxTreeLines)
+                    {
+                        <div class="mud-text-secondary">… and @(result.Groups.Count - MaxTreeLines) more</div>
+                    }
+                </div>
+                @if (result.Errors.Count > 0)
+                {
+                    <MudAlert Severity="Severity.Warning" Dense="true" Class="mt-2">
+                        @result.Errors.Count rows will be left out:
+                        <MessageList Messages="result.Errors" />
+                    </MudAlert>
+                }
+            }
+        }
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="() => Dialog.Cancel()">Cancel</MudButton>
+        @if (_step == 2)
+        {
+            <MudButton OnClick="() => _step = 1">Back</MudButton>
+            <MudButton Color="Color.Primary" Variant="Variant.Filled" Disabled="@(_result is not { Groups.Count: > 0 })" OnClick="Finish">Preview import</MudButton>
+        }
+        else if (_error is null)
+        {
+            <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="Next">Next</MudButton>
+        }
+    </DialogActions>
+</MudDialog>
+
+@code {
+    private const int MaxTreeLines = 40;
+    private const string StorageKey = "tableplanner:import-columns:";
+
+    [CascadingParameter] private IMudDialogInstance Dialog { get; set; } = null!;
+
+    [Parameter, EditorRequired] public string FileName { get; set; } = "";
+    [Parameter, EditorRequired] public byte[] Content { get; set; } = [];
+
+    private IReadOnlyList<GuestListSheet> _sheets = [];
+    private int _sheet;
+    private int _headerRow = 1;
+    private int _step = 1;
+    private string? _error;
+    private List<ColumnRole> _roles = [];
+    private GroupFile? _result;
+
+    private IReadOnlyList<TabularRow> Rows => _sheets.Count == 0 ? [] : _sheets[_sheet].Rows;
+
+    private TabularData Data => ImportMapping.WithHeaderAt(Rows, _headerRow);
+
+    protected override void OnInitialized()
+    {
+        try
+        {
+            _sheets = ImportMapping.ReadSheets(FileName, Content);
+            // Start on the first sheet that has a table (more than a title).
+            _sheet = Math.Max(0, _sheets.ToList().FindIndex(s => s.Rows.Count(r => !r.IsBlank) > 2));
+            _headerRow = ImportMapping.GuessHeaderRow(Rows);
+        }
+        catch (TabularFormatException ex)
+        {
+            _error = ex.Message;
+        }
+    }
+
+    private void SetSheet(int sheet)
+    {
+        _sheet = sheet;
+        _headerRow = ImportMapping.GuessHeaderRow(Rows);
+    }
+
+    private async Task Next()
+    {
+        var header = Data.Header;
+        _roles = ImportMapping.Guess(header);
+        // A file with the same headings as before gets the same choices.
+        try
+        {
+            if (await JS.InvokeAsync<string?>("localStorage.getItem", StorageKey + Signature(header)) is { } saved)
+            {
+                var roles = saved.Split(',').Select(r => Enum.TryParse<ColumnRole>(r, out var role) ? role : ColumnRole.Ignore).ToList();
+                if (roles.Count == header.Count)
+                    _roles = roles;
+            }
+        }
+        catch (JSException)
+        {
+        }
+        _step = 2;
+        Rebuild();
+    }
+
+    private void SetRole(int column, ColumnRole role)
+    {
+        _roles[column] = role;
+        Rebuild();
+    }
+
+    private void Rebuild() => _result = ImportMapping.Build(Data, _roles);
+
+    private async Task Finish()
+    {
+        try
+        {
+            await JS.InvokeVoidAsync("localStorage.setItem", StorageKey + Signature(Data.Header), string.Join(",", _roles));
+        }
+        catch (JSException)
+        {
+        }
+        Dialog.Close(DialogResult.Ok(_result!));
+    }
+
+    private static string Signature(IReadOnlyList<string> header) =>
+        string.Join("|", header.Select(h => h.Trim().ToLowerInvariant()));
+
+    /// <summary>The groups in tree order with their level, following the parent names.</summary>
+    private static IEnumerable<(ImportedGroup Group, int Level)> Tree(GroupFile file)
+    {
+        var byParent = file.Groups.ToLookup(g => g.Parent ?? "", StringComparer.OrdinalIgnoreCase);
+        var names = file.Groups.Select(g => g.Name).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        IEnumerable<(ImportedGroup, int)> Visit(ImportedGroup group, int level)
+        {
+            yield return (group, level);
+            if (level < 5)
+                foreach (var child in byParent[group.Name])
+                    foreach (var item in Visit(child, level + 1))
+                        yield return item;
+        }
+        return file.Groups.Where(g => g.Parent is null || !names.Contains(g.Parent)).SelectMany(g => Visit(g, 1));
+    }
+
+    private static string Shorten(string text) => text.Length > 70 ? text[..67] + "…" : text;
+
+    private static string RoleLabel(ColumnRole role) => role switch
+    {
+        ColumnRole.Ignore => "(ignore)",
+        ColumnRole.GroupName => "Group name",
+        ColumnRole.ParentGroup => "Parent group (its name)",
+        ColumnRole.Level1 => "Level 1, e.g. department",
+        ColumnRole.Level2 => "Level 2, e.g. team",
+        ColumnRole.Level3 => "Level 3, e.g. subteam",
+        ColumnRole.People => "Number of people",
+        ColumnRole.PersonName => "Person's name",
+        ColumnRole.FirstName => "First name",
+        ColumnRole.LastName => "Last name",
+        ColumnRole.Names => "Names (several, with ; between)",
+        ColumnRole.Preference => "Would like to sit with",
+        ColumnRole.ContactPerson => "Contact person",
+        ColumnRole.DietaryInfo => "Dietary info",
+        ColumnRole.Notes => "Notes",
+        ColumnRole.Colour => "Colour",
+        _ => role.ToString(),
+    };
+}

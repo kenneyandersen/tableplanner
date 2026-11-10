@@ -372,7 +372,7 @@
         if (_quickError is null)
         {
             var count = _quickPeople!.Value;
-            var parentId = _quickParent is { } q && Session.Project.Setup.FindGroup(q) is not null ? _quickParent : null;
+            var parentId = _quickParent is { } q && Session.Project!.Setup.FindGroup(q) is not null ? _quickParent : null;
             Session.History!.Execute("Add group", p => SetupOperations.AddGroup(p, name, count, parentId));
             _quickName = null;
             _quickPeople = null;
@@ -414,7 +414,14 @@
             return;
         }
 
-        var file = GroupFile.Read(e.File.Name, content);
+        // First the wizard (sheet, header row, what each column holds), then the preview of what changes.
+        var wizard = await Dialogs.ShowAsync<GroupImportWizard>($"Import groups from {e.File.Name}", new DialogParameters<GroupImportWizard>
+        {
+            { x => x.FileName, e.File.Name },
+            { x => x.Content, content },
+        }, new DialogOptions { MaxWidth = MaxWidth.Medium, FullWidth = true });
+        if (await wizard.Result is not { Canceled: false, Data: GroupFile file })
+            return;
         var parameters = new DialogParameters<GroupImportDialog>
         {
             { x => x.Project, Session.Project! },

@@ -14,7 +14,8 @@ Design decisions are recorded in [DECISIONS.md](DECISIONS.md).
 - **Layout:** floors with long tables (0–2 end seats) and round tables, floor elements (bar, stage, …) in layers, and
   a background image of the venue, with move, resize, rotate, snap to grid and undo.
 - **Groups:** a groups editor with quick add, up to 5 ranked preferences per group, and optional levels (departments,
-  teams, subteams) that the plan keeps together; CSV and Excel import/export.
+  teams, subteams) that the plan keeps together, optional names of people; an import wizard for guest lists in CSV or
+  Excel (any sheet, columns mapped to levels, groups, people and numbers), and export.
 - **Plan:** the solver seats groups close together and near the groups they prefer, without leaving small parts of
   a group alone at a table; two search methods (search, beam search); priority presets; re-optimizing with few changes; manual moves and swaps of groups or single people (also by drag
   and drop, from the plan or the group list), locks and pins, saved plans.

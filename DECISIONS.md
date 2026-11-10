@@ -683,3 +683,24 @@ Notes: changes after testing (2026-11-07):
   - Group export/import: a "Names" column (semicolon-separated), written when any group has names; on import, people
     with the same name keep their ID, a row without a number gets one per name, and names for a parent group go to its
     "– other" group. The import wizard (next) will also read one row per person.
+- **Import wizard** (*new*): Import on the Groups page first asks where the list is and what each column holds, then
+  shows the usual preview of what changes (added, updated, removed) before anything is applied.
+  - Step 1: the sheet (Excel files with several sheets; it starts on the first one with a table) and the row with the
+    headings, guessed as the row with the most known column names (or the fullest row), so titles and blank rows above
+    the table are fine. CSV: the separator is guessed from the first 20 lines (a title line no longer confuses it);
+    Danish Excel CSV in Windows-1252 keeps its æøå.
+  - Step 2: a role per column, guessed from the heading in English and Danish (Afdeling, Team, Underteam, Navn,
+    Fornavn/Efternavn, Antal, Kost, Bemærkninger, Ønske …); "Name/Navn" is a person next to a group column or two level
+    columns, otherwise the group. A live preview shows the groups as a tree, the counts, and rows that will be left out.
+    The choices are remembered in this browser for files with the same headings.
+  - How rows become groups (`ImportMapping.Build`): with level columns and/or person names, a row's group is its path
+    (level 1 › level 2 › level 3, then the group name if given). A row with a person's name adds that person, and a
+    number on such a row is their party ("2" = them and a guest); a row without one is the group with its number. Rows
+    may mix both. A group with subgroups that also has people of its own (someone only in a department) puts them in
+    "<name> – other". A name used under two parents gets the parent's name added ("North (Sales)"). Per-person dietary
+    info and notes are kept as "Name: text" in the group's. Without levels or person names (e.g. the app's own export)
+    the regular reader is used, so such files import exactly as before.
+  - Example files in `tests/testdata/imports` (made by `ImportExamples`; `TABLEPLANNER_GENERATE=1` writes them): the
+    app's own format, people with 3 levels and an updated version (moved, added, removed people, a +1), mixed people and
+    groups, a messy sheet (2 sheets, title, header on row 3, first/last name, a column to ignore), a Danish Excel CSV,
+    errors on purpose, and 700 people. Each has a test.

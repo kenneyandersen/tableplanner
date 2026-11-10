@@ -78,6 +78,9 @@ public class GroupLevelsTests(ITestOutputHelper output)
         Assert.All(summary.Groups, g => Assert.Equal(1, g.FloorCount));
         var big = Assert.Single(summary.ParentGroups);
         Assert.Equal(2, big.FloorCount);
+        // Counted in people: 160 placed, and at least the 8 who do not fit on one floor are away from the rest.
+        Assert.Equal(160, big.Placed);
+        Assert.InRange(big.PeopleApart, 8, 80);
         Assert.Contains(summary.Issues, i => i.GroupId == department.Id && i.Message.Contains("floors"));
     }
 

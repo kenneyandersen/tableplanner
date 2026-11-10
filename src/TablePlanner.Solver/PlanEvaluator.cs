@@ -362,8 +362,11 @@ public sealed class PlanEvaluator
             _parentTables.Clear();
             foreach (var g in _problem.ParentMembers[c])
                 foreach (var t in _tablesOf[g])
-                    if (_parentCount[t]++ == 0)
+                {
+                    if (_parentCount[t] == 0)
                         _parentTables.Add(t);
+                    _parentCount[t] += _tableCount2D[g * _tableCount + t];
+                }
 
             var placed = 0;
             foreach (var t in _parentTables)

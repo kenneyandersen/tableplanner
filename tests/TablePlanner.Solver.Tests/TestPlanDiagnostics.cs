@@ -54,6 +54,7 @@ public class TestPlanDiagnostics(ITestOutputHelper output)
         foreach (var run in runs)
         {
             var (warnings, apart, small, split, unplaced, firstMet, firstWanted, score) = (0, 0, 0, 0, 0, 0, 0, 0.0);
+            var parentApart = 0;
             PlanSummary? worst = null;
             int[]? worstPlan = null;
             for (var i = 0; i < Repeats; i++)
@@ -71,11 +72,13 @@ public class TestPlanDiagnostics(ITestOutputHelper output)
                 unplaced += s.PeopleTotal - s.PeoplePlaced;
                 (firstMet, firstWanted) = (firstMet + (first?.Met ?? 0), firstWanted + (first?.Wanted ?? 0));
                 score += s.Score;
+                parentApart += s.ParentGroups.Sum(p => p.PeopleApart);
                 if (worst is null || s.Issues.Count > worst.Issues.Count)
                     (worst, worstPlan) = (s, problem.ToPlan(result.Assignment!));
             }
             output.WriteLine($"== {file} | {run.Name,-11} | score {score / Repeats,7:0} | warnings {warnings,2} | people apart {apart,3} | "
-                + $"small parts {small,2} | split groups {split / (double)Repeats,4:0.0} | 1st choices {firstMet}/{firstWanted} | unplaced {unplaced}");
+                + $"small parts {small,2} | split groups {split / (double)Repeats,4:0.0} | 1st choices {firstMet}/{firstWanted} | unplaced {unplaced}"
+                + (parentApart > 0 ? $" | apart from parent group {parentApart}" : ""));
             if (worst!.Issues.Count > 0)
                 Print($"   worst of {Repeats}", worst, problem, worstPlan!);
         }
@@ -87,7 +90,8 @@ public class TestPlanDiagnostics(ITestOutputHelper output)
             + $"{s.Groups.Sum(g => g.PeopleApart)} people apart, choices met {string.Join(" ", s.PreferenceStats.Select(p => $"{p.Met}/{p.Wanted}"))}");
         foreach (var issue in s.Issues)
         {
-            var numbers = s.Groups.First(g => g.GroupId == issue.GroupId).TableNumbers;
+            var numbers = s.Groups.FirstOrDefault(g => g.GroupId == issue.GroupId)?.TableNumbers
+                ?? s.ParentGroups.FirstOrDefault(p => p.GroupId == issue.GroupId)?.TableNumbers ?? [];
             output.WriteLine($"  ! {issue.Message}");
             foreach (var t in problem.Graph.Tables.Where(t => numbers.Contains(t.Table.Number)))
             {

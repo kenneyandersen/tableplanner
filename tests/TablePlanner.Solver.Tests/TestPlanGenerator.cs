@@ -21,6 +21,7 @@ public class TestPlanGenerator
         ["Club party 220 full"] = ClubParty,
         ["Conference lunch 96"] = ConferenceLunch,
         ["Festival 1080"] = Festival,
+        ["Company levels 440"] = CompanyLevels,
     };
 
     [Theory]
@@ -210,6 +211,75 @@ public class TestPlanGenerator
             < 0.25 => random.Next(12, 31),
             _ => random.Next(2, 12),
         }, TeamNames, preferenceChance: 0.4, maxPreferences: 3);
+        return project;
+    }
+
+    /// <summary>
+    /// Group levels: 6 departments with 2–4 teams of 6–20 (some teams in 2 subteams) and a few groups without a
+    /// department; 440 people of 467 seats on two floors (a hall of long tables of 22 and a side room of round tables
+    /// of 10; upstairs rows of tables of 16, 3 seats disabled). Preferences between departments and between teams.
+    /// </summary>
+    private static EventProject CompanyLevels()
+    {
+        var random = new Random(606);
+        var ground = new Floor { Name = "Ground floor", Number = 1 };
+        var number = 101;
+        for (var row = 0; row < 5; row++)
+            for (var col = 0; col < 2; col++)
+                ground.Tables.Add(new Table { Number = number++, SeatsPerSide = 11, X = 5 + col * 7.2, Y = 3 + row * 2.5 });
+        for (var i = 0; i < 6; i++)
+            ground.Tables.Add(Round(number++, 10, 22 + (i % 3) * 3.4, 4 + (i / 3) * 3.4));
+        var upstairs = new Floor { Name = "First floor", Number = 2 };
+        number = 201;
+        for (var row = 0; row < 4; row++)
+            for (var col = 0; col < 3; col++)
+                upstairs.Tables.Add(new Table { Number = number++, SeatsPerSide = 8, X = 4 + col * 5.4, Y = 3 + row * 2.5 });
+        upstairs.Tables[0].DisabledSeats = [0, 8];
+        upstairs.Tables[5].DisabledSeats = [15];
+
+        var project = new EventProject();
+        project.Setup.Floors.AddRange([ground, upstairs]);
+        var groups = project.Setup.Groups;
+        var people = 0;
+        foreach (var name in new[] { "Sales", "Marketing", "Finance", "IT", "Operations", "HR" })
+        {
+            var department = new Group { Name = name, PeopleCount = 0 };
+            groups.Add(department);
+            var teams = 2 + random.Next(3);
+            for (var t = 1; t <= teams; t++)
+            {
+                var team = new Group { Name = $"{name} team {t}", ParentId = department.Id, PeopleCount = random.Next(6, 21) };
+                groups.Add(team);
+                if (random.NextDouble() < 0.3)
+                {
+                    var half = team.PeopleCount / 2;
+                    groups.Add(new Group { Name = $"{team.Name} A", ParentId = team.Id, PeopleCount = half });
+                    groups.Add(new Group { Name = $"{team.Name} B", ParentId = team.Id, PeopleCount = team.PeopleCount - half });
+                    people += team.PeopleCount;
+                    team.PeopleCount = 0;
+                }
+                else
+                    people += team.PeopleCount;
+            }
+        }
+        foreach (var name in new[] { "Board", "Partners", "Guests", "Press", "Alumni", "Suppliers", "Interns", "Speakers" })
+        {
+            if (people >= 440)
+                break;
+            var size = Math.Min(people >= 440 - 20 ? 440 - people : random.Next(4, 13), 440 - people);
+            groups.Add(new Group { Name = name, PeopleCount = size });
+            people += size;
+        }
+        if (people < 440)
+            groups.Add(new Group { Name = "Late additions", PeopleCount = 440 - people });
+
+        Group Named(string name) => groups.First(g => g.Name == name);
+        Named("Sales").PreferredGroupIds = [Named("Marketing").Id];
+        Named("IT").PreferredGroupIds = [Named("Operations").Id, Named("Finance").Id];
+        Named("Board").PreferredGroupIds = [Named("Partners").Id];
+        Named("Partners").PreferredGroupIds = [Named("Sales").Id];
+        Named("HR team 1").PreferredGroupIds = [Named("Finance team 1").Id];
+        Named("Marketing team 2").PreferredGroupIds = [Named("Sales team 1").Id];
         return project;
     }
 

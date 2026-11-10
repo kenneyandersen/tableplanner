@@ -45,10 +45,10 @@
                 {
                     var groupId = _groupAt.GetValueOrDefault(seat.Id);
                     var group = groupId == Guid.Empty ? null : Setup.FindGroup(groupId);
-                    var dimmed = Selected is { } h && h != groupId && !MoveMode && _drag is not { Started: true };
+                    var dimmed = Selected is not null && !IsSelected(groupId) && !MoveMode && _drag is not { Started: true };
                     var seatId = seat.Id;
                     <circle cx="@Svg(seat.Position.X)" cy="@Svg(seat.Position.Y)" r="0.22"
-                            class="seat @(seat.IsDisabled ? "disabled" : "") @(group is null ? "empty" : "taken") @(dimmed ? "dimmed" : "") @(Selected == groupId && group is not null ? "highlighted" : "") @(group is not null && Pinned.Contains(groupId) ? "pinned" : "") @DropClass(seatId)"
+                            class="seat @(seat.IsDisabled ? "disabled" : "") @(group is null ? "empty" : "taken") @(dimmed ? "dimmed" : "") @(group is not null && IsSelected(groupId) ? "highlighted" : "") @(group is not null && Pinned.Contains(groupId) ? "pinned" : "") @DropClass(seatId)"
                             style="@(group is null ? null : $"fill: {Colours.GetValueOrDefault(groupId, "#ccc")}")"
                             @onclick="() => SeatClicked.InvokeAsync(seatId)" @onclick:stopPropagation="true"
                             @onpointerdown="e => OnGroupPointerDown(e, group?.Id, seatId)">
@@ -59,7 +59,7 @@
                 <text class="table-number" x="@Svg(numberAt.X)" y="@Svg(numberAt.Y)" font-size="@Svg(GroupLabels.TableNumberFontSize)">@table.Number</text>
                 @foreach (var block in GroupLabels.For(table, seats, _groupAt, Setup))
                 {
-                    var dimmed = Selected is { } h && h != block.GroupId && !MoveMode;
+                    var dimmed = Selected is not null && !IsSelected(block.GroupId) && !MoveMode;
                     @* Wrapped in <g>: a <text> element directly in a code block would be Razor's own <text> tag. *@
                     <g class="group-label @(dimmed ? "dimmed" : "")" @onclick="() => GroupClicked.InvokeAsync(block.GroupId)" @onclick:stopPropagation="true"
                        @onpointerdown="e => OnGroupPointerDown(e, block.GroupId)">
@@ -95,8 +95,13 @@
     /// <summary>Pixels per metre.</summary>
     [Parameter] public double Scale { get; set; } = 40;
 
-    /// <summary>The selected group: drawn in full colour while the others are dimmed.</summary>
+    /// <summary>The selected group: drawn in full colour while the others are dimmed (see <see cref="SelectedGroups"/>).</summary>
     [Parameter] public Guid? Selected { get; set; }
+
+    /// <summary>The seated groups drawn as selected: for a selected parent group all groups below it. Null: just <see cref="Selected"/>.</summary>
+    [Parameter] public IReadOnlySet<Guid>? SelectedGroups { get; set; }
+
+    private bool IsSelected(Guid groupId) => SelectedGroups?.Contains(groupId) ?? Selected == groupId;
 
     /// <summary>Groups that are locked or pinned, drawn with a dashed outline.</summary>
     [Parameter] public IReadOnlySet<Guid> Pinned { get; set; } = new HashSet<Guid>();

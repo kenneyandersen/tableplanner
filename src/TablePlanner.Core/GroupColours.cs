@@ -16,6 +16,18 @@ public static class GroupColours
         return colours;
     }
 
+    /// <summary>
+    /// Colours with group levels: each group in the colour of its parent group at <paramref name="level"/> (1 = top), so
+    /// that departments stand out. Level 0, or a group above that level, keeps its own colour (see <see cref="For"/>).
+    /// </summary>
+    public static IReadOnlyDictionary<Guid, string> ForLevel(EventSetup setup, int level)
+    {
+        var own = For(setup);
+        if (level <= 0)
+            return own;
+        return setup.Groups.ToDictionary(g => g.Id, g => own[setup.AtLevel(g, level).Id]);
+    }
+
     /// <summary>Clearly different colours for the first groups (based on the Tableau 20 palette, ordered so neighbours differ).</summary>
     private static readonly string[] Palette =
     [

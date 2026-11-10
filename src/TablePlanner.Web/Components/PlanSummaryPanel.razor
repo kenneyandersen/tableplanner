@@ -51,11 +51,29 @@ else
 
 <MudText Typo="Typo.subtitle2" Class="mt-1">Groups</MudText>
 <div class="group-list">
-    @foreach (var group in Summary.Groups.OrderBy(g => g.Name, StringComparer.CurrentCultureIgnoreCase))
+    @foreach (var (group, parent, level) in Rows())
     {
-        var id = group.GroupId;
+        @if (parent is not null)
+        {
+            @* A parent group (department, team with subteams): click to select all its groups; not dragged. *@
+            var parentId = parent.GroupId;
+            <div class="group-row parent-row @(Highlight == parentId ? "highlighted" : "")" style="padding-left: @((level - 1) * 14 + 4)px"
+                 @onclick="() => HighlightChanged.InvokeAsync(parentId)">
+                <span class="group-dot" style="background: @Colours.GetValueOrDefault(parentId, "#ccc")"></span>
+                <span class="group-name"><b>@parent.Name</b> <span class="group-count">(@parent.PeopleCount)</span></span>
+                <span class="group-tables">
+                    @if (parent.IsSpread)
+                    {
+                        <MudText Typo="Typo.caption" Color="Color.Warning" Inline="true">@parent.PeopleApart apart · </MudText>
+                    }
+                    @string.Join(", ", parent.TableNumbers)
+                </span>
+            </div>
+            continue;
+        }
+        var id = group!.GroupId;
         @* Rows can be dragged onto the floor plan (the browser's own drag and drop; see app.js for the drag data). *@
-        <div class="group-row @(Highlight == id ? "highlighted" : "")" @onclick="() => HighlightChanged.InvokeAsync(id)"
+        <div class="group-row @(Highlight == id ? "highlighted" : "")" style="@(level > 1 ? $"padding-left: {(level - 1) * 14 + 4}px" : null)" @onclick="() => HighlightChanged.InvokeAsync(id)"
              draggable="@(DragEnabled ? "true" : "false")" data-drag-group="@(DragEnabled ? "true" : null)"
              @ondragstart="() => DragStarted.InvokeAsync(id)" @ondragend="() => DragEnded.InvokeAsync()"
              title="@(DragEnabled ? "Click to select, or drag onto a seat of the floor plan" : null)">
@@ -89,6 +107,30 @@ else
     private bool _showAllIssues;
 
     [Parameter, EditorRequired] public PlanSummary Summary { get; set; } = default!;
+
+    /// <summary>The setup, for group levels: the list is then a tree with the parent groups. Optional.</summary>
+    [Parameter] public EventSetup? Setup { get; set; }
+
+    /// <summary>
+    /// The rows of the group list: without levels the groups by name; with levels in tree order, parent groups (with
+    /// seated groups) included.
+    /// </summary>
+    private IEnumerable<(GroupPlacement? Group, ParentPlacement? Parent, int Level)> Rows()
+    {
+        if (Setup is not { } setup || Summary.ParentGroups.Count == 0)
+        {
+            foreach (var g in Summary.Groups.OrderBy(g => g.Name, StringComparer.CurrentCultureIgnoreCase))
+                yield return (g, null, 1);
+            yield break;
+        }
+        var groups = Summary.Groups.ToDictionary(g => g.GroupId);
+        var parents = Summary.ParentGroups.ToDictionary(p => p.GroupId);
+        foreach (var (group, level) in setup.InTreeOrder())
+            if (groups.TryGetValue(group.Id, out var placement))
+                yield return (placement, null, level);
+            else if (parents.TryGetValue(group.Id, out var parent))
+                yield return (null, parent, level);
+    }
     [Parameter, EditorRequired] public IReadOnlyDictionary<Guid, string> Colours { get; set; } = default!;
     [Parameter] public IReadOnlySet<Guid> Pinned { get; set; } = new HashSet<Guid>();
     [Parameter] public Guid? Highlight { get; set; }

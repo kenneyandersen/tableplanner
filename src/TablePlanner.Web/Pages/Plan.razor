@@ -28,6 +28,16 @@
                         <MudToggleItem Value="f.Id" Text="@f.Name" />
                     }
                 </MudToggleGroup>
+                @if (setup.HasLevels())
+                {
+                    @* With group levels: colour the seats by department (or team), so the levels stand out. *@
+                    <MudSelect T="int" Value="_colourLevel" ValueChanged="SetColourLevel" Variant="Variant.Outlined" Margin="Margin.Dense" Dense="true"
+                               Class="ml-2 method-select" aria-label="Colour by">
+                        <MudSelectItem Value="0">Colour by group</MudSelectItem>
+                        <MudSelectItem Value="1">Colour by level 1</MudSelectItem>
+                        <MudSelectItem Value="2">Colour by level 2</MudSelectItem>
+                    </MudSelect>
+                }
 
                 <MudDivider Vertical="true" FlexItem="true" Class="mx-2" />
 
@@ -85,7 +95,7 @@
                         </MudChip>
                     }
                     <PlanCanvas Setup="setup" FloorId="floor.Id" Assignment="DisplayedAssignment" Colours="_colours" Scale="_scale" BackgroundUrl="@Session.ImageUrl(floor.Background?.ImageId)"
-                                Selected="_highlight" Pinned="_pinned" MoveMode="_moving" SeatClicked="OnSeatClicked" GroupClicked="HighlightGroup"
+                                Selected="_highlight" SelectedGroups="HighlightedGroups" Pinned="_pinned" MoveMode="_moving" SeatClicked="OnSeatClicked" GroupClicked="HighlightGroup"
                                 DragEnabled="_proposal is null" DropPreview="DropPreview" GroupDropped="OnGroupDropped" PersonDropped="OnPersonDropped" ListDrag="_listDrag" />
                 </div>
                 <div class="editor-side">
@@ -125,12 +135,13 @@
                     @if (SelectedGroup is { } selected)
                     {
                         <GroupDetailPanel Group="selected" Setup="setup" Assignment="DisplayedAssignment" Colour="@_colours.GetValueOrDefault(selected.Id, "#ccc")"
-                                          Placement="summary?.Groups.FirstOrDefault(g => g.GroupId == selected.Id)" Moving="_moving" Disabled="_proposal is not null"
+                                          Placement="summary?.Groups.FirstOrDefault(g => g.GroupId == selected.Id)" ParentPlacement="summary?.ParentGroups.FirstOrDefault(p => p.GroupId == selected.Id)" Moving="_moving" Disabled="_proposal is not null"
                                           OnMove="@(() => _moving = !_moving)" OnLock="@(() => Edit("Lock group", p => PlanOperations.Lock(p, selected.Id)))"
                                           OnUnpin="@(() => Edit("Remove pin", p => PlanOperations.Unpin(p, selected.Id)))"
                                           OnPinTable="@(t => Edit("Pin group to table", p => PlanOperations.PinToTable(p, selected.Id, t)))"
                                           OnPinFloor="@(f => Edit("Pin group to floor", p => PlanOperations.PinToFloor(p, selected.Id, f)))"
-                                          OnUnseat="@(() => Edit("Take group out of plan", p => PlanOperations.UnseatGroup(p, selected.Id)))"
+                                          OnUnseat="@(() => UnseatGroup(selected.Id))"
+                                          OnUnlockGroups="@(() => UnlockGroupsOf(selected.Id))"
                                           OnClose="@(() => HighlightGroup(null))" />
                     }
 
@@ -221,7 +232,7 @@
     {
         if (Session.Project is not { } project)
             return;
-        _colours = GroupColours.For(project.Setup);
+        _colours = GroupColours.ForLevel(project.Setup, project.Setup.HasLevels() ? _colourLevel : 0);
         _pinned = project.Setup.Pins.Select(p => p.GroupId).ToHashSet();
         _problem = null;
         if (_highlight is { } id && project.Setup.FindGroup(id) is null)
@@ -384,7 +395,7 @@
     {
         if (e.Key == "Escape")
             _moving = false;
-        else if (e.Key is "m" or "M" && SelectedGroup is not null && _proposal is null)
+        else if (e.Key is "m" or "M" && SelectedGroup is { } selected && !Session.Project!.Setup.HasChildren(selected.Id) && _proposal is null)
             _moving = !_moving;
     }
 
@@ -435,13 +446,46 @@
             Edit("Delete saved plan", p => PlanOperations.DeletePlan(p, id));
     }
 
+    /// <summary>The seated groups of the selected group: itself, or the groups below a selected parent group.</summary>
+    private IReadOnlySet<Guid> HighlightedGroups =>
+        SelectedGroup is { } g ? Session.Project!.Setup.BottomGroupsOf(g).Select(b => b.Id).ToHashSet() : new HashSet<Guid>();
+
+    /// <summary>Takes a group (or all groups of a parent group) out of the plan.</summary>
+    private void UnseatGroup(Guid groupId) => Edit("Take group out of plan", p =>
+    {
+        if (p.Setup.FindGroup(groupId) is { } group)
+            foreach (var bottom in p.Setup.BottomGroupsOf(group).ToList())
+                PlanOperations.UnseatGroup(p, bottom.Id);
+    });
+
+    /// <summary>Unlocks each group of a parent group that is locked to its seats.</summary>
+    private void UnlockGroupsOf(Guid parentId) => Edit("Unlock groups", p =>
+    {
+        if (p.Setup.FindGroup(parentId) is not { } parent)
+            return;
+        foreach (var bottom in p.Setup.BottomGroupsOf(parent).ToList())
+            if (p.Setup.Pins.Any(x => x.GroupId == bottom.Id && x.Scope == PinScope.Seats))
+                PlanOperations.Unpin(p, bottom.Id);
+    });
+
+    // ---- Colour by level ----
+
+    /// <summary>With group levels: 0 colours each group on its own, 1 by its top-level group, 2 by its group a level below.</summary>
+    private int _colourLevel;
+
+    private void SetColourLevel(int level)
+    {
+        _colourLevel = level;
+        Refresh();
+    }
+
     /// <summary>Selects a group (or deselects it when clicked again) and shows the floor where it sits.</summary>
     private void HighlightGroup(Guid? groupId)
     {
         if (groupId != _highlight)
             _moving = false;
         _highlight = _highlight == groupId ? null : groupId;
-        if (_highlight is { } id && DisplayedAssignment.SeatsOf(id).FirstOrDefault() is { TableId: var tableId } && tableId != Guid.Empty)
+        if (_highlight is not null && HighlightedGroups.SelectMany(DisplayedAssignment.SeatsOf).FirstOrDefault() is { TableId: var tableId } && tableId != Guid.Empty)
             if (Session.Project!.Setup.Floors.FirstOrDefault(f => f.Tables.Any(t => t.Id == tableId)) is { } floor)
                 _floorId = floor.Id;
     }

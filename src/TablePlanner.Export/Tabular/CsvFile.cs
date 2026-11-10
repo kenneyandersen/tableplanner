@@ -31,6 +31,13 @@ public static class CsvFile
         return TabularData.FromRows(Parse(text, separator));
     }
 
+    /// <summary>All rows as they are (titles and blank rows included), for choosing the header row.</summary>
+    public static IReadOnlyList<TabularRow> ReadRows(byte[] content)
+    {
+        var text = Decode(content);
+        return Parse(text, DetectSeparator(text)).ToList();
+    }
+
     /// <summary>UTF-8 (with or without byte order mark). Files that are not valid UTF-8 were most likely saved by Excel as "CSV" in the Windows code page, so they are read as Latin-1.</summary>
     private static string Decode(byte[] content)
     {
@@ -52,16 +59,21 @@ public static class CsvFile
         return needsQuotes ? $"\"{cell.Replace("\"", "\"\"")}\"" : cell;
     }
 
-    /// <summary>The separator that occurs most often in the first line, outside quotes. Ties go to ';'.</summary>
+    /// <summary>
+    /// The separator that occurs most often in the first lines, outside quotes (not just the first line: a file may start
+    /// with a title above the header). Ties go to ';'.
+    /// </summary>
     private static char DetectSeparator(string text)
     {
+        const int LinesToCheck = 20;
         var counts = new int[Separators.Length];
         var inQuotes = false;
+        var lines = 0;
         foreach (var c in text)
         {
             if (c == '"')
                 inQuotes = !inQuotes;
-            else if (!inQuotes && c is '\n' or '\r')
+            else if (!inQuotes && c == '\n' && ++lines >= LinesToCheck)
                 break;
             else if (!inQuotes && Array.IndexOf(Separators, c) is var i and >= 0)
                 counts[i]++;

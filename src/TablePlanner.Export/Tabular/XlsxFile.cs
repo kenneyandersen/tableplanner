@@ -18,19 +18,27 @@ public static class XlsxFile
 
     // ---- Writing ----
 
+    /// <summary>A sheet to write: its rows (the first is the header), and the columns whose whole numbers are written as numbers.</summary>
+    public sealed record SheetToWrite(string Name, IReadOnlyList<IReadOnlyList<string>> Rows, IReadOnlySet<int>? NumericColumns = null);
+
     /// <summary>Writes one sheet. The first row is the header (bold, frozen). Cells that are whole numbers are written as numbers where <paramref name="numericColumns"/> says so.</summary>
-    public static byte[] Write(string sheetName, IReadOnlyList<IReadOnlyList<string>> rows, IReadOnlySet<int>? numericColumns = null)
+    public static byte[] Write(string sheetName, IReadOnlyList<IReadOnlyList<string>> rows, IReadOnlySet<int>? numericColumns = null) =>
+        Write([new SheetToWrite(sheetName, rows, numericColumns)]);
+
+    /// <summary>Writes several sheets, in order; each like <see cref="Write(string, IReadOnlyList{IReadOnlyList{string}}, IReadOnlySet{int}?)"/>.</summary>
+    public static byte[] Write(IReadOnlyList<SheetToWrite> sheets)
     {
         using var output = new MemoryStream();
         using (var zip = new ZipArchive(output, ZipArchiveMode.Create, leaveOpen: true))
         {
-            AddPart(zip, "[Content_Types].xml", """
+            var numbers = Enumerable.Range(1, sheets.Count).ToList();
+            AddPart(zip, "[Content_Types].xml", $"""
                 <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
                 <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
                 <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
                 <Default Extension="xml" ContentType="application/xml"/>
                 <Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>
-                <Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>
+                {string.Concat(numbers.Select(n => $"""<Override PartName="/xl/worksheets/sheet{n}.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>"""))}
                 <Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>
                 </Types>
                 """);
@@ -40,21 +48,22 @@ public static class XlsxFile
                 <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/>
                 </Relationships>
                 """);
-            AddPart(zip, "xl/_rels/workbook.xml.rels", """
+            // Sheets are rId1..n; the styles come after them.
+            AddPart(zip, "xl/_rels/workbook.xml.rels", $"""
                 <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
                 <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
-                <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/>
-                <Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>
+                {string.Concat(numbers.Select(n => $"""<Relationship Id="rId{n}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet{n}.xml"/>"""))}
+                <Relationship Id="rId{sheets.Count + 1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>
                 </Relationships>
                 """);
             AddPart(zip, "xl/workbook.xml", new XDocument(
                 new XElement(XName.Get("workbook", MainNs),
                     new XAttribute(XNamespace.Xmlns + "r", RelNs),
                     new XElement(XName.Get("sheets", MainNs),
-                        new XElement(XName.Get("sheet", MainNs),
-                            new XAttribute("name", SheetName(sheetName)),
-                            new XAttribute("sheetId", 1),
-                            new XAttribute(XName.Get("id", RelNs), "rId1"))))));
+                        numbers.Select(n => new XElement(XName.Get("sheet", MainNs),
+                            new XAttribute("name", SheetName(sheets[n - 1].Name)),
+                            new XAttribute("sheetId", n),
+                            new XAttribute(XName.Get("id", RelNs), $"rId{n}")))))));
             // Style 1 = bold, for the header row.
             AddPart(zip, "xl/styles.xml", """
                 <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
@@ -66,7 +75,8 @@ public static class XlsxFile
                 <cellXfs count="2"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/><xf numFmtId="0" fontId="1" fillId="0" borderId="0" xfId="0" applyFont="1"/></cellXfs>
                 </styleSheet>
                 """);
-            AddPart(zip, "xl/worksheets/sheet1.xml", Worksheet(rows, numericColumns ?? new HashSet<int>()));
+            foreach (var n in numbers)
+                AddPart(zip, $"xl/worksheets/sheet{n}.xml", Worksheet(sheets[n - 1].Rows, sheets[n - 1].NumericColumns ?? new HashSet<int>()));
         }
         return output.ToArray();
     }
@@ -153,6 +163,42 @@ public static class XlsxFile
     }
 
     // ---- Reading ----
+
+    /// <summary>
+    /// Every sheet of the workbook, in order, with all its rows as they are (titles and blank rows included), for
+    /// choosing the sheet and its header row.
+    /// </summary>
+    public static IReadOnlyList<(string Name, IReadOnlyList<TabularRow> Rows)> ReadSheets(byte[] content)
+    {
+        try
+        {
+            using var zip = new ZipArchive(new MemoryStream(content), ZipArchiveMode.Read);
+            var workbookPath = FindRelationship(zip, "_rels/.rels", "", "/officeDocument") ?? "xl/workbook.xml";
+            var workbook = LoadPart(zip, workbookPath) ?? throw new TabularFormatException("The Excel file has no workbook.");
+            var workbookRels = RelationshipsPath(workbookPath);
+            var baseDir = Path.GetDirectoryName(workbookPath)?.Replace('\\', '/') ?? "";
+            var sharedStringsPath = FindRelationship(zip, workbookRels, baseDir, "/sharedStrings");
+            var sharedStrings = (sharedStringsPath is null ? null : LoadPart(zip, sharedStringsPath))?.Root?.Elements()
+                .Where(e => e.Name.LocalName == "si").Select(StringItemText).ToList() ?? [];
+
+            var sheets = new List<(string, IReadOnlyList<TabularRow>)>();
+            foreach (var element in workbook.Descendants().Where(e => e.Name.LocalName == "sheet"))
+            {
+                var relId = element.Attributes().FirstOrDefault(a => a.Name.LocalName == "id" && a.Name.Namespace != XNamespace.None)?.Value;
+                var path = relId is null ? null : FindRelationshipById(zip, workbookRels, baseDir, relId);
+                if (path is null || LoadPart(zip, path) is not { } sheet)
+                    continue;
+                sheets.Add((element.Attribute("name")?.Value ?? $"Sheet {sheets.Count + 1}", ReadRows(sheet, sharedStrings).ToList()));
+            }
+            if (sheets.Count == 0)
+                throw new TabularFormatException("The Excel file has no sheets.");
+            return sheets;
+        }
+        catch (Exception ex) when (ex is InvalidDataException or XmlException or IOException)
+        {
+            throw new TabularFormatException("The file is not a valid Excel (.xlsx) file.", ex);
+        }
+    }
 
     public static TabularData Read(byte[] content)
     {

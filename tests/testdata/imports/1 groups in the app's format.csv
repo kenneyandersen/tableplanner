@@ -1,0 +1,16 @@
+﻿Name;People;Contact person;Dietary info;Colour;Notes;Preference 1;Preference 2;Preference 3;Preference 4;Preference 5
+Sales;50;;;;;Marketing;Support;;;
+Engineering;40;;;;;Support;Board;;;
+Support;32;;;;;;;;;
+Marketing;24;;;;;Sales;;;;
+Finance;18;;;;;Board;;;;
+Board;12;;;;;;;;;
+Smith family;10;;;;;Jensen family;Neighbours;;;
+Jensen family;8;;;;;Smith family;Hansen family;;;
+Hansen family;8;;;;;;;;;
+Old classmates;6;;;;;;;;;
+Neighbours;6;;;;;;;;;
+Book club;5;;;;;;;;;
+Nielsen family;4;;;;;Andersen family;Larsen family;;;
+Andersen family;4;;;;;Nielsen family;;;;
+Larsen family;4;;;;;;;;;

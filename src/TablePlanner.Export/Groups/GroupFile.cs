@@ -168,6 +168,11 @@ public sealed partial class GroupFile
     /// <summary>Names in the Names column are separated by semicolons or line breaks.</summary>
     private static readonly char[] NameSeparators = [';', '\n', '\r'];
 
+    /// <summary>Groups read another way (the import wizard's <see cref="ImportMapping"/>), with the columns they fill.</summary>
+    internal static GroupFile Create(IReadOnlyList<ImportedGroup> groups, IReadOnlySet<GroupColumn> columns,
+        IReadOnlyList<ImportMessage> errors, IReadOnlyList<ImportMessage> warnings) =>
+        new(groups, columns, errors, warnings, []);
+
     private static GroupFile Failed(string error) =>
         new([], new HashSet<GroupColumn>(), [new ImportMessage(null, error)], [], []);
 

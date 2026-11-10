@@ -24,15 +24,48 @@ public sealed class SeatingProblem
 
         Size = Groups.Select(g => g.PeopleCount).ToArray();
 
-        Preferences = Groups
-            .Select((g, i) => g.PreferredGroupIds
-                .Select(id => _groupIndex.TryGetValue(id, out var j) ? j : -1)
-                .Where(j => j >= 0 && j != i)
-                .Distinct()
-                .Take(Group.MaxPreferences)
-                .ToArray())
+        // Parent groups (departments, teams with subteams) that have seated groups below them.
+        var parents = setup.Groups.Where(g => setup.HasChildren(g.Id)).ToList();
+        var members = parents.Select(p => setup.BottomGroupsOf(p).Select(b => IndexOfGroup(b.Id)).OfType<int>().ToArray()).ToList();
+        ParentGroups = parents.Where((_, i) => members[i].Length > 0).ToList();
+        ParentMembers = members.Where(m => m.Length > 0).ToArray();
+        ParentLevel = ParentGroups.Select(setup.LevelOf).ToArray();
+        _parentIndex = ParentGroups.Select((p, i) => (p.Id, i)).ToDictionary(x => x.Id, x => x.i);
+        GroupParents = Groups.Select(g => setup.AncestorsOf(g).Select(a => _parentIndex.TryGetValue(a.Id, out var c) ? c : -1).Where(c => c >= 0).ToArray()).ToArray();
+
+        // Preferences: between seated groups as before (by rank), and those to or from a parent group as "units".
+        var unitPreferences = new List<UnitPreference>();
+        int? UnitOf(Guid id) => _groupIndex.TryGetValue(id, out var g) ? g : _parentIndex.TryGetValue(id, out var c) ? Groups.Count + c : null;
+        var cleaned = Groups.Select(g => g.Id).Concat(ParentGroups.Select(p => p.Id))
+            .Select((id, unit) => setup.FindGroup(id)!.PreferredGroupIds
+                .Select(UnitOf).OfType<int>().Where(u => u != unit).Distinct().Take(Group.MaxPreferences).ToArray())
             .ToArray();
+        Preferences = new int[Groups.Count][];
+        PreferenceRanks = new int[Groups.Count][];
+        for (var g = 0; g < Groups.Count; g++)
+        {
+            var toGroups = cleaned[g].Select((u, rank) => (u, rank)).Where(x => x.u < Groups.Count).ToArray();
+            Preferences[g] = toGroups.Select(x => x.u).ToArray();
+            PreferenceRanks[g] = toGroups.Select(x => x.rank).ToArray();
+        }
         IsMutual = Preferences.Select((prefs, g) => prefs.Select(h => Preferences[h].Contains(g)).ToArray()).ToArray();
+        for (var unit = 0; unit < cleaned.Length; unit++)
+            for (var rank = 0; rank < cleaned[unit].Length; rank++)
+                if (cleaned[unit][rank] is var to && (unit >= Groups.Count || to >= Groups.Count))
+                    unitPreferences.Add(new UnitPreference(unit, to, rank, cleaned[to].Contains(unit)));
+        UnitPreferences = unitPreferences;
+
+        // Groups worth seating next to each other: preferences, siblings, and the groups below a preferred parent.
+        // Without parents this is just the preferred groups, as before.
+        MoveTargets = Groups.Select((_, g) =>
+        {
+            var targets = new List<int>(Preferences[g]);
+            foreach (var p in unitPreferences.Where(p => p.From == g && p.To >= Groups.Count))
+                targets.AddRange(ParentMembers[p.To - Groups.Count]);
+            if (GroupParents[g] is [var nearest, ..])
+                targets.AddRange(ParentMembers[nearest]);
+            return targets.Where(t => t != g).Distinct().ToArray();
+        }).ToArray();
 
         FloorPin = new int[Groups.Count];
         TablePin = new int[Groups.Count];
@@ -57,6 +90,17 @@ public sealed class SeatingProblem
                     SeatPin[g] = pin.Seats.Select(graph.IndexOf).OfType<int>().Distinct().ToArray();
                     break;
             }
+        }
+        // A floor or table pin on a parent group holds each of its groups that has no pin of its own.
+        foreach (var pin in setup.Pins)
+        {
+            if (!_parentIndex.TryGetValue(pin.GroupId, out var c))
+                continue;
+            foreach (var g in ParentMembers[c].Where(g => FloorPin[g] < 0 && TablePin[g] < 0 && SeatPin[g] is null))
+                if (pin is { Scope: PinScope.Floor, FloorId: { } f } && floorIndex.TryGetValue(f, out var fi))
+                    FloorPin[g] = fi;
+                else if (pin is { Scope: PinScope.Table, TableId: { } t } && tableIndex.TryGetValue(t, out var ti))
+                    TablePin[g] = ti;
         }
 
         // The seats either side of each seat along the same side of its table, for the empty-gap rule.
@@ -91,8 +135,32 @@ public sealed class SeatingProblem
 
     internal int[] Size { get; }
 
-    /// <summary>Preferred group indices per group, most wanted first, cleaned of unknown groups, itself and duplicates.</summary>
+    /// <summary>
+    /// Preferred seated groups per group, most wanted first, cleaned of unknown groups, itself and duplicates.
+    /// Preferences for parent groups are in <see cref="UnitPreferences"/>.
+    /// </summary>
     internal int[][] Preferences { get; }
+
+    /// <summary>Per group, parallel to <see cref="Preferences"/>: the rank of each (0 = first choice), counting preferences for parent groups too.</summary>
+    internal int[][] PreferenceRanks { get; }
+
+    /// <summary>Parent groups with at least one seated group below them. Index c is "unit" Groups.Count + c in <see cref="UnitPreferences"/>.</summary>
+    public IReadOnlyList<Group> ParentGroups { get; }
+
+    /// <summary>Per parent group: the seated groups below it.</summary>
+    internal int[][] ParentMembers { get; }
+
+    /// <summary>Per parent group: its level (1 = top).</summary>
+    internal int[] ParentLevel { get; }
+
+    /// <summary>Per seated group: its parent groups (indices into <see cref="ParentGroups"/>), nearest first.</summary>
+    internal int[][] GroupParents { get; }
+
+    /// <summary>Preferences to or from a parent group. Units below Groups.Count are seated groups, the rest parent groups.</summary>
+    internal IReadOnlyList<UnitPreference> UnitPreferences { get; }
+
+    /// <summary>Per seated group: groups it would be good to seat next to (preferences, siblings, groups of a preferred parent).</summary>
+    internal int[][] MoveTargets { get; }
 
     /// <summary>Per group and rank: whether the preferred group also prefers this group.</summary>
     internal bool[][] IsMutual { get; }
@@ -117,6 +185,8 @@ public sealed class SeatingProblem
         new(setup, priorities, SeatGraph.Build(setup, graphOptions));
 
     public int? IndexOfGroup(Guid groupId) => _groupIndex.TryGetValue(groupId, out var index) ? index : null;
+
+    private readonly Dictionary<Guid, int> _parentIndex;
 
     /// <summary>A plan from an assignment. Seats that no longer exist and groups that are not in the problem are left out.</summary>
     public int[] ToPlan(SeatingAssignment assignment)
@@ -144,3 +214,6 @@ public sealed class SeatingProblem
         return plan;
     }
 }
+
+/// <summary>A preference where one side is a parent group. A unit below the number of seated groups is a seated group, otherwise a parent group.</summary>
+internal readonly record struct UnitPreference(int From, int To, int Rank, bool Mutual);

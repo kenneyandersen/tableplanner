@@ -38,6 +38,14 @@ public sealed class SeatingPriorities
     /// </summary>
     public double ApartPersonPenalty { get; set; } = 200;
 
+    /// <summary>
+    /// Like <see cref="ApartPersonPenalty"/>, for parent groups (a department of teams): per person away from the main
+    /// part of their parent group, growing with the distance. For a top-level group; a group a level below counts double,
+    /// so teams stay closer together than whole departments. Much lower than for a bottom group: a large department may
+    /// spread over several tables or areas, and even floors, when it must.
+    /// </summary>
+    public double ParentApartPenalty { get; set; } = 40;
+
     /// <summary>Per floor a group uses beyond the first.</summary>
     public double FloorSplitPenalty { get; set; } = 1000;
 

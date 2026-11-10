@@ -18,6 +18,7 @@ public static class PriorityPresets
             (p.TableSplitPenalty, p.DistantTableSplitPenalty, p.FloorSplitPenalty) = (150, 300, 3000);
             p.SmallFragmentPenalty = 400;
             p.ApartPersonPenalty = 600;
+            p.ParentApartPenalty = 120;
             p.PreferenceRankWeights = [100, 30, 10, 3, 1];
             p.MutualPreferenceBonus = 25;
         }),
@@ -55,6 +56,7 @@ public static class PriorityPresets
         target.TableSplitPenalty = source.TableSplitPenalty;
         target.DistantTableSplitPenalty = source.DistantTableSplitPenalty;
         target.ApartPersonPenalty = source.ApartPersonPenalty;
+        target.ParentApartPenalty = source.ParentApartPenalty;
         target.FloorSplitPenalty = source.FloorSplitPenalty;
         target.SmallFragmentPenalty = source.SmallFragmentPenalty;
         target.EmptySeatGapPenalty = source.EmptySeatGapPenalty;
@@ -68,6 +70,7 @@ public static class PriorityPresets
         && a.BackToBackWeight == b.BackToBackWeight && a.SameTableWeight == b.SameTableWeight && a.AdjacentTableWeight == b.AdjacentTableWeight
         && a.TableSplitPenalty == b.TableSplitPenalty && a.DistantTableSplitPenalty == b.DistantTableSplitPenalty
         && a.ApartPersonPenalty == b.ApartPersonPenalty
+        && a.ParentApartPenalty == b.ParentApartPenalty
         && a.FloorSplitPenalty == b.FloorSplitPenalty && a.SmallFragmentPenalty == b.SmallFragmentPenalty
         && a.EmptySeatGapPenalty == b.EmptySeatGapPenalty && a.MovedPersonPenalty == b.MovedPersonPenalty
         && a.MutualPreferenceBonus == b.MutualPreferenceBonus

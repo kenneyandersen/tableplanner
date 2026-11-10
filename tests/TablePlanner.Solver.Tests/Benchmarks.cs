@@ -72,6 +72,58 @@ internal static class Benchmarks
         return project;
     }
 
+    /// <summary>
+    /// Group levels: 5 departments of 2–4 teams (team sizes 3–14, some teams split into 2 subteams), about 90 % full,
+    /// in a venue of two floors, each with a main room of 2 × 3 tables of 20 and a separate side room of 2 tables of 16.
+    /// No preferences, so only keeping the levels together matters.
+    /// </summary>
+    public static EventProject Departments(int seed = 1, double fill = 0.9)
+    {
+        var random = new Random(seed);
+        var project = new EventProject { Name = "Departments" };
+        for (var f = 0; f < 2; f++)
+        {
+            var floor = new Floor { Name = $"Floor {f + 1}", Number = f + 1 };
+            foreach (var y in new[] { 4.0, 6.5 })
+                foreach (var x in new[] { 4.0, 10.5, 17.0 })
+                    floor.Tables.Add(new Table { Number = floor.NextTableNumber(), SeatsPerSide = 10, X = x, Y = y });
+            foreach (var x in new[] { 4.0, 9.3 })
+                floor.Tables.Add(new Table { Number = floor.NextTableNumber(), SeatsPerSide = 8, X = x, Y = 14 });
+            project.Setup.Floors.Add(floor);
+        }
+
+        var seats = project.Setup.AllTables.Sum(t => t.SeatCount);
+        var people = 0;
+        var groups = project.Setup.Groups;
+        for (var d = 0; d < 5; d++)
+        {
+            var department = new Group { Name = $"Dept {d + 1}", PeopleCount = 0 };
+            groups.Add(department);
+            for (var t = 0; t < 2 + random.Next(3); t++)
+            {
+                var team = new Group { Name = $"Dept {d + 1} team {t + 1}", ParentId = department.Id, PeopleCount = random.Next(3, 15) };
+                groups.Add(team);
+                if (random.NextDouble() < 0.3)
+                {
+                    // Split into two subteams.
+                    var half = team.PeopleCount / 2;
+                    groups.Add(new Group { Name = $"{team.Name} a", ParentId = team.Id, PeopleCount = half });
+                    groups.Add(new Group { Name = $"{team.Name} b", ParentId = team.Id, PeopleCount = team.PeopleCount - half });
+                    team.PeopleCount = 0;
+                }
+                people += Math.Max(team.PeopleCount, 0) + groups.Where(g => g.ParentId == team.Id).Sum(g => g.PeopleCount);
+            }
+        }
+        // Fill up with groups without a department, to the wanted share of seats.
+        for (var i = 1; people < seats * fill; i++)
+        {
+            var size = Math.Min(random.Next(2, 9), (int)(seats * fill) - people + 1);
+            groups.Add(new Group { Name = $"Guests {i}", PeopleCount = size });
+            people += size;
+        }
+        return project;
+    }
+
     /// <summary>The example with groups grown until there is only 1 seat to spare.</summary>
     public static EventProject NearlyFull()
     {

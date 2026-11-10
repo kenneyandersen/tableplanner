@@ -35,18 +35,18 @@ internal sealed class BeamSearch
         var p = problem.Priorities;
 
         // Which group of a size is tried first; groups of the same size without preferences are interchangeable.
-        _priority = free.OrderByDescending(g => problem.Preferences[g].Length > 0).ThenBy(_ => random.Next()).ToArray();
+        _priority = free.OrderByDescending(g => problem.MoveTargets[g].Length > 0).ThenBy(_ => random.Next()).ToArray();
         _key = Enumerable.Range(0, groups).Select(_ => (ulong)random.NextInt64()).ToArray();
         _misfitPenalty = p.TableSplitPenalty + p.DistantTableSplitPenalty + 3 * p.ApartPersonPenalty;
 
         _linked = Enumerable.Range(0, groups)
-            .Select(g => problem.Preferences[g].Concat(Enumerable.Range(0, groups).Where(h => problem.Preferences[h].Contains(g))).Distinct().ToArray())
+            .Select(g => problem.MoveTargets[g].Concat(Enumerable.Range(0, groups).Where(h => problem.MoveTargets[h].Contains(g))).Distinct().ToArray())
             .ToArray();
 
         // Per group and preference: what it adds when met at the same table (the rank weight, and the mutual bonus once per pair).
         _preferenceWeight = Enumerable.Range(0, groups)
-            .Select(g => problem.Preferences[g].Select((h, r) => (r < p.PreferenceRankWeights.Count ? p.PreferenceRankWeights[r] : 0)
-                + (problem.IsMutual[g][r] && g < h ? p.MutualPreferenceBonus : 0)).ToArray())
+            .Select(g => problem.Preferences[g].Select((h, i) => problem.PreferenceRanks[g][i]).Select((r, i) => (r < p.PreferenceRankWeights.Count ? p.PreferenceRankWeights[r] : 0)
+                + (problem.IsMutual[g][i] && g < problem.Preferences[g][i] ? p.MutualPreferenceBonus : 0)).ToArray())
             .ToArray();
 
         // Per group: what it scores seated on its own at the start of the largest area.

@@ -54,6 +54,12 @@ public sealed class PlanEvaluator
     private readonly double[] _tableDistance;
     private readonly int[] _partPeople;
 
+    // For parent groups: people per table (all zero between uses), the tables used, and single-group units.
+    private readonly int[] _parentCount;
+    private readonly List<int> _parentTables = [];
+    private readonly int[][] _single;
+    private ParentPlacementBuilder[]? _parentDetails;
+
     public PlanEvaluator(SeatingProblem problem)
     {
         _problem = problem;
@@ -84,6 +90,8 @@ public sealed class PlanEvaluator
         _floorsOf = Enumerable.Range(0, groups).Select(_ => new List<int>()).ToArray();
         _component = new int[_tableCount];
         _partPeople = new int[_tableCount + 1];
+        _parentCount = new int[_tableCount];
+        _single = Enumerable.Range(0, groups).Select(g => new[] { g }).ToArray();
 
         var tables = problem.Graph.Tables;
         _tableDistance = new double[_tableCount * _tableCount];
@@ -115,7 +123,8 @@ public sealed class PlanEvaluator
     public double Score(int[] plan)
     {
         Count(plan);
-        return SeatTerms(plan) + GroupTerms(null) + PreferenceTerms(null);
+        var score = SeatTerms(plan) + GroupTerms(null) + PreferenceTerms(null);
+        return _problem.ParentGroups.Count > 0 ? score + ParentTerms() : score;
     }
 
     /// <summary>
@@ -143,8 +152,17 @@ public sealed class PlanEvaluator
         var groups = new GroupPlacementBuilder[_problem.Groups.Count];
         for (var g = 0; g < groups.Length; g++)
             groups[g] = new GroupPlacementBuilder();
-        var score = SeatTerms(plan) + GroupTerms(groups) + PreferenceTerms(groups);
-        return PlanSummary.Create(_problem, score, groups.Select((b, g) => b.Build(_problem, g, _placed[g], _tablesOf[g], _floorsOf[g])).ToList());
+        _parentDetails = _problem.ParentGroups.Select(_ => new ParentPlacementBuilder()).ToArray();
+        try
+        {
+            var score = SeatTerms(plan) + GroupTerms(groups) + PreferenceTerms(groups) + ParentTerms();
+            var parents = _parentDetails.Select((b, c) => b.Build(_problem, c)).ToList();
+            return PlanSummary.Create(_problem, score, groups.Select((b, g) => b.Build(_problem, g, _placed[g], _tablesOf[g], _floorsOf[g])).ToList(), parents);
+        }
+        finally
+        {
+            _parentDetails = null;
+        }
     }
 
     private void Count(int[] plan)
@@ -235,7 +253,7 @@ public sealed class PlanEvaluator
             score -= (tables.Count - 1) * p.TableSplitPenalty;
             score -= (parts - 1) * p.DistantTableSplitPenalty;
             var weightedApart = 0.0;
-            var apart = parts > 1 ? PeopleApart(g, tables, parts, out weightedApart) : 0;
+            var apart = parts > 1 ? PeopleApart(_tableCount2D, g * _tableCount, tables, parts, out weightedApart) : 0;
             score -= weightedApart * p.ApartPersonPenalty;
             score -= shortBy * p.SmallFragmentPenalty;
 
@@ -274,15 +292,97 @@ public sealed class PlanEvaluator
         for (var g = 0; g < _placed.Length; g++)
         {
             var preferences = _problem.Preferences[g];
-            for (var r = 0; r < preferences.Length; r++)
+            var ranks = _problem.PreferenceRanks[g];
+            for (var i = 0; i < preferences.Length; i++)
             {
-                var h = preferences[r];
+                var h = preferences[i];
                 var closeness = Closeness(g, h, out var level);
-                score += _rankWeight[r] * closeness;
-                if (_problem.IsMutual[g][r] && g < h)
+                score += _rankWeight[ranks[i]] * closeness;
+                if (_problem.IsMutual[g][i] && g < h)
                     score += mutualBonus * closeness;
-                details?[g].Preferences.Add(new PreferenceOutcome(_problem.Groups[h].Id, r + 1, level));
+                details?[g].Preferences.Add(new PreferenceOutcome(_problem.Groups[h].Id, ranks[i] + 1, level));
             }
+        }
+
+        // Preferences to or from a parent group: met when any of its groups sits with (or next to) the other side.
+        foreach (var p in _problem.UnitPreferences)
+        {
+            var closeness = UnitCloseness(p.From, p.To, out var level);
+            score += _rankWeight[p.Rank] * closeness;
+            if (p.Mutual && p.From < p.To)
+                score += mutualBonus * closeness;
+            if (details is not null)
+            {
+                var outcome = new PreferenceOutcome(UnitGroup(p.To).Id, p.Rank + 1, level);
+                if (p.From < _placed.Length)
+                    details[p.From].Preferences.Add(outcome);
+                else
+                    _parentDetails![p.From - _placed.Length].Preferences.Add(outcome);
+            }
+        }
+        return score;
+    }
+
+    private Group UnitGroup(int unit) => unit < _placed.Length ? _problem.Groups[unit] : _problem.ParentGroups[unit - _placed.Length];
+
+    /// <summary>The seated groups a unit stands for: itself, or the groups below a parent group.</summary>
+    private int[] UnitMembers(int unit) => unit < _placed.Length ? _single[unit] : _problem.ParentMembers[unit - _placed.Length];
+
+    /// <summary>Like <see cref="Closeness(int, int, out PreferenceCloseness)"/>, the closest any group of one unit gets to any of the other.</summary>
+    private double UnitCloseness(int a, int b, out PreferenceCloseness level)
+    {
+        level = PreferenceCloseness.NotPlaced;
+        var best = -1.0;
+        foreach (var g in UnitMembers(a))
+            foreach (var h in UnitMembers(b))
+            {
+                if (g == h)
+                    continue;
+                var c = Closeness(g, h, out var l);
+                if (l != PreferenceCloseness.NotPlaced && c > best)
+                    (best, level) = (c, l);
+                if (best >= SameTableCloseness)
+                    return best;
+            }
+        return Math.Max(0, best);
+    }
+
+    /// <summary>
+    /// Parent groups (a department of teams): per person away from the main part of the parent group (the largest set
+    /// of its tables that are the same or adjacent), growing with the distance as for groups; <see
+    /// cref="SeatingPriorities.ParentApartPenalty"/>, counted double a level below the top.
+    /// </summary>
+    private double ParentTerms()
+    {
+        var penalty = _problem.Priorities.ParentApartPenalty;
+        var score = 0.0;
+        for (var c = 0; c < _problem.ParentGroups.Count; c++)
+        {
+            // The people per table of all the parent's groups.
+            _parentTables.Clear();
+            foreach (var g in _problem.ParentMembers[c])
+                foreach (var t in _tablesOf[g])
+                    if (_parentCount[t]++ == 0)
+                        _parentTables.Add(t);
+
+            var placed = 0;
+            foreach (var t in _parentTables)
+                placed += _parentCount[t];
+            var parts = Components(_parentTables);
+            var weighted = 0.0;
+            var apart = parts > 1 ? PeopleApart(_parentCount, 0, _parentTables, parts, out weighted) : 0;
+            score -= weighted * penalty * Math.Min(2, _problem.ParentLevel[c]);
+
+            if (_parentDetails is { } details)
+            {
+                details[c].Parts = parts;
+                details[c].PeopleApart = apart;
+                details[c].Placed = placed;
+                details[c].Tables = _parentTables.ToList();
+                details[c].Floors = _parentTables.Select(t => _problem.Graph.Tables[t].FloorIndex).Distinct().Count();
+            }
+            foreach (var t in _parentTables)
+                _parentCount[t] = 0;
         }
         return score;
     }
@@ -352,11 +452,11 @@ public sealed class PlanEvaluator
     /// 1 + d / <see cref="ApartDistanceScale"/> in <paramref name="weighted"/>, d being the distance from their table to
     /// the nearest table of the main part.
     /// </summary>
-    private int PeopleApart(int g, List<int> tables, int parts, out double weighted)
+    private int PeopleApart(int[] counts, int offset, List<int> tables, int parts, out double weighted)
     {
         Array.Clear(_partPeople, 0, parts + 1);
         for (var i = 0; i < tables.Count; i++)
-            _partPeople[_component[i]] += _tableCount2D[g * _tableCount + tables[i]];
+            _partPeople[_component[i]] += counts[offset + tables[i]];
         var main = 1;
         for (var q = 2; q <= parts; q++)
             if (_partPeople[q] > _partPeople[main])
@@ -372,13 +472,32 @@ public sealed class PlanEvaluator
             for (var j = 0; j < tables.Count; j++)
                 if (_component[j] == main)
                     nearest = Math.Min(nearest, _tableDistance[tables[i] * _tableCount + tables[j]]);
-            var people = _tableCount2D[g * _tableCount + tables[i]];
+            var people = counts[offset + tables[i]];
             apart += people;
             weighted += people * (1 + nearest / ApartDistanceScale);
         }
         return apart;
     }
 
+
+    private sealed class ParentPlacementBuilder
+    {
+        public int Parts;
+        public int PeopleApart;
+        public int Placed;
+        public int Floors;
+        public List<int> Tables = [];
+        public readonly List<PreferenceOutcome> Preferences = [];
+
+        public ParentPlacement Build(SeatingProblem problem, int c)
+        {
+            var group = problem.ParentGroups[c];
+            var people = problem.ParentMembers[c].Sum(g => problem.Size[g]);
+            var tableNumbers = Tables.Select(t => problem.Graph.Tables[t].Table.Number).Order().ToList();
+            return new ParentPlacement(group.Id, group.Name, problem.ParentLevel[c], people, Placed, tableNumbers, Floors,
+                Parts > 1, PeopleApart, Preferences.ToList());
+        }
+    }
     private sealed class GroupPlacementBuilder
     {
         public int DistantParts;

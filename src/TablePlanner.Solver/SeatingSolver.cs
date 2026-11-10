@@ -498,14 +498,18 @@ public static class SeatingSolver
     /// </summary>
     private static int[] InitialOrder(SeatingProblem problem, int[] free)
     {
+        if (problem.ParentGroups.Count > 0)
+            return TreeOrder(problem, free);
         var left = free.ToHashSet();
         var order = new List<int>(free.Length);
         var weights = problem.Priorities.PreferenceRankWeights;
         double Affinity(int a, int b)
         {
             var w = 0.0;
-            var ra = Array.IndexOf(problem.Preferences[a], b);
-            var rb = Array.IndexOf(problem.Preferences[b], a);
+            var ia = Array.IndexOf(problem.Preferences[a], b);
+            var ib = Array.IndexOf(problem.Preferences[b], a);
+            var ra = ia >= 0 ? problem.PreferenceRanks[a][ia] : -1;
+            var rb = ib >= 0 ? problem.PreferenceRanks[b][ib] : -1;
             if (ra >= 0 && ra < weights.Count)
                 w += weights[ra];
             if (rb >= 0 && rb < weights.Count)
@@ -531,6 +535,30 @@ public static class SeatingSolver
         return order.ToArray();
     }
 
+    /// <summary>
+    /// With levels: the groups department by department (largest first), and within each its teams and their groups,
+    /// so every parent group's groups are next to each other in the seat order.
+    /// </summary>
+    private static int[] TreeOrder(SeatingProblem problem, int[] free)
+    {
+        var setup = problem.Setup;
+        var freeSet = free.ToHashSet();
+        var order = new List<int>(free.Length);
+        int People(Group group) => setup.BottomGroupsOf(group)
+            .Sum(b => problem.IndexOfGroup(b.Id) is { } i && freeSet.Contains(i) ? problem.Size[i] : 0);
+        void Visit(IEnumerable<Group> siblings)
+        {
+            foreach (var group in siblings.OrderByDescending(People).ThenBy(g => setup.Groups.IndexOf(g)).ToList())
+                if (setup.HasChildren(group.Id))
+                    Visit(setup.ChildrenOf(group.Id));
+                else if (problem.IndexOfGroup(group.Id) is { } i && freeSet.Contains(i) && !order.Contains(i))
+                    order.Add(i);
+        }
+        Visit(setup.Groups.Where(g => g.ParentId is not { } p || setup.FindGroup(p) is null));
+        order.AddRange(free.Where(g => !order.Contains(g)));
+        return order.ToArray();
+    }
+
     /// <summary>The groups in the order their seats come in the current plan; groups without seats go last, largest first.</summary>
     private static int[] OrderFromPlan(SeatSequence sequence, int[] plan, int[] free, SeatingProblem problem)
     {
@@ -549,7 +577,8 @@ public static class SeatingSolver
     private static void Mutate(int[] order, SeatingProblem problem, Random random)
     {
         var n = order.Length;
-        switch (random.Next(6))
+        // With levels, two more moves keep parent groups together; without, the same moves (and random draws) as always.
+        switch (random.Next(problem.ParentGroups.Count > 0 ? 8 : 6))
         {
             case 0:
             case 1:
@@ -564,10 +593,10 @@ public static class SeatingSolver
                 break;
             case 3:
                 {
-                    // Move a group next to one of its preferred groups (or a group that prefers it).
+                    // Move a group next to one of its preferred groups (or a sibling or a group of a preferred parent group).
                     var i = random.Next(n);
                     var g = order[i];
-                    var prefs = problem.Preferences[g];
+                    var prefs = problem.MoveTargets[g];
                     if (prefs.Length == 0)
                         goto case 2;
                     var target = Array.IndexOf(order, prefs[random.Next(prefs.Length)]);
@@ -588,14 +617,51 @@ public static class SeatingSolver
                         Rotate(order, from, to + length, length);
                     break;
                 }
-            default:
+            case 5:
                 {
                     var i = random.Next(n);
                     var j = Math.Min(n - 1, i + 1 + random.Next(4));
                     Array.Reverse(order, i, j - i + 1);
                     break;
                 }
+            case 6:
+                // Gather a parent group's groups into one block where the first of them is.
+                MoveParentBlock(order, problem, random, relocate: false);
+                break;
+            default:
+                // Move a parent group's groups, as one block, elsewhere.
+                MoveParentBlock(order, problem, random, relocate: true);
+                break;
         }
+    }
+
+    /// <summary>
+    /// Takes the groups of a random parent group out of the order and puts them back as one block (in their order):
+    /// where the first of them was, or with <paramref name="relocate"/> at a random place.
+    /// </summary>
+    private static void MoveParentBlock(int[] order, SeatingProblem problem, Random random, bool relocate)
+    {
+        var members = problem.ParentMembers[random.Next(problem.ParentGroups.Count)];
+        var block = new List<int>(members.Length);
+        var rest = new List<int>(order.Length);
+        var insertAt = -1;
+        foreach (var g in order)
+        {
+            if (Array.IndexOf(members, g) >= 0)
+            {
+                if (insertAt < 0)
+                    insertAt = rest.Count;
+                block.Add(g);
+            }
+            else
+                rest.Add(g);
+        }
+        if (block.Count == 0)
+            return;
+        if (relocate)
+            insertAt = random.Next(rest.Count + 1);
+        rest.InsertRange(insertAt, block);
+        rest.CopyTo(order);
     }
 
     /// <summary>Rotates order[start..end) left by <paramref name="shift"/> places.</summary>

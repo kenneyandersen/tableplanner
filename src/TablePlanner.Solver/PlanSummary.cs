@@ -39,6 +39,22 @@ public sealed record GroupPlacement(
     public bool IsSplit => TableNumbers.Count > 1;
 }
 
+/// <summary>
+/// How a parent group (a department of teams) is seated: where its groups sit, and how many of its people are away from
+/// its main part (tables that are the same or next to each other).
+/// </summary>
+public sealed record ParentPlacement(
+    Guid GroupId,
+    string Name,
+    int Level,
+    int PeopleCount,
+    int Placed,
+    IReadOnlyList<int> TableNumbers,
+    int FloorCount,
+    bool IsSpread,
+    int PeopleApart,
+    IReadOnlyList<PreferenceOutcome> Preferences);
+
 /// <summary>For one preference rank: how many groups have such a preference, and for how many it is met.</summary>
 public sealed record PreferenceRankStats(int Rank, int Wanted, int Met);
 
@@ -48,12 +64,13 @@ public sealed record PlanIssue(IssueSeverity Severity, string Message, Guid? Gro
 public sealed class PlanSummary
 {
     private PlanSummary(double score, int peoplePlaced, int peopleTotal, IReadOnlyList<GroupPlacement> groups,
-        IReadOnlyList<PreferenceRankStats> preferenceStats, IReadOnlyList<PlanIssue> issues)
+        IReadOnlyList<ParentPlacement> parentGroups, IReadOnlyList<PreferenceRankStats> preferenceStats, IReadOnlyList<PlanIssue> issues)
     {
         Score = score;
         PeoplePlaced = peoplePlaced;
         PeopleTotal = peopleTotal;
         Groups = groups;
+        ParentGroups = parentGroups;
         PreferenceStats = preferenceStats;
         Issues = issues;
     }
@@ -66,6 +83,9 @@ public sealed class PlanSummary
 
     public IReadOnlyList<GroupPlacement> Groups { get; }
 
+    /// <summary>Parent groups (with seated groups below them); empty when the groups have no levels.</summary>
+    public IReadOnlyList<ParentPlacement> ParentGroups { get; }
+
     public IReadOnlyList<PreferenceRankStats> PreferenceStats { get; }
 
     public IReadOnlyList<PlanIssue> Issues { get; }
@@ -74,12 +94,13 @@ public sealed class PlanSummary
 
     public int SplitGroups => Groups.Count(g => g.IsSplit);
 
-    internal static PlanSummary Create(SeatingProblem problem, double score, IReadOnlyList<GroupPlacement> groups)
+    internal static PlanSummary Create(SeatingProblem problem, double score, IReadOnlyList<GroupPlacement> groups, IReadOnlyList<ParentPlacement>? parents = null)
     {
+        parents ??= [];
         var stats = Enumerable.Range(1, Core.Model.Group.MaxPreferences)
             .Select(rank =>
             {
-                var outcomes = groups.SelectMany(g => g.Preferences).Where(p => p.Rank == rank).ToList();
+                var outcomes = groups.SelectMany(g => g.Preferences).Concat(parents.SelectMany(p => p.Preferences)).Where(p => p.Rank == rank).ToList();
                 return new PreferenceRankStats(rank, outcomes.Count, outcomes.Count(o => o.IsMet));
             })
             .Where(s => s.Wanted > 0)
@@ -103,6 +124,15 @@ public sealed class PlanSummary
                 issues.Add(new(IssueSeverity.Warning, $"'{g.Name}' has a small part of its group alone at a table.", g.GroupId));
         }
 
-        return new PlanSummary(score, groups.Sum(g => g.Placed), problem.PeopleCount, groups, stats, issues);
+        // Parent groups: a warning when spread over parts of the room that are not next to each other, or over floors.
+        foreach (var p in parents.OrderBy(p => p.Level))
+        {
+            if (p.FloorCount > 1)
+                issues.Add(new(IssueSeverity.Warning, $"'{p.Name}' is split across {p.FloorCount} floors ({p.PeopleApart} of {p.Placed} away from the rest).", p.GroupId));
+            else if (p.IsSpread)
+                issues.Add(new(IssueSeverity.Warning, $"'{p.Name}' is spread over parts of the room that are not next to each other ({p.PeopleApart} of {p.Placed} away from the rest).", p.GroupId));
+        }
+
+        return new PlanSummary(score, groups.Sum(g => g.Placed), problem.PeopleCount, groups, parents, stats, issues);
     }
 }

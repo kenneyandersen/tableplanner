@@ -635,3 +635,34 @@ Notes: changes after testing (2026-11-07):
   - Test plans, 5 runs at 2 s native (about 8 s in the browser), one attempt → adaptive: Party 2025 warnings 3 → 1 and
     no one away from their group (2 before); Company dinner and Club party higher scores; Festival and Wedding equal
     within noise.
+- **Group levels** (*new*, 2026-11-10): groups can have a parent group (`Group.ParentId`), up to 3 levels, e.g.
+  department › team › subteam. Optional: a flat list of groups behaves exactly as before.
+  - Only bottom groups (without subgroups) have people and are seated. A parent group has `PeopleCount` 0 and its size
+    is the sum of its bottom groups (`GroupTree.PeopleIn`), so existing totals stay right. When a bottom group gets
+    subgroups, its own people, seats and seat/table pins move to a new subgroup "<name> – other" (its floor pin stays).
+    Validation: a parent with people of its own, an unknown parent, a loop, or more than 3 levels is an error.
+  - Groups page: tree order with indentation; parent rows show their people total. Select groups (checkboxes) and
+    **Group…** puts them in a new parent group (under their common parent, if any); **Move to** another parent or the
+    top level; **Ungroup** removes a parent and moves its subgroups up; deleting a parent also keeps its subgroups.
+    Quick add can add straight into a parent group. Sorting by column is off while there are levels (it is a tree).
+  - Solver: `ParentApartPenalty` (40) per person away from the main part of their parent group (the largest set of its
+    tables that are the same or adjacent), × (1 + d / 10 m) as for groups; another floor counts as 30 m. A parent a
+    level below the top counts double, so teams stay closer than whole departments; both far below a bottom group's
+    200, so a large department can spread over areas and floors when it must, and then splits between whole teams.
+    "Keep groups together" uses 120.
+  - Preferences can name a parent group, and a parent group can have preferences; met when any of its groups sits at
+    the same or the next table. Floor/table pins on a parent hold its groups that have no pin of their own; locking a
+    parent locks each of its groups (no seat pin on a parent).
+  - Search: the start order goes department by department (largest first); two extra moves gather a parent group's
+    groups into one block, or move that block; beam search links siblings. Without levels the moves and random draws
+    are the same as before, so seeded results did not change.
+  - Plan page: "Colour by group / level 1 / level 2" (`GroupColours.ForLevel`); the group list is a tree, and selecting
+    a parent group highlights all its groups; its panel locks, unlocks, pins or takes out its groups (no Move).
+    Warnings when a parent group is spread over parts of the room that are not next to each other, or over floors.
+  - Group export/import: a "Parent group" column, written only when there are levels, in tree order with an empty
+    number for parent groups.
+  - Tests: a Departments benchmark (5 departments, two floors with separate areas): no one away from their department
+    or team over 3 seeds, against 13 people without the penalty; a department of 160 on floors of 152 splits between
+    whole teams. Test plan "Company levels 440" (6 departments with teams and subteams, department preferences):
+    at 2 s native over 5 runs, Search 2 warnings, beam search 1. A first version counted groups instead of people per
+    table for parent groups (about ten times too weak); this test plan found it.

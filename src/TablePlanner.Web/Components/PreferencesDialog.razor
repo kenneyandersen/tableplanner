@@ -29,9 +29,9 @@
         {
             <MudSelect T="Guid?" Label="Add a group" Value="null" ValueChanged="Add" Variant="Variant.Outlined" Margin="Margin.Dense" Class="mt-3"
                        ToStringFunc="@(id => id is { } g ? NameOf(g) : "")">
-                @foreach (var group in Groups.Where(g => g.Id != GroupId && !_items.Contains(g.Id)).OrderBy(g => g.Name))
+                @foreach (var group in Choices)
                 {
-                    <MudSelectItem T="Guid?" Value="group.Id">@group.Name (@group.PeopleCount)</MudSelectItem>
+                    <MudSelectItem T="Guid?" Value="group.Id">@Label(group)</MudSelectItem>
                 }
             </MudSelect>
         }
@@ -58,7 +58,22 @@
 
     protected override void OnInitialized() => _items = [.. Selected];
 
-    private string NameOf(Guid id) => Groups.FirstOrDefault(g => g.Id == id)?.Name ?? "?";
+    /// <summary>The setup, for group levels: names show their path, and a parent group its total. Optional.</summary>
+    [Parameter] public EventSetup? Setup { get; set; }
+
+    private string NameOf(Guid id) => Groups.FirstOrDefault(g => g.Id == id) is { } g ? (Setup?.PathOf(g) ?? g.Name) : "?";
+
+    private string Label(Group group) => $"{NameOf(group.Id)} ({Setup?.PeopleIn(group) ?? group.PeopleCount})";
+
+    /// <summary>Groups that can be added: not this group, nor its parent groups or subgroups, nor ones already chosen.</summary>
+    private IEnumerable<Group> Choices
+    {
+        get
+        {
+            var own = Setup?.FindGroup(GroupId) is { } self ? Setup.AncestorsOf(self).Concat(Setup.DescendantsOf(GroupId)).Select(g => g.Id).ToHashSet() : [];
+            return Groups.Where(g => g.Id != GroupId && !_items.Contains(g.Id) && !own.Contains(g.Id)).OrderBy(g => NameOf(g.Id));
+        }
+    }
 
     private void Add(Guid? id)
     {

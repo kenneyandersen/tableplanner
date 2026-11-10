@@ -16,7 +16,8 @@
     <MudContainer MaxWidth="MaxWidth.ExtraExtraLarge" Class="py-4">
         <MudStack Row="true" AlignItems="AlignItems.Center" Wrap="Wrap.Wrap" Class="mb-3">
             <MudText Typo="Typo.h5">Groups</MudText>
-            <MudChip T="string" Size="Size.Small">@setup.Groups.Count groups</MudChip>
+            @{ var parentCount = setup.Groups.Count(g => setup.HasChildren(g.Id)); }
+            <MudChip T="string" Size="Size.Small">@(setup.Groups.Count - parentCount) groups@(parentCount > 0 ? $" in {parentCount} parent groups" : "")</MudChip>
             <MudChip T="string" Size="Size.Small">@people people</MudChip>
             <MudChip T="string" Size="Size.Small">@seats seats</MudChip>
             @if (people > seats)
@@ -40,30 +41,91 @@
             <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add" OnClick="AddGroup">Add group</MudButton>
         </MudStack>
 
-        <MudTable T="Group" Items="setup.Groups" Filter="Matches" Dense="true" Hover="true" Elevation="0" Outlined="true" Breakpoint="Breakpoint.None">
+        @* With groups selected: put them in a new parent group, or move them under another one (or to the top). *@
+        @if (SelectedGroups(setup) is { Count: > 0 } selectedGroups)
+        {
+            <MudPaper Outlined="true" Class="pa-2 mb-2 selection-bar">
+                <MudStack Row="true" AlignItems="AlignItems.Center" Wrap="Wrap.Wrap" Spacing="2">
+                    <MudText Typo="Typo.body2"><b>@selectedGroups.Count selected</b></MudText>
+                    <MudButton Variant="Variant.Filled" Color="Color.Primary" Size="Size.Small" StartIcon="@Icons.Material.Filled.CreateNewFolder"
+                               OnClick="GroupSelected">Group…</MudButton>
+                    <MudMenu Label="Move to" Variant="Variant.Outlined" Size="Size.Small" EndIcon="@Icons.Material.Filled.ArrowDropDown">
+                        <MudMenuItem OnClick="@(() => MoveSelected(null))">Top level (no parent group)</MudMenuItem>
+                        @foreach (var (target, level) in setup.InTreeOrder().Where(x => x.Level < GroupTree.MaxLevels && !selectedGroups.Contains(x.Group)))
+                        {
+                            var targetId = target.Id;
+                            <MudMenuItem Disabled="@(!selectedGroups.All(g => setup.CanMoveUnder(g.Id, targetId)))" OnClick="@(() => MoveSelected(targetId))">
+                                <span style="padding-left: @((level - 1) * 16)px">@target.Name</span>
+                            </MudMenuItem>
+                        }
+                    </MudMenu>
+                    <MudButton Variant="Variant.Text" Size="Size.Small" OnClick="@(() => _selected.Clear())">Clear selection</MudButton>
+                    <MudText Typo="Typo.caption" Class="mud-text-secondary">
+                        Group… puts them in a new group (a department, a team) that the plan keeps together, more loosely than the groups themselves.
+                    </MudText>
+                </MudStack>
+            </MudPaper>
+        }
+
+        @{ var hasLevels = setup.HasLevels(); }
+        <MudTable T="GroupRow" Items="Rows(setup)" Filter="Matches" Dense="true" Hover="true" Elevation="0" Outlined="true" Breakpoint="Breakpoint.None">
             <HeaderContent>
-                <MudTh Style="min-width: 200px"><MudTableSortLabel T="Group" SortBy="g => g.Name">Name</MudTableSortLabel></MudTh>
-                <MudTh Style="width: 110px"><MudTableSortLabel T="Group" SortBy="g => g.PeopleCount">People</MudTableSortLabel></MudTh>
+                <MudTh Style="width: 40px">
+                    <MudCheckBox T="bool" Value="AllSelected(setup)" ValueChanged="@(v => SelectAll(setup, v))" Size="Size.Small" aria-label="Select all" />
+                </MudTh>
+                @* With levels the list is a tree, so it is not sorted by column. *@
+                @if (hasLevels)
+                {
+                    <MudTh Style="min-width: 240px">Name</MudTh>
+                    <MudTh Style="width: 110px">People</MudTh>
+                }
+                else
+                {
+                    <MudTh Style="min-width: 200px"><MudTableSortLabel T="GroupRow" SortBy="r => r.Group.Name">Name</MudTableSortLabel></MudTh>
+                    <MudTh Style="width: 110px"><MudTableSortLabel T="GroupRow" SortBy="r => r.Group.PeopleCount">People</MudTableSortLabel></MudTh>
+                }
                 <MudTh Style="min-width: 240px">Would like to sit with</MudTh>
                 <MudTh>Contact person</MudTh>
                 <MudTh>Dietary info</MudTh>
                 <MudTh>Notes</MudTh>
                 <MudTh Style="width: 90px">Colour</MudTh>
-                <MudTh Style="width: 48px"></MudTh>
+                <MudTh Style="width: 88px"></MudTh>
             </HeaderContent>
             <RowTemplate>
-                @{ var id = context.Id; }
+                @{
+                    var group = context.Group;
+                    var id = group.Id;
+                    var isParent = setup.HasChildren(id);
+                }
                 <MudTd>
-                    <MudTextField T="string" Value="context.Name" Margin="Margin.Dense"
-                                  ValueChanged="@(v => Edit(id, "Rename group", g => g.Name = v))" />
+                    <MudCheckBox T="bool" Value="_selected.Contains(id)" ValueChanged="@(v => Select(id, v))" Size="Size.Small" aria-label="Select" />
                 </MudTd>
                 <MudTd>
-                    <MudNumericField T="int" Value="context.PeopleCount" Min="1" Margin="Margin.Dense"
-                                     ValueChanged="@(v => Edit(id, "Change group size", g => g.PeopleCount = v))" />
+                    <div class="d-flex align-center" style="padding-left: @((context.Level - 1) * 24)px">
+                        @if (context.Level > 1)
+                        {
+                            <MudIcon Icon="@Icons.Material.Filled.SubdirectoryArrowRight" Size="Size.Small" Class="mud-text-secondary mr-1" />
+                        }
+                        <MudTextField T="string" Value="group.Name" Margin="Margin.Dense" Class="@(isParent ? "parent-group-name" : null)"
+                                      ValueChanged="@(v => Edit(id, "Rename group", g => g.Name = v))" />
+                    </div>
+                </MudTd>
+                <MudTd>
+                    @if (isParent)
+                    {
+                        <MudTooltip Text="The people in its groups. A group with subgroups has no people of its own.">
+                            <MudText Typo="Typo.body2" Class="mud-text-secondary">@setup.PeopleIn(group) in @setup.BottomGroupsOf(group).Count</MudText>
+                        </MudTooltip>
+                    }
+                    else
+                    {
+                        <MudNumericField T="int" Value="group.PeopleCount" Min="1" Margin="Margin.Dense"
+                                         ValueChanged="@(v => Edit(id, "Change group size", g => g.PeopleCount = v))" />
+                    }
                 </MudTd>
                 <MudTd>
                     <div class="d-flex align-center flex-wrap gap-1">
-                        @foreach (var (preferredId, rank) in context.PreferredGroupIds.Select((p, i) => (p, i + 1)))
+                        @foreach (var (preferredId, rank) in group.PreferredGroupIds.Select((p, i) => (p, i + 1)))
                         {
                             <MudChip T="string" Size="Size.Small">@rank. @(setup.FindGroup(preferredId)?.Name ?? "?")</MudChip>
                         }
@@ -72,22 +134,22 @@
                     </div>
                 </MudTd>
                 <MudTd>
-                    <MudTextField T="string" Value="context.ContactPerson" Margin="Margin.Dense"
+                    <MudTextField T="string" Value="group.ContactPerson" Margin="Margin.Dense"
                                   ValueChanged="@(v => Edit(id, "Change contact person", g => g.ContactPerson = Blank(v)))" />
                 </MudTd>
                 <MudTd>
-                    <MudTextField T="string" Value="context.DietaryInfo" Margin="Margin.Dense"
+                    <MudTextField T="string" Value="group.DietaryInfo" Margin="Margin.Dense"
                                   ValueChanged="@(v => Edit(id, "Change dietary info", g => g.DietaryInfo = Blank(v)))" />
                 </MudTd>
                 <MudTd>
-                    <MudTextField T="string" Value="context.Notes" Margin="Margin.Dense"
+                    <MudTextField T="string" Value="group.Notes" Margin="Margin.Dense"
                                   ValueChanged="@(v => Edit(id, "Change notes", g => g.Notes = Blank(v)))" />
                 </MudTd>
                 <MudTd>
                     <div class="d-flex align-center">
-                        <input type="color" class="colour-input" value="@(context.Colour ?? "#cccccc")" title="Colour in the plan"
+                        <input type="color" class="colour-input" value="@(group.Colour ?? "#cccccc")" title="Colour in the plan"
                                @onchange="@(e => Edit(id, "Change colour", g => g.Colour = e.Value as string))" />
-                        @if (context.Colour is not null)
+                        @if (group.Colour is not null)
                         {
                             <MudIconButton Icon="@Icons.Material.Filled.Clear" Size="Size.Small" aria-label="Use automatic colour"
                                            OnClick="@(() => Edit(id, "Clear colour", g => g.Colour = null))" />
@@ -95,8 +157,19 @@
                     </div>
                 </MudTd>
                 <MudTd>
-                    <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" aria-label="Delete group"
-                                   OnClick="@(() => Session.History!.Execute("Delete group", p => SetupOperations.RemoveGroup(p, id)))" />
+                    <div class="d-flex">
+                        @if (isParent)
+                        {
+                            <MudTooltip Text="Ungroup: remove this group and move its subgroups up a level">
+                                <MudIconButton Icon="@Icons.Material.Filled.FolderOff" Size="Size.Small" aria-label="Ungroup"
+                                               OnClick="@(() => Session.History!.Execute("Ungroup", p => SetupOperations.Ungroup(p, id)))" />
+                            </MudTooltip>
+                        }
+                        <MudTooltip Text="@(isParent ? "Delete this group (its subgroups move up a level)" : "Delete group")">
+                            <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" aria-label="Delete group"
+                                           OnClick="@(() => Session.History!.Execute("Delete group", p => SetupOperations.RemoveGroup(p, id)))" />
+                        </MudTooltip>
+                    </div>
                 </MudTd>
             </RowTemplate>
             <NoRecordsContent>
@@ -112,6 +185,17 @@
                               Error="@(_quickError is not null)" ErrorText="@_quickError" Style="min-width: 220px" />
                 <MudNumericField T="int?" @ref="_quickPeopleField" @bind-Value="_quickPeople" Label="People" Min="1" Immediate="true"
                                  Margin="Margin.Dense" Variant="Variant.Outlined" OnKeyDown="QuickPeopleKeyDown" Style="max-width: 120px" />
+                @if (setup.Groups.Any(g => setup.HasChildren(g.Id)))
+                {
+                    @* Straight into a parent group, when there are any; the choice stays for the next group. *@
+                    <MudSelect T="Guid?" @bind-Value="_quickParent" Label="In group" Margin="Margin.Dense" Variant="Variant.Outlined" Clearable="true"
+                               ToStringFunc="@(id => id is { } p && setup.FindGroup(p) is { } g ? g.Name : "")" Style="min-width: 180px">
+                        @foreach (var (parent, level) in setup.InTreeOrder().Where(x => x.Level < GroupTree.MaxLevels && setup.HasChildren(x.Group.Id)))
+                        {
+                            <MudSelectItem T="Guid?" Value="parent.Id"><span style="padding-left: @((level - 1) * 16)px">@parent.Name</span></MudSelectItem>
+                        }
+                    </MudSelect>
+                }
                 <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add" Class="mt-2"
                            OnClick="QuickAdd">Add</MudButton>
             </MudStack>
@@ -134,10 +218,85 @@
 
     [Parameter] public Guid Id { get; set; }
 
-    private bool Matches(Group group) =>
+    /// <summary>A row of the groups table: a group and its level (1 = top), in tree order.</summary>
+    private sealed record GroupRow(Group Group, int Level);
+
+    private static List<GroupRow> Rows(EventSetup setup) => setup.InTreeOrder().Select(x => new GroupRow(x.Group, x.Level)).ToList();
+
+    private bool Matches(GroupRow row) =>
         string.IsNullOrWhiteSpace(_search)
-        || new[] { group.Name, group.ContactPerson, group.DietaryInfo, group.Notes }
+        || new[] { row.Group.Name, row.Group.ContactPerson, row.Group.DietaryInfo, row.Group.Notes }
             .Any(text => text?.Contains(_search.Trim(), StringComparison.OrdinalIgnoreCase) == true);
+
+    // ---- Selection, grouping and moving in the tree ----
+
+    // By ID: groups are replaced on undo.
+    private readonly HashSet<Guid> _selected = [];
+
+    private List<Group> SelectedGroups(EventSetup setup)
+    {
+        _selected.RemoveWhere(id => setup.FindGroup(id) is null);
+        return setup.Groups.Where(g => _selected.Contains(g.Id)).ToList();
+    }
+
+    private void Select(Guid id, bool selected)
+    {
+        if (selected)
+            _selected.Add(id);
+        else
+            _selected.Remove(id);
+    }
+
+    private bool AllSelected(EventSetup setup) => setup.Groups.Count > 0 && setup.Groups.All(g => _selected.Contains(g.Id));
+
+    private void SelectAll(EventSetup setup, bool selected)
+    {
+        _selected.Clear();
+        if (selected)
+            foreach (var row in Rows(setup).Where(Matches))
+                _selected.Add(row.Group.Id);
+    }
+
+    private async Task GroupSelected()
+    {
+        var ids = SelectedGroups(Session.Project!.Setup).Select(g => g.Id).ToList();
+        if (SetupOperations.CannotGroup(Session.Project, ids) is { } reason)
+        {
+            Snackbar.Add(reason, Severity.Warning);
+            return;
+        }
+        var dialog = await Dialogs.ShowAsync<NameDialog>($"Put {ids.Count} groups in a new group", new DialogParameters<NameDialog>
+        {
+            { x => x.Message, "For example a department or a team. Its groups are kept together in the plan, more loosely than the groups themselves." },
+            { x => x.OkText, "Group" },
+        }, new DialogOptions { MaxWidth = MaxWidth.ExtraSmall, FullWidth = true });
+        if (await dialog.Result is not { Canceled: false, Data: string name })
+            return;
+        if (Session.Project.Setup.Groups.Any(g => string.Equals(g.Name.Trim(), name, StringComparison.OrdinalIgnoreCase)))
+        {
+            Snackbar.Add($"A group named '{name}' already exists.", Severity.Warning);
+            return;
+        }
+        Session.History!.Execute("Group groups", p => SetupOperations.GroupInto(p, ids, name));
+        _selected.Clear();
+    }
+
+    private void MoveSelected(Guid? parentId)
+    {
+        var setup = Session.Project!.Setup;
+        var ids = SelectedGroups(setup).Select(g => g.Id).ToList();
+        if (ids.Any(id => !setup.CanMoveUnder(id, parentId)))
+        {
+            Snackbar.Add($"Not all of them can go there: a group cannot be inside itself, and there can be at most {GroupTree.MaxLevels} levels.", Severity.Warning);
+            return;
+        }
+        Session.History!.Execute("Move groups", p =>
+        {
+            foreach (var id in ids)
+                SetupOperations.SetParent(p, id, parentId);
+        });
+        _selected.Clear();
+    }
 
     private static string? Blank(string? value) => string.IsNullOrWhiteSpace(value) ? null : value;
 
@@ -151,6 +310,7 @@
     private MudNumericField<int?>? _quickPeopleField;
     private string? _quickName;
     private int? _quickPeople;
+    private Guid? _quickParent;
     private string? _quickError;
 
     private async Task QuickNameKeyDown(KeyboardEventArgs e)
@@ -183,7 +343,8 @@
         if (_quickError is null)
         {
             var count = _quickPeople!.Value;
-            Session.History!.Execute("Add group", p => SetupOperations.AddGroup(p, name, count));
+            var parentId = _quickParent is { } q && Session.Project.Setup.FindGroup(q) is not null ? _quickParent : null;
+            Session.History!.Execute("Add group", p => SetupOperations.AddGroup(p, name, count, parentId));
             _quickName = null;
             _quickPeople = null;
         }
@@ -198,6 +359,7 @@
         {
             { x => x.GroupId, groupId },
             { x => x.Groups, Session.Project.Setup.Groups.ToList() },
+            { x => x.Setup, Session.Project.Setup },
             { x => x.Selected, group.PreferredGroupIds.ToList() },
         };
         var dialog = await Dialogs.ShowAsync<PreferencesDialog>($"{group.Name} would like to sit with",

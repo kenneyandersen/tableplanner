@@ -315,3 +315,6 @@ code {
 
 /* The search method next to Make plan: as wide as its longest choice. */
 .editor-toolbar .method-select { width: 10.5rem; }
+
+/* Groups page: parent groups (departments, teams with subteams) in bold. */
+.parent-group-name input { font-weight: 600; }

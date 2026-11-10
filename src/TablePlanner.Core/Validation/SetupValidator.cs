@@ -21,6 +21,9 @@ public enum IssueCode
     PreferenceUnknownGroup,
     PreferenceSelf,
     PreferenceDuplicate,
+    GroupParentUnknown,
+    GroupLevelsInvalid,
+    GroupParentHasPeople,
     TableSizeInvalid,
     TableEndSeatsInvalid,
     TableDimensionsInvalid,
@@ -78,8 +81,20 @@ public static class SetupValidator
 
             if (string.IsNullOrWhiteSpace(group.Name))
                 issues.Add(Error(IssueCode.GroupNameMissing, "A group has no name.", group.Id));
-            if (group.PeopleCount <= 0)
+            var isParent = setup.HasChildren(group.Id);
+            if (!isParent && group.PeopleCount <= 0)
                 issues.Add(Error(IssueCode.GroupSizeInvalid, $"{label} must have at least 1 person.", group.Id));
+            if (isParent && group.PeopleCount > 0)
+                issues.Add(Error(IssueCode.GroupParentHasPeople,
+                    $"{label} has subgroups, so its own {group.PeopleCount} people would get no seats. Put them in a subgroup.", group.Id));
+            if (group.ParentId is { } parentId)
+            {
+                if (!groupIds.Contains(parentId))
+                    issues.Add(Error(IssueCode.GroupParentUnknown, $"{label} belongs to a group that does not exist.", group.Id));
+                else if (IsInLoop(setup, group) || setup.LevelOf(group) > GroupTree.MaxLevels)
+                    issues.Add(Error(IssueCode.GroupLevelsInvalid,
+                        $"{label} is more than {GroupTree.MaxLevels} levels deep, or inside itself.", group.Id));
+            }
             if (group.PreferredGroupIds.Count > Group.MaxPreferences)
                 issues.Add(Error(IssueCode.TooManyPreferences, $"{label} has more than {Group.MaxPreferences} preferences.", group.Id));
             if (group.PreferredGroupIds.Any(id => !groupIds.Contains(id)))
@@ -96,6 +111,20 @@ public static class SetupValidator
             .Where(d => d.Count() > 1);
         foreach (var duplicate in duplicateNames)
             issues.Add(Error(IssueCode.GroupNameDuplicate, $"Group name '{duplicate.Key}' is used {duplicate.Count()} times.", duplicate.First().Id));
+    }
+
+    /// <summary>Whether following the parents from this group comes back to it.</summary>
+    private static bool IsInLoop(EventSetup setup, Group group)
+    {
+        var seen = new HashSet<Guid>();
+        for (var g = group; g?.ParentId is { } p; g = setup.FindGroup(p))
+        {
+            if (p == group.Id)
+                return true;
+            if (!seen.Add(p))
+                return false;
+        }
+        return false;
     }
 
     private static void ValidateFloorsAndTables(EventSetup setup, List<ValidationIssue> issues)
@@ -156,6 +185,16 @@ public static class SetupValidator
             }
 
             var label = GroupLabel(setup, group.Id);
+            // A pin on a parent group holds all its bottom groups; seats on the floor count once, so bottom groups with a
+            // pin of their own are left out here (theirs counts).
+            var people = setup.HasChildren(group.Id)
+                ? setup.BottomGroupsOf(group).Where(g => setup.Pins.All(p => p.GroupId != g.Id)).Sum(g => Math.Max(0, g.PeopleCount))
+                : group.PeopleCount;
+            if (pin.Scope == PinScope.Seats && setup.HasChildren(group.Id))
+            {
+                issues.Add(Error(IssueCode.PinSeatCountMismatch, $"{label} has subgroups; lock the subgroups to seats instead.", pin.Id));
+                continue;
+            }
             switch (pin.Scope)
             {
                 case PinScope.Floor:
@@ -165,9 +204,9 @@ public static class SetupValidator
                         issues.Add(Error(IssueCode.PinTargetMissing, $"{label} is pinned to a floor that does not exist.", pin.Id));
                         break;
                     }
-                    if (floor.Tables.Sum(t => t.AvailableSeatCount) < group.PeopleCount)
-                        issues.Add(Error(IssueCode.PinTargetTooSmall, $"{label} ({group.PeopleCount}) does not fit on floor '{floor.Name}'.", pin.Id));
-                    AddPinned(pinnedSeatsByFloor, floor.Id, group.PeopleCount);
+                    if (floor.Tables.Sum(t => t.AvailableSeatCount) < people)
+                        issues.Add(Error(IssueCode.PinTargetTooSmall, $"{label} ({people}) does not fit on floor '{floor.Name}'.", pin.Id));
+                    AddPinned(pinnedSeatsByFloor, floor.Id, people);
                     break;
 
                 case PinScope.Table:
@@ -177,9 +216,9 @@ public static class SetupValidator
                         issues.Add(Error(IssueCode.PinTargetMissing, $"{label} is pinned to a table that does not exist.", pin.Id));
                         break;
                     }
-                    if (table.AvailableSeatCount < group.PeopleCount)
-                        issues.Add(Error(IssueCode.PinTargetTooSmall, $"{label} ({group.PeopleCount}) does not fit at table {table.Number} ({table.AvailableSeatCount} seats).", pin.Id));
-                    AddPinned(pinnedSeatsByFloor, FloorOf(setup, table.Id)!.Id, group.PeopleCount);
+                    if (table.AvailableSeatCount < people)
+                        issues.Add(Error(IssueCode.PinTargetTooSmall, $"{label} ({people}) does not fit at table {table.Number} ({table.AvailableSeatCount} seats).", pin.Id));
+                    AddPinned(pinnedSeatsByFloor, FloorOf(setup, table.Id)!.Id, people);
                     break;
 
                 case PinScope.Seats:

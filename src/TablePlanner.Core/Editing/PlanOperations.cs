@@ -70,9 +70,14 @@ public static class PlanOperations
 
     // ---- Pins ----
 
-    /// <summary>Pins a group to its current seats, so the solver leaves it there. Replaces any other pin of the group.</summary>
+    /// <summary>
+    /// Pins a group to its current seats, so the solver leaves it there. Replaces any other pin of the group. For a
+    /// parent group this locks each of its bottom groups (a parent group has no seats of its own).
+    /// </summary>
     public static bool Lock(EventProject project, Guid groupId)
     {
+        if (project.Setup.HasChildren(groupId) && project.Setup.FindGroup(groupId) is { } parent)
+            return project.Setup.BottomGroupsOf(parent).Select(g => g.Id).ToList().Count(id => Lock(project, id)) > 0;
         var seats = project.CurrentAssignment.SeatsOf(groupId).ToList();
         if (seats.Count == 0)
             return false;

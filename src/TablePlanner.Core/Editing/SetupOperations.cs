@@ -311,16 +311,131 @@ public static class SetupOperations
 
     // ---- Groups ----
 
-    public static Group AddGroup(EventProject project, string? name = null, int peopleCount = 4)
+    public static Group AddGroup(EventProject project, string? name = null, int peopleCount = 4, Guid? parentId = null)
     {
         var group = new Group { Name = name ?? UniqueGroupName(project), PeopleCount = peopleCount };
         project.Setup.Groups.Add(group);
+        if (parentId is { } p)
+            SetParent(project, group.Id, p);
         return group;
     }
 
-    /// <summary>Removes a group, and its pins, seat assignments and mentions in other groups' preferences.</summary>
+    /// <summary>
+    /// Why the groups cannot be put together in a new parent group, or null when they can: at least one group, all
+    /// known, and with the new level no more than <see cref="GroupTree.MaxLevels"/> deep. The new group goes under the
+    /// groups' common parent, if they share one, otherwise at the top.
+    /// </summary>
+    public static string? CannotGroup(EventProject project, IReadOnlyCollection<Guid> groupIds)
+    {
+        var setup = project.Setup;
+        var groups = groupIds.Distinct().Select(setup.FindGroup).ToList();
+        if (groups.Count == 0)
+            return "Select the groups to put together first.";
+        if (groups.Any(g => g is null))
+            return "A selected group no longer exists.";
+        var parentLevel = CommonParent(setup, groups!) is { } parent ? setup.LevelOf(parent) : 0;
+        var height = groups.Max(g => setup.HeightOf(g!.Id));
+        return parentLevel + 1 + height > GroupTree.MaxLevels
+            ? $"That would make more than {GroupTree.MaxLevels} levels of groups."
+            : null;
+    }
+
+    /// <summary>
+    /// Puts the groups in a new parent group named <paramref name="name"/> (see <see cref="CannotGroup"/>), placed in the
+    /// list where the first of them was. Returns the new group.
+    /// </summary>
+    public static Group GroupInto(EventProject project, IReadOnlyCollection<Guid> groupIds, string name)
+    {
+        if (CannotGroup(project, groupIds) is { } reason)
+            throw new InvalidOperationException(reason);
+        var setup = project.Setup;
+        var groups = groupIds.Distinct().Select(id => setup.FindGroup(id)!).ToList();
+        var parent = new Group { Name = name.Trim(), PeopleCount = 0, ParentId = CommonParent(setup, groups)?.Id };
+        setup.Groups.Insert(groups.Min(g => setup.Groups.IndexOf(g)), parent);
+        foreach (var group in groups)
+            group.ParentId = parent.Id;
+        return parent;
+    }
+
+    /// <summary>
+    /// Removes a parent group and moves its subgroups up a level, to its own parent. Preferences for it and its pins go
+    /// with it.
+    /// </summary>
+    public static void Ungroup(EventProject project, Guid parentId)
+    {
+        var setup = project.Setup;
+        if (setup.FindGroup(parentId) is not { } parent)
+            return;
+        foreach (var child in setup.ChildrenOf(parentId).ToList())
+            child.ParentId = parent.ParentId;
+        RemoveGroup(project, parentId);
+    }
+
+    /// <summary>
+    /// Moves a group (with its subgroups) under <paramref name="parentId"/>, or to the top level when null. When the new
+    /// parent is a bottom group with people, those people move to a new subgroup "&lt;name&gt; – other" (with its seats
+    /// and pins), since a parent group has no people of its own. Throws when the move would make a loop or too many levels.
+    /// </summary>
+    public static void SetParent(EventProject project, Guid groupId, Guid? parentId)
+    {
+        var setup = project.Setup;
+        var group = setup.FindGroup(groupId) ?? throw new ArgumentException("Unknown group.", nameof(groupId));
+        if (group.ParentId == parentId)
+            return;
+        if (!setup.CanMoveUnder(groupId, parentId))
+            throw new InvalidOperationException(
+                $"'{group.Name}' cannot go there: a group cannot be inside itself, and there can be at most {GroupTree.MaxLevels} levels.");
+        if (parentId is { } p && setup.FindGroup(p) is { } parent && !setup.HasChildren(p))
+            MovePeopleToOtherGroup(project, parent);
+        group.ParentId = parentId;
+    }
+
+    /// <summary>A bottom group is becoming a parent: its people (seats, seat and table pins) move to "&lt;name&gt; – other".</summary>
+    private static void MovePeopleToOtherGroup(EventProject project, Group group)
+    {
+        if (group.PeopleCount <= 0)
+            return;
+        var other = new Group
+        {
+            Name = UniqueName(project, $"{group.Name} – other"),
+            ParentId = group.Id,
+            PeopleCount = group.PeopleCount,
+            DietaryInfo = group.DietaryInfo,
+            ContactPerson = group.ContactPerson,
+        };
+        project.Setup.Groups.Insert(project.Setup.Groups.IndexOf(group) + 1, other);
+        group.PeopleCount = 0;
+        project.CurrentAssignment.Seats = project.CurrentAssignment.Seats
+            .Select(s => s.GroupId == group.Id ? s with { GroupId = other.Id } : s)
+            .ToList();
+        foreach (var pin in project.Setup.Pins.Where(p => p.GroupId == group.Id && p.Scope != PinScope.Floor))
+            pin.GroupId = other.Id;
+    }
+
+    private static Group? CommonParent(EventSetup setup, IReadOnlyList<Group> groups)
+    {
+        var parentId = groups[0].ParentId;
+        return groups.All(g => g.ParentId == parentId) && parentId is { } id ? setup.FindGroup(id) : null;
+    }
+
+    private static string UniqueName(EventProject project, string name)
+    {
+        var names = project.Setup.Groups.Select(g => g.Name).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var unique = name;
+        for (var n = 2; names.Contains(unique); n++)
+            unique = $"{name} {n}";
+        return unique;
+    }
+
+    /// <summary>
+    /// Removes a group, and its pins, seat assignments and mentions in other groups' preferences. Its subgroups, if
+    /// any, move up to its parent (they are not deleted).
+    /// </summary>
     public static void RemoveGroup(EventProject project, Guid groupId)
     {
+        var removed = project.Setup.FindGroup(groupId);
+        foreach (var child in project.Setup.ChildrenOf(groupId).ToList())
+            child.ParentId = removed?.ParentId;
         project.Setup.Groups.RemoveAll(g => g.Id == groupId);
         foreach (var group in project.Setup.Groups)
             group.PreferredGroupIds.Remove(groupId);

@@ -40,12 +40,15 @@ public class TestPlanDiagnostics(ITestOutputHelper output)
                 output.WriteLine($"  table {t.Table.Number} ({t.Seats.Count}) next to {string.Join(",", problem.Graph.Tables.Where(o => problem.Graph.AreAdjacent(t.Index, o.Index)).Select(o => o.Table.Number))}");
 
         // Limited by time only, as in the app (a native second is several in the browser), so not repeatable.
-        var runs = new (string Name, SolverMethod Method, double Seconds)[]
+        var runs = new (string Name, SolverMethod Method, double Seconds, int? Attempts)[]
         {
-            ("search 0.5s", SolverMethod.Search, 0.5),
-            ("beam 0.5s", SolverMethod.Beam, 0.5),
-            ("search 2s", SolverMethod.Search, 2),
-            ("beam 2s", SolverMethod.Beam, 2),
+            ("search 0.5s 1x", SolverMethod.Search, 0.5, 1),
+            ("search 0.5s", SolverMethod.Search, 0.5, null),
+            ("beam 0.5s", SolverMethod.Beam, 0.5, null),
+            ("search 2s 1x", SolverMethod.Search, 2, 1),
+            ("search 2s", SolverMethod.Search, 2, null),
+            ("beam 2s 1x", SolverMethod.Beam, 2, 1),
+            ("beam 2s", SolverMethod.Beam, 2, null),
         };
         const int Repeats = 5;
         foreach (var run in runs)
@@ -57,7 +60,7 @@ public class TestPlanDiagnostics(ITestOutputHelper output)
             {
                 var result = await SeatingSolver.SolveAsync(project, new SolverOptions
                 {
-                    TimeBudget = TimeSpan.FromSeconds(run.Seconds), Method = run.Method, Yield = _ => Task.CompletedTask,
+                    TimeBudget = TimeSpan.FromSeconds(run.Seconds), Method = run.Method, Attempts = run.Attempts, Yield = _ => Task.CompletedTask,
                 });
                 var s = result.Summary!;
                 var first = s.PreferenceStats.FirstOrDefault(p => p.Rank == 1);

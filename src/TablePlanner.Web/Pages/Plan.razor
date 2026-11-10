@@ -107,7 +107,7 @@
                             <MudText Typo="Typo.subtitle1">New plan</MudText>
                             <MudText Typo="Typo.body2" Class="mb-2">
                                 Shown on the left. @(Session.Project.CurrentAssignment.Seats.Count > 0 ? "It replaces the current plan when you use it." : "")
-                                Found in @_proposal.Elapsed.TotalSeconds.ToString("0.0") s after trying @_proposal.Iterations.ToString("N0") plans.
+                                Found in @_proposal.Elapsed.TotalSeconds.ToString("0.0") s after trying @_proposal.Iterations.ToString("N0") plans@(_proposal.Attempts > 1 ? $", the best of {_proposal.Attempts} attempts" : "").
                             </MudText>
                             @if (_currentSummary is { PeoplePlaced: > 0 } current)
                             {

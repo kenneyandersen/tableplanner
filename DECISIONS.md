@@ -620,3 +620,18 @@ Notes: changes after testing (2026-11-07):
   onto someone else's seat the two swap (`PlanOperations.MovePerson`, one undo step). Seat pins (locks) follow the
   people. The plan's warnings update as usual, so a person moved away from their group shows up there. Without Shift a
   drag moves the whole group as before; the seat tooltip and the move hint mention Shift.
+- **Several attempts in Make plan** (*changed*): runs of the same search differ a lot, and in tests the best of four
+  short runs usually beat one run four times as long (Party 2025: 5 warnings over 5 tries against 3). Make plan now
+  makes up to 4 independent attempts within the time limit and keeps the best. How many is measured, not fixed: 200
+  plans are tried first to see how fast this machine is (a browser is much slower than a test run), and each attempt
+  should get about 1,000 plans per group (`IterationsPerGroup`); so a large plan in a slow browser gets one long attempt.
+  An attempt still improving when its time runs out also sends the rest of the time to one longer attempt.
+  - Choosing: the highest score, but among plans within 1 % of it the one with fewest warnings (`CloseScoreShare`):
+    the score already weighs warnings, but they are what people notice.
+  - Every attempt starts from the same starting order (a shuffled start wasted time on large plans); the random search
+    soon takes them apart. Each attempt is search (or beam then search) plus polishing, as before.
+  - Re-optimize and seeded runs (tests) make one attempt, so they behave as before; `SolverOptions.Attempts` overrides.
+    The new plan's note says "the best of N attempts".
+  - Test plans, 5 runs at 2 s native (about 8 s in the browser), one attempt → adaptive: Party 2025 warnings 3 → 1 and
+    no one away from their group (2 before); Company dinner and Club party higher scores; Festival and Wedding equal
+    within noise.

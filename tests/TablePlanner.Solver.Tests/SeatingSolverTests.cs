@@ -158,6 +158,32 @@ public class SeatingSolverTests
     }
 
     [Fact]
+    public async Task Several_attempts_keep_the_best_and_still_repeat_with_a_seed()
+    {
+        var one = await Solve(Benchmarks.Scattered(2, 0.99), Options(5_000));
+        var three = await Solve(Benchmarks.Scattered(2, 0.99), Options(5_000) with { Attempts = 3 });
+        var again = await Solve(Benchmarks.Scattered(2, 0.99), Options(5_000) with { Attempts = 3 });
+
+        Assert.Equal(1, one.Attempts);
+        Assert.Equal(3, three.Attempts);
+        Assert.Equal(three.Summary!.Score, again.Summary!.Score);
+        // The first of the three attempts is the single attempt, so the best of three is at least as good (or has fewer warnings).
+        Assert.True(three.Summary.Score >= one.Summary!.Score * (1 - SeatingSolver.CloseScoreShare) - 1e-6);
+        Assert.True(three.Summary.Issues.Count <= one.Summary.Issues.Count || three.Summary.Score > one.Summary.Score);
+    }
+
+    [Fact]
+    public void Choosing_between_attempts_prefers_fewer_warnings_when_the_scores_are_close()
+    {
+        SeatingSolver.Attempt Attempt(double score, int warnings) => new([], score, warnings, StopReason.TimeBudget, false);
+
+        // Within 1 % of the best score, fewer warnings win.
+        Assert.Equal(9_950, SeatingSolver.Choose([Attempt(10_000, 2), Attempt(9_950, 0), Attempt(9_990, 1)]).Score);
+        // Further behind, the better score wins despite more warnings.
+        Assert.Equal(10_000, SeatingSolver.Choose([Attempt(10_000, 2), Attempt(9_500, 0)]).Score);
+    }
+
+    [Fact]
     public async Task Groups_that_fit_at_one_table_are_not_split()
     {
         var result = await Solve(Benchmarks.Example());

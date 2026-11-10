@@ -84,6 +84,23 @@
             </div>
         </MudStack>
     }
+    else if (SelectedWall is { } wall)
+    {
+        @* A wall (only a drawing): its size, open or closed, and how to edit it on the canvas. *@
+        <MudText Typo="Typo.h6" GutterBottom="true">@(wall.Closed ? "Room outline" : "Wall")</MudText>
+        <MudStack Spacing="2">
+            <MudText Typo="Typo.body2">@wall.Points.Count corners, @WallDrawing.LengthText(WallDrawing.Segments(wall).Sum(s => WallDrawing.Length(s.From, s.To))) of wall.</MudText>
+            @if (wall.Points.Count >= 3)
+            {
+                <MudSwitch T="bool" Value="wall.Closed" Label="Closed (last corner joins the first)" Color="Color.Primary"
+                           ValueChanged="@(v => History.Execute(v ? "Close wall" : "Open wall", p => SetupOperations.SetWallClosed(p, FloorId, wall.Id, v)))" />
+            }
+            <MudText Typo="Typo.caption" Class="mud-text-secondary">
+                Drag a corner to move it (Alt: off the grid), drag a + to add a corner, Alt+click a corner to remove it. Drag the wall to move it.
+                Walls are only a drawing: tables on either side still count as next to each other. An Entrance or Exit placed on a wall makes a gap (a door).
+            </MudText>
+        </MudStack>
+    }
     else if (Selection.Count > 1)
     {
         <MudText Typo="Typo.h6" GutterBottom="true">@Selection.Count items selected</MudText>
@@ -140,6 +157,8 @@
     private Table? SelectedTable => Selection.Count == 1 ? Floor?.Tables.FirstOrDefault(t => Selection.Contains(t.Id)) : null;
 
     private FloorElement? SelectedElement => Selection.Count == 1 ? Floor?.Elements.FirstOrDefault(e => Selection.Contains(e.Id)) : null;
+
+    private Wall? SelectedWall => Selection.Count == 1 ? Floor?.Walls.FirstOrDefault(w => Selection.Contains(w.Id)) : null;
 
     // The project's objects are replaced on undo, so edits look items up by ID rather than capturing them.
     private void EditTable(Guid id, string description, Action<Table> edit) =>

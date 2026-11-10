@@ -11,7 +11,8 @@ Design decisions are recorded in [DECISIONS.md](DECISIONS.md).
 
 ## What it does
 
-- **Layout:** floors with long tables (0–2 end seats) and round tables, floor elements (bar, stage, …) in layers, and
+- **Layout:** floors with long tables (0–2 end seats) and round tables, floor elements (bar, stage, stairs, pillar, …) drawn
+  as simple symbols in layers, walls drawn as the room's outline, and
   a background image of the venue, with move, resize, rotate, snap to grid and undo.
 - **Groups:** a groups editor with quick add, up to 5 ranked preferences per group, and optional levels (departments,
   teams, subteams) that the plan keeps together, optional names of people; an import wizard for guest lists in CSV or

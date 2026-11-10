@@ -341,3 +341,14 @@ code {
 .import-columns td:last-child { width: 260px; }
 .import-tree { max-height: 30vh; overflow-y: auto; font-size: 0.85rem; border: 1px solid var(--mud-palette-lines-default); border-radius: 4px; padding: 4px 8px; }
 .floor-canvas .element.kind-pillar.round.selected > rect { stroke: var(--mud-palette-primary); stroke-width: 0.07; }
+
+/* Walls in the layout editor: a wide invisible line to pick a wall, its corners and "+" when selected, and the wall
+   being drawn. The wall itself is drawn by WallDrawing (under everything). */
+.floor-canvas .wall-hit { fill: none; stroke: transparent; stroke-width: 0.45; cursor: move; }
+.floor-canvas .item.wall.selected .wall-hit { stroke: var(--mud-palette-primary); stroke-opacity: 0.25; }
+.floor-canvas .wall-corner { cursor: move; }
+.floor-canvas .wall-add { fill: #ffffff; stroke: var(--mud-palette-primary); stroke-width: 0.04; cursor: copy; }
+.floor-canvas .wall-length { fill: var(--mud-palette-primary); font-weight: 600; pointer-events: none; }
+.floor-canvas .drawing-layer { fill: transparent; cursor: crosshair; }
+.floor-canvas .wall-draft { fill: none; stroke: var(--mud-palette-primary); stroke-width: 0.1; stroke-dasharray: 0.25 0.12; pointer-events: none; }
+.floor-canvas .wall-draft-corner { fill: var(--mud-palette-primary); pointer-events: none; }

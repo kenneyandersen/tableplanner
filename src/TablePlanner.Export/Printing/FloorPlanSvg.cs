@@ -29,6 +29,8 @@ public static class FloorPlanSvg
     public static string Render(Floor floor, PrintedPlan plan, IReadOnlyDictionary<Guid, string> colours, string? backgroundUrl = null)
     {
         var bounds = floor.Tables.Select(TableGeometry.GetBounds).Concat(floor.Elements.Select(FloorElementGeometry.GetBounds)).ToList();
+        if (floor.Walls.Count > 0)
+            bounds.Add(WallDrawing.Bounds(floor.Walls));
         // Seats stick out from the table top by about a chair's depth.
         var reach = TableGeometry.ChairOffset + 0.25;
         var left = bounds.Count == 0 ? 0 : bounds.Min(b => b.Left) - reach - Margin;
@@ -44,6 +46,8 @@ public static class FloorPlanSvg
             svg.Append($"<image class=\"background-image\" href=\"{HtmlTemplate.Escape(backgroundUrl)}\" preserveAspectRatio=\"none\" x=\"{N(background.X)}\" y=\"{N(background.Y)}\" ");
             svg.Append($"width=\"{N(background.Width)}\" height=\"{N(background.Height)}\" opacity=\"{N(background.Opacity * PosterImageFade)}\"/>");
         }
+
+        svg.Append(WallDrawing.Svg(floor, floor.Id.ToString("N")));
 
         foreach (var element in floor.Elements)
         {

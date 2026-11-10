@@ -13,6 +13,8 @@ public static class CanvasExtent
     public static Rect Of(Floor floor)
     {
         var bounds = floor.Tables.Select(TableGeometry.GetBounds).Concat(floor.Elements.Select(FloorElementGeometry.GetBounds)).ToList();
+        if (floor.Walls.Count > 0)
+            bounds.Add(WallDrawing.Bounds(floor.Walls));
         if (floor.Background is { } background)
             bounds.Add(background.Bounds);
         var left = Math.Min(0, Math.Floor(bounds.Select(b => b.Left).DefaultIfEmpty(0).Min()));

@@ -40,6 +40,7 @@ public static class SetupOperations
             copy.Tables.Add(clone);
         }
         copy.Elements.AddRange(source.Elements.Select(CloneElement));
+        copy.Walls.AddRange(source.Walls.Select(w => CloneWall(w, 0, 0)));
         copy.Background = source.Background is { } b ? BackgroundOperations.Clone(b) : null;
         return copy;
     }
@@ -117,6 +118,7 @@ public static class SetupOperations
 
         floor.Tables.RemoveAll(t => removedTables.Contains(t.Id));
         floor.Elements.RemoveAll(e => itemIds.Contains(e.Id));
+        floor.Walls.RemoveAll(w => itemIds.Contains(w.Id));
 
         project.Setup.Pins.RemoveAll(p =>
             (p.Scope == PinScope.Table && p.TableId is { } t && removedTables.Contains(t))
@@ -149,7 +151,71 @@ public static class SetupOperations
             newIds.Add(clone.Id);
         }
 
+        foreach (var wall in floor.Walls.Where(w => itemIds.Contains(w.Id)).ToList())
+        {
+            var clone = CloneWall(wall, dx, dy);
+            floor.Walls.Add(clone);
+            newIds.Add(clone.Id);
+        }
+
         return newIds;
+    }
+
+    private static Wall CloneWall(Wall wall, double dx, double dy) =>
+        new() { Points = wall.Points.Select(p => p.Offset(dx, dy)).ToList(), Closed = wall.Closed };
+
+    // ---- Walls (only a drawing) ----
+
+    /// <summary>Adds a wall through <paramref name="points"/> (at least 2), closed into a room outline when asked (at least 3).</summary>
+    public static Wall AddWall(EventProject project, Guid floorId, IReadOnlyList<Point> points, bool closed = false)
+    {
+        if (points.Count < 2)
+            throw new ArgumentException("A wall needs at least two corners.", nameof(points));
+        var wall = new Wall { Points = [.. points], Closed = closed && points.Count >= 3 };
+        GetFloor(project, floorId).Walls.Add(wall);
+        return wall;
+    }
+
+    /// <summary>Adds a rectangular room outline (a closed wall) with its top-left corner at (left, top).</summary>
+    public static Wall AddRoom(EventProject project, Guid floorId, double left, double top, double width, double depth) =>
+        AddWall(project, floorId,
+            [new Point(left, top), new Point(left + width, top), new Point(left + width, top + depth), new Point(left, top + depth)], closed: true);
+
+    private static Wall GetWall(EventProject project, Guid floorId, Guid wallId) =>
+        GetFloor(project, floorId).Walls.FirstOrDefault(w => w.Id == wallId) ?? throw new ArgumentException("Unknown wall.", nameof(wallId));
+
+    public static void MoveWallCorner(EventProject project, Guid floorId, Guid wallId, int index, Point to)
+    {
+        var wall = GetWall(project, floorId, wallId);
+        if (index >= 0 && index < wall.Points.Count)
+            wall.Points[index] = to;
+    }
+
+    /// <summary>Adds a corner after corner <paramref name="afterIndex"/> (the last one: between the last and the first of a closed wall).</summary>
+    public static void InsertWallCorner(EventProject project, Guid floorId, Guid wallId, int afterIndex, Point at)
+    {
+        var wall = GetWall(project, floorId, wallId);
+        wall.Points.Insert(Math.Clamp(afterIndex + 1, 0, wall.Points.Count), at);
+    }
+
+    /// <summary>Removes a corner. A wall left with fewer than 2 corners is removed; a room with fewer than 3 is opened.</summary>
+    public static void RemoveWallCorner(EventProject project, Guid floorId, Guid wallId, int index)
+    {
+        var floor = GetFloor(project, floorId);
+        var wall = GetWall(project, floorId, wallId);
+        if (index < 0 || index >= wall.Points.Count)
+            return;
+        wall.Points.RemoveAt(index);
+        if (wall.Points.Count < 2)
+            floor.Walls.Remove(wall);
+        else if (wall.Points.Count < 3)
+            wall.Closed = false;
+    }
+
+    public static void SetWallClosed(EventProject project, Guid floorId, Guid wallId, bool closed)
+    {
+        var wall = GetWall(project, floorId, wallId);
+        wall.Closed = closed && wall.Points.Count >= 3;
     }
 
     public static void MoveItems(EventProject project, Guid floorId, IReadOnlyCollection<Guid> itemIds, double dx, double dy)
@@ -165,6 +231,8 @@ public static class SetupOperations
             element.X += dx;
             element.Y += dy;
         }
+        foreach (var wall in floor.Walls.Where(w => itemIds.Contains(w.Id)))
+            wall.Points = wall.Points.Select(p => p.Offset(dx, dy)).ToList();
     }
 
     /// <summary>Turns each item 90° clockwise around its own centre.</summary>
@@ -175,6 +243,13 @@ public static class SetupOperations
             table.Rotation = Next(table.Rotation);
         foreach (var element in floor.Elements.Where(e => itemIds.Contains(e.Id)))
             element.Rotation = Next(element.Rotation);
+        foreach (var wall in floor.Walls.Where(w => itemIds.Contains(w.Id)))
+        {
+            // A quarter turn around the middle of the wall.
+            var b = WallDrawing.Bounds([wall]);
+            var (cx, cy) = (b.Left + b.Width / 2, b.Top + b.Height / 2);
+            wall.Points = wall.Points.Select(p => new Point(p.X - cx, p.Y - cy).Rotate(Rotation.R90).Offset(cx, cy)).ToList();
+        }
     }
 
     /// <summary>

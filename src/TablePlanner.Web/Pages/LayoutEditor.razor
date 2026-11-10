@@ -43,7 +43,14 @@
                         <MudMenuItem OnClick="@(() => AddElement(kind))">@FloorElementGeometry.DisplayName(kind)</MudMenuItem>
                     }
                 </MudMenu>
-    
+                <MudTooltip Text="Draw walls (W): click each corner; straight across or down unless Shift is held. Double-click or Enter ends a wall; a click on its first corner closes the room. Esc stops.">
+                    <MudButton StartIcon="@Icons.Material.Filled.Polyline" Variant="@(_drawingWall ? Variant.Filled : Variant.Outlined)" Color="@(_drawingWall ? Color.Primary : Color.Default)"
+                               Size="Size.Small" Class="ml-2" OnClick="ToggleDrawingWall">Walls</MudButton>
+                </MudTooltip>
+                <MudTooltip Text="Add a rectangular room outline">
+                    <MudButton StartIcon="@Icons.Material.Filled.CropSquare" Variant="Variant.Outlined" Size="Size.Small" Class="ml-1" OnClick="AddRoom">Room</MudButton>
+                </MudTooltip>
+
                 <MudDivider Vertical="true" FlexItem="true" Class="mx-2" />
     
                 <MudTooltip Text="Rotate 90° (R)">
@@ -79,10 +86,16 @@
                             Setting the scale: click the first point, then the second. Esc cancels.
                         </MudChip>
                     }
+                    else if (_drawingWall)
+                    {
+                        <MudChip T="string" Color="Color.Primary" Class="move-hint" OnClose="@(() => _drawingWall = false)">
+                            Drawing walls: click each corner (Shift: any angle, Alt: off the grid). Double-click or Enter ends a wall; click the first corner to close a room. Esc stops.
+                        </MudChip>
+                    }
                     <FloorCanvas History="history" FloorId="floor.Id" Selection="_selection" SelectionChanged="SetSelection"
                                  Scale="_scale" EditSeats="_editSeats" ShowAdjacency="_showAdjacency"
                                  BackgroundUrl="@Session.ImageUrl(floor.Background?.ImageId)"
-                                 Calibrating="_calibrating" CalibrationPicked="Calibrate" />
+                                 Calibrating="_calibrating" CalibrationPicked="Calibrate" DrawingWall="_drawingWall" @ref="_canvas" />
                 </div>
                 <div class="editor-side">
                     <PropertiesPanel History="history" FloorId="floor.Id" Selection="_selection"
@@ -118,6 +131,24 @@
     private double _scale = DefaultScale;
     private bool _showAdjacency;
     private bool _calibrating;
+    private bool _drawingWall;
+    private FloorCanvas? _canvas;
+
+    private void ToggleDrawingWall()
+    {
+        _drawingWall = !_drawingWall;
+        if (_drawingWall)
+            SetSelection(new HashSet<Guid>());
+    }
+
+    /// <summary>A rectangular room outline, 20 × 12 m from the origin, to adjust by dragging its corners.</summary>
+    private void AddRoom()
+    {
+        Guid? id = null;
+        History.Execute("Add room", p => id = SetupOperations.AddRoom(p, CurrentFloor!.Id, 0, 0, 20, 12).Id);
+        if (id is { } wall)
+            SetSelection(new HashSet<Guid> { wall });
+    }
 
     [Parameter] public Guid Id { get; set; }
 
@@ -264,8 +295,11 @@
         {
             case "r" or "R" when !ctrl: RotateSelected(); break;
             case "Delete" or "Backspace": DeleteSelected(); break;
+            case "Enter" when _drawingWall: _canvas?.FinishWall(); break;
+            case "w" or "W" when !ctrl: ToggleDrawingWall(); break;
             case "Escape":
                 _calibrating = false;
+                _drawingWall = false;
                 SetSelection(new HashSet<Guid>());
                 break;
             case "ArrowLeft": Nudge(-step, 0); break;
@@ -274,7 +308,7 @@
             case "ArrowDown": Nudge(0, step); break;
             case "d" or "D" when ctrl: DuplicateSelected(); break;
             case "a" or "A" when ctrl:
-                SetSelection(CurrentFloor!.Tables.Select(t => t.Id).Concat(CurrentFloor.Elements.Select(el => el.Id)).ToHashSet());
+                SetSelection(CurrentFloor!.Tables.Select(t => t.Id).Concat(CurrentFloor.Elements.Select(el => el.Id)).Concat(CurrentFloor.Walls.Select(w => w.Id)).ToHashSet());
                 break;
             case "z" or "Z" when ctrl && e.ShiftKey: History.Redo(); break;
             case "z" or "Z" when ctrl: History.Undo(); break;

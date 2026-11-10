@@ -723,3 +723,15 @@ Notes: changes after testing (2026-11-07):
   - New kinds: Pillar (filled grey; square, or round with the "Round" switch), DJ booth (turntables and a mixer) and
     Photo booth (a camera). Existing "Custom" elements stay as they are.
   - `ElementGallery` (with TABLEPLANNER_GALLERY set to a file path) writes all kinds, upright and turned, to one page.
+- **Walls** (*new*): for venues without a picture, walls can be drawn (`Floor.Walls`; a `Wall` is corner points,
+  open or closed into a room outline). Only a drawing: the solver ignores them (tables either side of a wall still count
+  as next to each other, as the user wanted).
+  - Layout editor: "Walls" (W) draws: each click a corner, the next piece straight across or down from the last
+    (Shift: any angle; Alt: off the grid) with its length shown; double-click or Enter ends the wall, a click on its first
+    corner closes the room, Esc stops. "Room" adds a 20 × 12 m rectangle at the origin to adjust. A selected wall shows
+    its corners (drag; Alt+click removes one), a "+" in the middle of each piece (drag to add a corner) and each piece's
+    length; the panel shows corners, total length and a "Closed" switch. Walls move, copy, rotate (a quarter turn around
+    their middle), nudge and delete with the selection like tables and elements, and are copied with a floor.
+  - Drawn as thin dark lines (`WallDrawing`, the same SVG in the editor, plan page, poster and guest page) under
+    everything else. An Entrance or Exit element placed on a wall cuts a gap in it (an SVG mask), so a door needs no
+    tool of its own. Walls count towards the canvas and poster extent.

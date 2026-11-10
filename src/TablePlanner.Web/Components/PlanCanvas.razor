@@ -26,6 +26,9 @@
                    x="@Svg(background.X)" y="@Svg(background.Y)" width="@Svg(background.Width)" height="@Svg(background.Height)" />
         }
 
+        @* Walls (only a drawing), under everything else. *@
+        @((MarkupString)WallDrawing.Svg(floor, "plan-" + floor.Id.ToString("N")))
+
         @foreach (var element in floor.Elements)
         {
             var bounds = FloorElementGeometry.GetBounds(element);

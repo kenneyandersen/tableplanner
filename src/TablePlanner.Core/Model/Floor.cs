@@ -12,6 +12,9 @@ public sealed class Floor
     public List<Table> Tables { get; set; } = [];
     public List<FloorElement> Elements { get; set; } = [];
 
+    /// <summary>Walls drawn on the floor (only a drawing).</summary>
+    public List<Wall> Walls { get; set; } = [];
+
     /// <summary>A picture drawn under the floor, or null.</summary>
     public FloorBackground? Background { get; set; }
 

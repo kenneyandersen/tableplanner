@@ -666,3 +666,20 @@ Notes: changes after testing (2026-11-07):
     whole teams. Test plan "Company levels 440" (6 departments with teams and subteams, department preferences):
     at 2 s native over 5 runs, Search 2 warnings, beam search 1. A first version counted groups instead of people per
     table for parent groups (about ten times too weak); this test plan found it.
+- **Person lists** (*new*): a group can have names (`Group.Members`, a list of `Person`). Optional and need not be
+  complete: the number of people (`PeopleCount`) stays what is seated, and "8 people, 5 named" means 3 unnamed guests.
+  People do not get seats of their own.
+  - Adding names beyond the number raises it; it never drops by itself. Removing a person makes the group one smaller
+    (they are not coming); moving a person to another group takes one from the old and adds one to the new.
+  - A parent group has no people, so names added to it go to its subgroup "<name> – other" (made when needed), which
+    is kept with the department's teams like any other subgroup. A bottom group that gets subgroups hands its names to
+    its "– other" group along with its people.
+  - Validation: more names than people is a warning; names on a parent group are an error.
+  - Groups page: a Names column ("5 of 8", or "Add names") opens a dialog to paste names (one per line, e.g. a column
+    from Excel), rename, move to another group or remove; for a parent group it lists the names in all its groups. The
+    search also finds people and shows the matching names.
+  - Plan page: the group panel lists the names; the group list has a search for a group or a person, showing the
+    matching names next to their group (so where someone sits is one search away).
+  - Group export/import: a "Names" column (semicolon-separated), written when any group has names; on import, people
+    with the same name keep their ID, a row without a number gets one per name, and names for a parent group go to its
+    "– other" group. The import wizard (next) will also read one row per person.

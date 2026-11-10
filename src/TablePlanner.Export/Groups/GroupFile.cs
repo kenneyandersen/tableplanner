@@ -14,7 +14,8 @@ public sealed record ImportedGroup(
     string? Colour,
     string? Notes,
     IReadOnlyList<string> Preferences,
-    string? Parent = null);
+    string? Parent = null,
+    IReadOnlyList<string>? Names = null);
 
 /// <summary>A message about the file. <see cref="RowNumber"/> is null when it concerns the whole file.</summary>
 public sealed record ImportMessage(int? RowNumber, string Text)
@@ -123,7 +124,12 @@ public sealed partial class GroupFile
 
             var peopleText = Text(row, GroupColumn.People);
             var isParent = parentNames.Contains(name);
-            var people = isParent && (peopleText.Length == 0 || peopleText == "0") ? 0 : ParsePeople(peopleText);
+            var names = Text(row, GroupColumn.Names).Split(NameSeparators).Select(n => n.Trim()).Where(n => n.Length > 0).ToList();
+            var people = isParent && (peopleText.Length == 0 || peopleText == "0") ? 0
+                : peopleText.Length == 0 && names.Count > 0 ? names.Count
+                : ParsePeople(peopleText);
+            if (people is { } counted && !isParent && names.Count > counted)
+                people = names.Count; // everyone named needs a seat
             if (people is null)
                 rowErrors.Add(peopleText.Length == 0
                     ? "the number of people is missing."
@@ -150,7 +156,7 @@ public sealed partial class GroupFile
             rowsByName[name] = row.RowNumber;
             groups.Add(new ImportedGroup(row.RowNumber, name, people!.Value,
                 Optional(row, GroupColumn.ContactPerson), Optional(row, GroupColumn.DietaryInfo), colour,
-                Optional(row, GroupColumn.Notes), preferences, Optional(row, GroupColumn.Parent)));
+                Optional(row, GroupColumn.Notes), preferences, Optional(row, GroupColumn.Parent), columnIndex.ContainsKey(GroupColumn.Names) ? names : null));
         }
 
         if (groups.Count == 0 && errors.Count == 0)
@@ -158,6 +164,9 @@ public sealed partial class GroupFile
 
         return new GroupFile(groups, columnIndex.Keys.ToHashSet(), errors, warnings, skipped);
     }
+
+    /// <summary>Names in the Names column are separated by semicolons or line breaks.</summary>
+    private static readonly char[] NameSeparators = [';', '\n', '\r'];
 
     private static GroupFile Failed(string error) =>
         new([], new HashSet<GroupColumn>(), [new ImportMessage(null, error)], [], []);

@@ -123,6 +123,32 @@ public static class GroupImport
             }
         }
 
+        // Names: the file's list replaces the group's (people with the same name keep their ID). Names given for a parent
+        // group go to its "– other" group. The number of people grows if there are more names.
+        if (file.Columns.Contains(GroupColumn.Names))
+            foreach (var (row, group) in imported)
+            {
+                var names = row.Names ?? [];
+                if (setup.HasChildren(group.Id))
+                {
+                    if (names.Count > 0)
+                    {
+                        var holder = SetupOperations.HolderFor(project, group);
+                        SetupOperations.AddPeople(project, holder.Id, names.Where(n => !holder.Members.Any(m => string.Equals(m.Name, n, StringComparison.OrdinalIgnoreCase))));
+                    }
+                    continue;
+                }
+                var old = group.Members.ToList();
+                group.Members = names.Select(name =>
+                {
+                    var same = old.FirstOrDefault(m => string.Equals(m.Name, name, StringComparison.OrdinalIgnoreCase));
+                    if (same is not null)
+                        old.Remove(same);
+                    return new Person { Id = same?.Id ?? Guid.NewGuid(), Name = name };
+                }).ToList();
+                group.PeopleCount = Math.Max(group.PeopleCount, group.Members.Count);
+            }
+
         // Preferences are resolved once all groups exist, so a group may prefer one further down the file.
         if (file.HasPreferences)
         {
@@ -179,6 +205,8 @@ public static class GroupImport
             details.Add("Colour");
         if (before.Notes != group.Notes)
             details.Add("Notes");
+        if (before.Names != NamesKey(group))
+            details.Add("Names");
         if (before.ParentId != group.ParentId)
             details.Add("Parent group");
         if (!before.Preferences.SequenceEqual(group.PreferredGroupIds))
@@ -196,9 +224,12 @@ public static class GroupImport
         return byName;
     }
 
-    private sealed record Snapshot(string Name, int PeopleCount, string? ContactPerson, string? DietaryInfo, string? Colour, string? Notes, IReadOnlyList<Guid> Preferences, Guid? ParentId)
+    /// <summary>The group's names in order, for noticing a change.</summary>
+    private static string NamesKey(Group group) => string.Join('|', group.Members.Select(m => m.Name));
+
+    private sealed record Snapshot(string Name, int PeopleCount, string? ContactPerson, string? DietaryInfo, string? Colour, string? Notes, IReadOnlyList<Guid> Preferences, Guid? ParentId, string Names)
     {
         public static Snapshot Of(Group g) =>
-            new(g.Name, g.PeopleCount, g.ContactPerson, g.DietaryInfo, g.Colour, g.Notes, g.PreferredGroupIds.ToList(), g.ParentId);
+            new(g.Name, g.PeopleCount, g.ContactPerson, g.DietaryInfo, g.Colour, g.Notes, g.PreferredGroupIds.ToList(), g.ParentId, NamesKey(g));
     }
 }

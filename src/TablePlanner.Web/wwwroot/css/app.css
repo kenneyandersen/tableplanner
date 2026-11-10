@@ -318,3 +318,8 @@ code {
 
 /* Groups page: parent groups (departments, teams with subteams) in bold. */
 .parent-group-name input { font-weight: 600; }
+
+/* Named people: the matches of a search in the group list, and the names in the group panel. */
+.group-row .found-names { color: var(--mud-palette-primary); font-size: 0.8rem; }
+.group-detail .people-names { max-height: 8rem; overflow-y: auto; }
+.people-list { max-height: 50vh; overflow-y: auto; }

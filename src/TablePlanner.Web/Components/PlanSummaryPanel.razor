@@ -49,7 +49,12 @@ else
     </MudAlert>
 }
 
-<MudText Typo="Typo.subtitle2" Class="mt-1">Groups</MudText>
+<MudStack Row="true" AlignItems="AlignItems.Center" Class="mt-1">
+    <MudText Typo="Typo.subtitle2">Groups</MudText>
+    <MudSpacer />
+    <MudTextField T="string" @bind-Value="_search" Placeholder="Find a group or person" Immediate="true" Clearable="true"
+                  Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search" Margin="Margin.Dense" Style="max-width: 220px" />
+</MudStack>
 <div class="group-list">
     @foreach (var (group, parent, level) in Rows())
     {
@@ -78,7 +83,12 @@ else
              @ondragstart="() => DragStarted.InvokeAsync(id)" @ondragend="() => DragEnded.InvokeAsync()"
              title="@(DragEnabled ? "Click to select, or drag onto a seat of the floor plan" : null)">
             <span class="group-dot" style="background: @Colours.GetValueOrDefault(id, "#ccc")"></span>
-            <span class="group-name">@group.Name <span class="group-count">(@group.PeopleCount)</span></span>
+            <span class="group-name">@group.Name <span class="group-count">(@group.PeopleCount)</span>
+                @if (FoundNames(id) is { Count: > 0 } found)
+                {
+                    <span class="found-names">· @string.Join(", ", found)</span>
+                }
+            </span>
             @if (Pinned.Contains(id))
             {
                 <MudIcon Icon="@Icons.Material.Filled.Lock" Size="Size.Small" Class="mud-text-secondary" Title="Locked or pinned" />
@@ -111,11 +121,35 @@ else
     /// <summary>The setup, for group levels: the list is then a tree with the parent groups. Optional.</summary>
     [Parameter] public EventSetup? Setup { get; set; }
 
+    private string? _search;
+
+    private string? Search => string.IsNullOrWhiteSpace(_search) ? null : _search.Trim();
+
+    /// <summary>Names in a group that match the search (none without a search).</summary>
+    private List<string> FoundNames(Guid groupId) =>
+        Search is { } s && Setup?.FindGroup(groupId) is { } g
+            ? g.Members.Where(m => m.Name.Contains(s, StringComparison.CurrentCultureIgnoreCase)).Select(m => m.Name).ToList()
+            : [];
+
+    /// <summary>The rows, narrowed by the search to groups whose name or people match, and the parent groups above them.</summary>
+    private IEnumerable<(GroupPlacement? Group, ParentPlacement? Parent, int Level)> Rows()
+    {
+        var rows = AllRows().ToList();
+        if (Search is not { } s)
+            return rows;
+        bool NameMatches(string name) => name.Contains(s, StringComparison.CurrentCultureIgnoreCase);
+        var found = rows.Where(r => r.Group is { } g && (NameMatches(g.Name) || FoundNames(g.GroupId).Count > 0))
+            .Select(r => r.Group!.GroupId).ToHashSet();
+        return rows.Where(r => r.Group is { } g
+            ? found.Contains(g.GroupId)
+            : NameMatches(r.Parent!.Name) || (Setup?.FindGroup(r.Parent.GroupId) is { } p && Setup.BottomGroupsOf(p).Any(b => found.Contains(b.Id))));
+    }
+
     /// <summary>
     /// The rows of the group list: without levels the groups by name; with levels in tree order, parent groups (with
     /// seated groups) included.
     /// </summary>
-    private IEnumerable<(GroupPlacement? Group, ParentPlacement? Parent, int Level)> Rows()
+    private IEnumerable<(GroupPlacement? Group, ParentPlacement? Parent, int Level)> AllRows()
     {
         if (Setup is not { } setup || Summary.ParentGroups.Count == 0)
         {

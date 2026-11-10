@@ -35,6 +35,13 @@
         </ul>
     }
 
+    @{ var names = Members.SelectMany(m => m.Members).Select(p => p.Name).ToList(); }
+    @if (names.Count > 0)
+    {
+        <MudText Typo="Typo.caption">People (@names.Count of @Setup.PeopleIn(Group) named)</MudText>
+        <MudText Typo="Typo.body2" Class="mb-2 people-names">@string.Join(", ", names.Take(MaxNames))@(names.Count > MaxNames ? $" … and {names.Count - MaxNames} more" : "")</MudText>
+    }
+
     @if (Disabled)
     {
         <MudText Class="mud-text-secondary" Typo="Typo.caption">Use or discard the new plan to edit by hand.</MudText>
@@ -117,6 +124,8 @@
 
     /// <summary>For a parent group: unlock each of its groups.</summary>
     [Parameter] public EventCallback OnUnlockGroups { get; set; }
+
+    private const int MaxNames = 40;
 
     private Pin? Pin => Setup.Pins.FirstOrDefault(p => p.GroupId == Group.Id);
 

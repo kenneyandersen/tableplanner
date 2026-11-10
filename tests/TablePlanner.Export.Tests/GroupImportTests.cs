@@ -255,4 +255,51 @@ public class GroupImportTests
         Assert.Null(Named(project, "A").ParentId);
         Assert.Contains(result.Warnings, w => w.Text.Contains("Nowhere"));
     }
+
+    [Theory]
+    [InlineData("csv")]
+    [InlineData("xlsx")]
+    public void Export_then_import_keeps_names(string format)
+    {
+        var source = Project();
+        Core.Editing.SetupOperations.AddPeople(source, Named(source, "A").Id, ["Ann Lee", "Bo; Jr"]);
+        var bytes = format == "csv" ? GroupExporter.ToCsv(source.Setup) : GroupExporter.ToXlsx(source.Setup);
+        var target = new EventProject();
+
+        GroupImport.Apply(target, GroupFile.Read($"groups.{format}", bytes), GroupImportMode.Merge);
+
+        // A semicolon separates names, so "Bo; Jr" comes back as two people (and the group grows to fit them).
+        Assert.Equal(["Ann Lee", "Bo", "Jr"], Named(target, "A").Members.Select(m => m.Name));
+        Assert.Equal(4, Named(target, "A").PeopleCount);
+        Assert.Empty(Named(target, "B").Members);
+    }
+
+    [Fact]
+    public void Import_of_names_keeps_ids_raises_the_number_and_counts_a_row_without_people()
+    {
+        var project = Project();
+        Core.Editing.SetupOperations.AddPeople(project, Named(project, "A").Id, ["Ann"]);
+        var annId = Named(project, "A").Members[0].Id;
+
+        var result = GroupImport.Apply(project, Csv("Name,People,Names\nA,2,Ann; Bo; Cy\nC,,Dee; Eve\n"), GroupImportMode.Merge);
+
+        var a = Named(project, "A");
+        Assert.Equal(annId, a.Members[0].Id);
+        Assert.Equal(3, a.PeopleCount);
+        Assert.Equal(2, Named(project, "C").PeopleCount);
+        Assert.Contains(result.Changes, c => c.Name == "A" && c.Details.Contains("Names"));
+    }
+
+    [Fact]
+    public void Names_given_for_a_parent_group_go_to_its_other_group()
+    {
+        var project = new EventProject();
+
+        GroupImport.Apply(project, Csv("Name,Parent group,People,Names\nSales,,,Dana\nTeam,Sales,4,\n"), GroupImportMode.Merge);
+
+        var other = Named(project, "Sales – other");
+        Assert.Equal(["Dana"], other.Members.Select(m => m.Name));
+        Assert.Empty(Named(project, "Sales").Members);
+        Assert.Empty(Core.Validation.SetupValidator.Validate(project.Setup).Errors);
+    }
 }

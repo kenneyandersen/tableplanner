@@ -1,0 +1,92 @@
+@* The named people of a group: add (paste one name per line), rename, move to another group, remove. Each change is
+   one undoable step. For a parent group it lists the names in all its groups, and new names go to its "– other" group. *@
+@inject ProjectSession Session
+
+<MudDialog>
+    <DialogContent>
+        @if (Group is { } group)
+        {
+            var setup = Session.Project!.Setup;
+            var isParent = setup.HasChildren(group.Id);
+            var people = setup.PeopleIn(group);
+            var members = Members(setup, group);
+            <MudText Typo="Typo.body2" Class="mb-2">
+                @people people, @members.Count named@(members.Count < people ? $", {people - members.Count} without a name" : "").
+                Names are optional: the number of people is what gets seats. Adding more names than people raises the number;
+                removing someone makes the group one smaller.
+            </MudText>
+
+            @if (members.Count > 0)
+            {
+                <div class="people-list mb-3">
+                    @foreach (var (owner, person) in members)
+                    {
+                        var personId = person.Id;
+                        <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="1">
+                            <MudTextField T="string" Value="person.Name" Margin="Margin.Dense" Style="flex: 1"
+                                          ValueChanged="@(v => Edit("Rename person", p => SetupOperations.RenamePerson(p, personId, v)))" />
+                            @if (isParent)
+                            {
+                                <MudText Typo="Typo.caption" Class="mud-text-secondary" Style="min-width: 110px">@owner.Name</MudText>
+                            }
+                            <MudMenu Icon="@Icons.Material.Filled.DriveFileMove" Size="Size.Small" Dense="true" aria-label="Move to another group">
+                                <MudMenuItem Disabled="true"><b>Move to</b></MudMenuItem>
+                                @foreach (var (target, level) in setup.InTreeOrder().Where(x => x.Group.Id != owner.Id))
+                                {
+                                    var targetId = target.Id;
+                                    <MudMenuItem OnClick="@(() => Edit("Move person", p => SetupOperations.MovePersonToGroup(p, personId, targetId)))">
+                                        <span style="padding-left: @((level - 1) * 16)px">@target.Name</span>
+                                    </MudMenuItem>
+                                }
+                            </MudMenu>
+                            <MudIconButton Icon="@Icons.Material.Filled.PersonRemove" Size="Size.Small" aria-label="Remove person"
+                                           OnClick="@(() => Edit("Remove person", p => SetupOperations.RemovePerson(p, personId)))" />
+                        </MudStack>
+                    }
+                </div>
+            }
+
+            <MudTextField T="string" @bind-Value="_newNames" Label="Add names (one per line; you can paste a column from Excel)"
+                          Lines="4" Variant="Variant.Outlined" Margin="Margin.Dense" />
+            @if (isParent)
+            {
+                <MudText Typo="Typo.caption" Class="mud-text-secondary">
+                    @group.Name has subgroups, so new names go to its group "@group.Name – other". Move them to a team afterwards if you like.
+                </MudText>
+            }
+        }
+        else
+        {
+            <MudText>The group no longer exists.</MudText>
+        }
+    </DialogContent>
+    <DialogActions>
+        <MudButton Variant="Variant.Outlined" Disabled="@string.IsNullOrWhiteSpace(_newNames)" OnClick="AddNames">Add names</MudButton>
+        <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="() => Dialog.Close()">Done</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    private string? _newNames;
+
+    [CascadingParameter] private IMudDialogInstance Dialog { get; set; } = null!;
+
+    [Parameter, EditorRequired] public Guid GroupId { get; set; }
+
+    private Group? Group => Session.Project?.Setup.FindGroup(GroupId);
+
+    /// <summary>The named people, with the group each is in (the group itself, or for a parent group one of its groups).</summary>
+    private static List<(Group Owner, Person Person)> Members(EventSetup setup, Group group) =>
+        setup.BottomGroupsOf(group).SelectMany(g => g.Members.Select(m => (g, m))).ToList();
+
+    private void Edit(string description, Action<EventProject> edit) => Session.History!.Execute(description, edit);
+
+    private void AddNames()
+    {
+        var names = (_newNames ?? "").Split('\n', '\r', '\t').Select(n => n.Trim()).Where(n => n.Length > 0).ToList();
+        if (names.Count == 0)
+            return;
+        Edit(names.Count == 1 ? "Add person" : "Add people", p => SetupOperations.AddPeople(p, GroupId, names));
+        _newNames = null;
+    }
+}

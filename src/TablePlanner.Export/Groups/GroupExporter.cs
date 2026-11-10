@@ -12,9 +12,9 @@ public static class GroupExporter
     public static byte[] ToXlsx(EventSetup setup) =>
         XlsxFile.Write("Groups", ToRows(setup), new HashSet<int> { Columns(setup).IndexOf(GroupColumn.People) });
 
-    /// <summary>The columns written: all of <see cref="GroupColumns.All"/>, but the parent group only when the groups have levels.</summary>
+    /// <summary>The columns written: all of <see cref="GroupColumns.All"/>, but the parent group only with levels and names only when there are any.</summary>
     private static List<GroupColumn> Columns(EventSetup setup) =>
-        GroupColumns.All.Where(c => c != GroupColumn.Parent || setup.HasLevels()).ToList();
+        GroupColumns.All.Where(c => (c != GroupColumn.Parent || setup.HasLevels()) && (c != GroupColumn.Names || setup.Groups.Any(g => g.Members.Count > 0))).ToList();
 
     /// <summary>
     /// The header row followed by one row per group. With levels, in tree order (each parent group before its
@@ -33,6 +33,7 @@ public static class GroupExporter
     {
         GroupColumn.Name => group.Name,
         GroupColumn.Parent => setup.ParentOf(group)?.Name ?? "",
+        GroupColumn.Names => string.Join("; ", group.Members.Select(m => m.Name)),
         GroupColumn.People => setup.HasChildren(group.Id) ? "" : group.PeopleCount.ToString(CultureInfo.InvariantCulture),
         GroupColumn.ContactPerson => group.ContactPerson ?? "",
         GroupColumn.DietaryInfo => group.DietaryInfo ?? "",

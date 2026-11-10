@@ -84,6 +84,7 @@
                     <MudTh Style="min-width: 200px"><MudTableSortLabel T="GroupRow" SortBy="r => r.Group.Name">Name</MudTableSortLabel></MudTh>
                     <MudTh Style="width: 110px"><MudTableSortLabel T="GroupRow" SortBy="r => r.Group.PeopleCount">People</MudTableSortLabel></MudTh>
                 }
+                <MudTh Style="width: 120px">Names</MudTh>
                 <MudTh Style="min-width: 240px">Would like to sit with</MudTh>
                 <MudTh>Contact person</MudTh>
                 <MudTh>Dietary info</MudTh>
@@ -121,6 +122,20 @@
                     {
                         <MudNumericField T="int" Value="group.PeopleCount" Min="1" Margin="Margin.Dense"
                                          ValueChanged="@(v => Edit(id, "Change group size", g => g.PeopleCount = v))" />
+                    }
+                </MudTd>
+                <MudTd>
+                    @* Named people: optional; the cell opens the list. A search that matches names shows them here. *@
+                    @{
+                        var named = setup.BottomGroupsOf(group).Sum(g => g.Members.Count);
+                        var found = MatchingNames(group, setup);
+                    }
+                    <MudButton Variant="Variant.Text" Size="Size.Small" StartIcon="@Icons.Material.Filled.People" OnClick="@(() => EditPeople(id))">
+                        @(named == 0 ? "Add names" : $"{named} of {setup.PeopleIn(group)}")
+                    </MudButton>
+                    @if (found.Count > 0)
+                    {
+                        <div class="mud-text-secondary" style="font-size: 0.8rem">@string.Join(", ", found)</div>
                     }
                 </MudTd>
                 <MudTd>
@@ -226,7 +241,21 @@
     private bool Matches(GroupRow row) =>
         string.IsNullOrWhiteSpace(_search)
         || new[] { row.Group.Name, row.Group.ContactPerson, row.Group.DietaryInfo, row.Group.Notes }
-            .Any(text => text?.Contains(_search.Trim(), StringComparison.OrdinalIgnoreCase) == true);
+            .Any(text => text?.Contains(_search.Trim(), StringComparison.OrdinalIgnoreCase) == true)
+        || row.Group.Members.Any(m => m.Name.Contains(_search.Trim(), StringComparison.OrdinalIgnoreCase));
+
+    /// <summary>Names in the group (not its subgroups, which have their own rows) that match the search.</summary>
+    private List<string> MatchingNames(Group group, EventSetup setup) =>
+        string.IsNullOrWhiteSpace(_search) ? []
+        : group.Members.Where(m => m.Name.Contains(_search.Trim(), StringComparison.OrdinalIgnoreCase)).Select(m => m.Name).ToList();
+
+    private async Task EditPeople(Guid groupId)
+    {
+        var group = Session.Project!.Setup.FindGroup(groupId)!;
+        var dialog = await Dialogs.ShowAsync<PeopleDialog>($"People in {group.Name}", new DialogParameters<PeopleDialog> { { x => x.GroupId, groupId } },
+            new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true });
+        await dialog.Result;
+    }
 
     // ---- Selection, grouping and moving in the tree ----
 

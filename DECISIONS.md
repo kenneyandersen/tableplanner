@@ -238,15 +238,31 @@ algorithm works on setup + assignment. UI code never goes into model or algorith
 
 - ~~A mobile page~~: done as the guest page (step 9).
 - ~~A drag-and-drop editor for the table cards~~: done, see "card designer" below.
-- ~~Round tables~~: done (2026-11-07). Free rotation angles (wanted, but later), partial group moves, per-group
-  priority overrides, "should not sit near" rules.
+- ~~Round tables~~: done (2026-11-07). Free rotation angles (wanted, but later), per-group priority overrides,
+  "should not sit near" rules. (~~Partial group moves~~: done as moving one person, Shift+drag.)
 - **Side-by-side comparison of saved plans:** postponed (2026-11-05); not sure it is needed, since each saved plan
   already shows its key figures in the list.
+
+Wishes noted 2026-11-10, after testing (not started):
+- **Copy a project** (a "Duplicate" on the projects page).
+- **Labels on top of element drawings:** e.g. "Buffet" is written over the dishes and "Stairs" over the steps. The
+  label could go below the drawing, or be moved by hand (an offset per element).
+- **Rotate elements directly on the canvas** (a rotate handle), not only with the button or R.
+- **Free rotation of elements** (any angle, not only 90° steps).
+- **A text element:** just a label on the floor, no box.
+- **The plan page's group list as a tree** to fold open and closed, rather than mainly the bottom groups.
+- **A warning on duplicate guest names** (the same name twice, in one group or in different groups).
+- **A poster of guest names and their tables**, like "find your table" for groups, but by person.
+- **Naming of levels:** "Group", "Level 1" and "Level 2" (e.g. "Colour by level 1", the import wizard's "Level 1,
+  e.g. department") reads badly: subgroups are groups too. Find better words, e.g. "top-level group" / "subgroup", or
+  let the project name its levels (department, team, …).
+- **Importing a project whose name (or ID) already exists:** ask to import it as a copy under a new name and ID,
+  instead of only offering to replace the existing one.
 
 ## Defaults chosen without explicit discussion (change if wrong)
 
 - Adjacency covers both side-by-side (back to back) and end-to-end tables.
-- No individual guest names, only group name and size.
+- ~~No individual guest names, only group name and size.~~ Changed 2026-11-10: optional names per group (person lists).
 - Separate rooms are modelled as separate floors.
 - Individual seats can be disabled (pillar, wheelchair space, reserved).
 - Sharing between planners is done by sending the project file.

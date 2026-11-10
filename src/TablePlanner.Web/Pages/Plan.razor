@@ -107,7 +107,7 @@
                             <MudText Typo="Typo.subtitle1">New plan</MudText>
                             <MudText Typo="Typo.body2" Class="mb-2">
                                 Shown on the left. @(Session.Project.CurrentAssignment.Seats.Count > 0 ? "It replaces the current plan when you use it." : "")
-                                Found in @_proposal.Elapsed.TotalSeconds.ToString("0.0") s after trying @_proposal.Iterations.ToString("N0") plans@(_proposal.Attempts > 1 ? $", the best of {_proposal.Attempts} attempts" : "").
+                                Found in @_proposal.Elapsed.TotalSeconds.ToString("0.0") s after trying @_proposal.Iterations.ToString("N0") plans@(AttemptNote(_proposal)).
                             </MudText>
                             @if (_currentSummary is { PeoplePlaced: > 0 } current)
                             {
@@ -177,6 +177,14 @@
     private CancellationTokenSource? _cancel;
     private SolveProgress? _progress;
     private SolveResult? _proposal;
+
+    /// <summary>How the new plan was found, for its note: several attempts, or why only one.</summary>
+    private static string AttemptNote(SolveResult result) => result switch
+    {
+        { Mode: SolveMode.KeepCloseToCurrent } => "",
+        { Attempts: > 1 } => $", the best of {result.Attempts} attempts",
+        _ => " in one attempt (a longer time limit leaves room for several, keeping the best)",
+    };
     private PlanSummary? _proposalSummary;
     private IReadOnlyList<PlanIssue>? _failure;
 

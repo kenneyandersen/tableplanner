@@ -84,6 +84,9 @@ public sealed record SolveResult(
     TimeSpan Elapsed,
     StopReason StoppedBecause)
 {
+    /// <summary>Whether this was a new plan or re-optimizing.</summary>
+    public SolveMode Mode { get; init; }
+
     /// <summary>How many attempts were made; the plan is the best of them.</summary>
     public int Attempts { get; init; } = 1;
 }
@@ -176,6 +179,7 @@ public static class SeatingSolver
         return new SolveResult(status, problem.ToAssignment(chosen.Plan), summary, summary.Issues, run.Iterations, clock.Elapsed, stop)
         {
             Attempts = results.Count,
+            Mode = options.Mode,
         };
     }
 

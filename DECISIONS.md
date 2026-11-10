@@ -250,6 +250,7 @@ Wishes noted 2026-11-10, after testing (not started):
 - **Rotate elements directly on the canvas** (a rotate handle), not only with the button or R.
 - **Free rotation of elements** (any angle, not only 90° steps).
 - **A text element:** just a label on the floor, no box.
+- **Font size for element labels** (per element), e.g. to show a large emoji as the element's symbol.
 - **The plan page's group list as a tree** to fold open and closed, rather than mainly the bottom groups.
 - **A warning on duplicate guest names** (the same name twice, in one group or in different groups).
 - **A poster of guest names and their tables**, like "find your table" for groups, but by person.

@@ -24,6 +24,7 @@ public enum IssueCode
     GroupParentUnknown,
     GroupLevelsInvalid,
     GroupParentHasPeople,
+    GroupNamesExceedPeople,
     TableSizeInvalid,
     TableEndSeatsInvalid,
     TableDimensionsInvalid,
@@ -84,9 +85,12 @@ public static class SetupValidator
             var isParent = setup.HasChildren(group.Id);
             if (!isParent && group.PeopleCount <= 0)
                 issues.Add(Error(IssueCode.GroupSizeInvalid, $"{label} must have at least 1 person.", group.Id));
-            if (isParent && group.PeopleCount > 0)
+            if (isParent && (group.PeopleCount > 0 || group.Members.Count > 0))
                 issues.Add(Error(IssueCode.GroupParentHasPeople,
-                    $"{label} has subgroups, so its own {group.PeopleCount} people would get no seats. Put them in a subgroup.", group.Id));
+                    $"{label} has subgroups, so its own {Math.Max(group.PeopleCount, group.Members.Count)} people would get no seats. Put them in a subgroup.", group.Id));
+            if (!isParent && group.Members.Count > group.PeopleCount)
+                issues.Add(Warning(IssueCode.GroupNamesExceedPeople,
+                    $"{label} has {group.Members.Count} names but {group.PeopleCount} people, so not everyone named has a seat.", group.Id));
             if (group.ParentId is { } parentId)
             {
                 if (!groupIds.Contains(parentId))

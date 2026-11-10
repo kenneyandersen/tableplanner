@@ -16,6 +16,12 @@ public sealed class Group
 
     /// <summary>People in this group; 0 for a parent group, whose people are in its subgroups.</summary>
     public int PeopleCount { get; set; } = 1;
+
+    /// <summary>
+    /// Names of people in this group, if known; may be fewer than <see cref="PeopleCount"/> (the rest are unnamed guests),
+    /// never more. Empty for a parent group.
+    /// </summary>
+    public List<Person> Members { get; set; } = [];
     public string? Notes { get; set; }
 
     /// <summary>Fixed colour in the plan, as "#RRGGBB". Null = assigned automatically.</summary>

@@ -393,18 +393,20 @@ public static class SetupOperations
     /// <summary>A bottom group is becoming a parent: its people (seats, seat and table pins) move to "&lt;name&gt; – other".</summary>
     private static void MovePeopleToOtherGroup(EventProject project, Group group)
     {
-        if (group.PeopleCount <= 0)
+        if (group.PeopleCount <= 0 && group.Members.Count == 0)
             return;
         var other = new Group
         {
             Name = UniqueName(project, $"{group.Name} – other"),
             ParentId = group.Id,
-            PeopleCount = group.PeopleCount,
+            PeopleCount = Math.Max(group.PeopleCount, group.Members.Count),
+            Members = group.Members,
             DietaryInfo = group.DietaryInfo,
             ContactPerson = group.ContactPerson,
         };
         project.Setup.Groups.Insert(project.Setup.Groups.IndexOf(group) + 1, other);
         group.PeopleCount = 0;
+        group.Members = [];
         project.CurrentAssignment.Seats = project.CurrentAssignment.Seats
             .Select(s => s.GroupId == group.Id ? s with { GroupId = other.Id } : s)
             .ToList();
@@ -441,6 +443,82 @@ public static class SetupOperations
             group.PreferredGroupIds.Remove(groupId);
         project.Setup.Pins.RemoveAll(p => p.GroupId == groupId);
         project.CurrentAssignment.Seats.RemoveAll(s => s.GroupId == groupId);
+    }
+
+    // ---- People (names in groups) ----
+
+    /// <summary>
+    /// The group that holds people added to <paramref name="group"/>: the group itself when it has no subgroups; for a
+    /// parent group (which has no people of its own) its subgroup "&lt;name&gt; – other", made when missing.
+    /// </summary>
+    public static Group HolderFor(EventProject project, Group group)
+    {
+        var setup = project.Setup;
+        if (!setup.HasChildren(group.Id))
+            return group;
+        var otherName = $"{group.Name} – other";
+        if (setup.ChildrenOf(group.Id).FirstOrDefault(c => !setup.HasChildren(c.Id) && c.Name.StartsWith(otherName, StringComparison.OrdinalIgnoreCase)) is { } existing)
+            return existing;
+        var other = new Group { Name = UniqueName(project, otherName), ParentId = group.Id, PeopleCount = 0 };
+        setup.Groups.Insert(setup.Groups.IndexOf(group) + 1, other);
+        return other;
+    }
+
+    /// <summary>
+    /// Adds named people to a group (or, for a parent group, to its "– other" subgroup). Empty names are skipped. The
+    /// group's number of people grows when it would otherwise have more names than people. Returns the group they went to.
+    /// </summary>
+    public static Group AddPeople(EventProject project, Guid groupId, IEnumerable<string> names)
+    {
+        var group = project.Setup.FindGroup(groupId) ?? throw new ArgumentException("Unknown group.", nameof(groupId));
+        var holder = HolderFor(project, group);
+        foreach (var name in names.Select(n => n.Trim()).Where(n => n.Length > 0))
+            holder.Members.Add(new Person { Name = name });
+        holder.PeopleCount = Math.Max(holder.PeopleCount, holder.Members.Count);
+        return holder;
+    }
+
+    /// <summary>Finds a named person and the group they are in.</summary>
+    public static (Group Group, Person Person)? FindPerson(EventSetup setup, Guid personId)
+    {
+        foreach (var group in setup.Groups)
+            if (group.Members.FirstOrDefault(m => m.Id == personId) is { } person)
+                return (group, person);
+        return null;
+    }
+
+    public static void RenamePerson(EventProject project, Guid personId, string name)
+    {
+        if (FindPerson(project.Setup, personId) is { Person: var person } && name.Trim().Length > 0)
+            person.Name = name.Trim();
+    }
+
+    /// <summary>Removes a named person: they are not coming, so the group has one person fewer.</summary>
+    public static void RemovePerson(EventProject project, Guid personId)
+    {
+        if (FindPerson(project.Setup, personId) is not { } found)
+            return;
+        var (group, person) = found;
+        group.Members.Remove(person);
+        group.PeopleCount = Math.Max(group.Members.Count, group.PeopleCount - 1);
+    }
+
+    /// <summary>
+    /// Moves a named person to another group (or to a parent group's "– other" subgroup): one person fewer in the old
+    /// group, one more in the new one.
+    /// </summary>
+    public static void MovePersonToGroup(EventProject project, Guid personId, Guid groupId)
+    {
+        if (FindPerson(project.Setup, personId) is not { } found || project.Setup.FindGroup(groupId) is not { } target)
+            return;
+        var (from, person) = found;
+        var to = HolderFor(project, target);
+        if (to == from)
+            return;
+        from.Members.Remove(person);
+        from.PeopleCount = Math.Max(from.Members.Count, from.PeopleCount - 1);
+        to.Members.Add(person);
+        to.PeopleCount = Math.Max(to.Members.Count, to.PeopleCount + 1);
     }
 
     /// <summary>Sets a group's preferences, dropping unknown groups, itself and duplicates, and keeping at most the maximum.</summary>

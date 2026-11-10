@@ -13,7 +13,8 @@ public sealed record ImportedGroup(
     string? DietaryInfo,
     string? Colour,
     string? Notes,
-    IReadOnlyList<string> Preferences);
+    IReadOnlyList<string> Preferences,
+    string? Parent = null);
 
 /// <summary>A message about the file. <see cref="RowNumber"/> is null when it concerns the whole file.</summary>
 public sealed record ImportMessage(int? RowNumber, string Text)
@@ -104,6 +105,10 @@ public sealed partial class GroupFile
         var skipped = new List<string>();
         var rowsByName = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
 
+        // Groups named as another row's parent group have their people in their subgroups, so they need no number.
+        var parentNames = data.Rows.Where(r => !r.IsBlank).Select(r => Text(r, GroupColumn.Parent)).Where(p => p.Length > 0)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
         foreach (var row in data.Rows)
         {
             if (row.IsBlank)
@@ -117,7 +122,8 @@ public sealed partial class GroupFile
                 rowErrors.Add($"'{name}' is already on row {firstRow}.");
 
             var peopleText = Text(row, GroupColumn.People);
-            var people = ParsePeople(peopleText);
+            var isParent = parentNames.Contains(name);
+            var people = isParent && (peopleText.Length == 0 || peopleText == "0") ? 0 : ParsePeople(peopleText);
             if (people is null)
                 rowErrors.Add(peopleText.Length == 0
                     ? "the number of people is missing."
@@ -144,7 +150,7 @@ public sealed partial class GroupFile
             rowsByName[name] = row.RowNumber;
             groups.Add(new ImportedGroup(row.RowNumber, name, people!.Value,
                 Optional(row, GroupColumn.ContactPerson), Optional(row, GroupColumn.DietaryInfo), colour,
-                Optional(row, GroupColumn.Notes), preferences));
+                Optional(row, GroupColumn.Notes), preferences, Optional(row, GroupColumn.Parent)));
         }
 
         if (groups.Count == 0 && errors.Count == 0)

@@ -203,4 +203,56 @@ public class GroupImportTests
         Assert.Equal(["Name", "People", "Contact person", "Dietary info", "Colour", "Notes", "Preference 1", "Preference 2", "Preference 3", "Preference 4", "Preference 5"], rows[0]);
         Assert.Equal(["A", "4", "Anna", "", "#ff0000", "", "B", "", "", "", ""], rows[1]);
     }
+
+    [Theory]
+    [InlineData("csv")]
+    [InlineData("xlsx")]
+    public void Export_then_import_keeps_group_levels(string format)
+    {
+        var source = Project();
+        var c = new Group { Name = "C", PeopleCount = 3 };
+        source.Setup.Groups.Add(c);
+        var sales = Core.Editing.SetupOperations.GroupInto(source, [Named(source, "A").Id, Named(source, "B").Id], "Sales");
+        Core.Editing.SetupOperations.GroupInto(source, [Named(source, "A").Id], "North");
+        Named(source, "C").PreferredGroupIds = [sales.Id];
+        var bytes = format == "csv" ? GroupExporter.ToCsv(source.Setup) : GroupExporter.ToXlsx(source.Setup);
+        var target = new EventProject();
+
+        var result = GroupImport.Apply(target, GroupFile.Read($"groups.{format}", bytes), GroupImportMode.Merge);
+
+        Assert.Empty(result.Errors);
+        Assert.Empty(result.Warnings);
+        var setup = target.Setup;
+        Assert.Equal("Sales › North › A", setup.PathOf(Named(target, "A")));
+        Assert.Equal("Sales › B", setup.PathOf(Named(target, "B")));
+        Assert.Equal(0, Named(target, "Sales").PeopleCount);
+        Assert.Equal(10, setup.PeopleIn(Named(target, "Sales")));
+        Assert.Equal([Named(target, "Sales").Id], Named(target, "C").PreferredGroupIds);
+        Assert.Empty(Core.Validation.SetupValidator.Validate(setup).Errors);
+    }
+
+    [Fact]
+    public void Export_writes_the_parent_column_only_with_levels_and_parents_first()
+    {
+        var project = Project();
+        Core.Editing.SetupOperations.GroupInto(project, [Named(project, "B").Id], "Sales");
+
+        var rows = GroupExporter.ToRows(project.Setup);
+
+        Assert.Equal(["Name", "Parent group", "People"], rows[0].Take(3));
+        Assert.Equal(["A", "", "4"], rows[1].Take(3));
+        Assert.Equal(["Sales", "", ""], rows[2].Take(3));
+        Assert.Equal(["B", "Sales", "6"], rows[3].Take(3));
+    }
+
+    [Fact]
+    public void Import_with_an_unknown_parent_puts_the_group_at_the_top_with_a_warning()
+    {
+        var project = new EventProject();
+
+        var result = GroupImport.Apply(project, Csv("Name,Parent group,People\nA,Nowhere,4\n"), GroupImportMode.Merge);
+
+        Assert.Null(Named(project, "A").ParentId);
+        Assert.Contains(result.Warnings, w => w.Text.Contains("Nowhere"));
+    }
 }

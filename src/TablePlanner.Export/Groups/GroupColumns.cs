@@ -5,6 +5,7 @@ namespace TablePlanner.Export.Groups;
 public enum GroupColumn
 {
     Name,
+    Parent,
     People,
     ContactPerson,
     DietaryInfo,
@@ -28,6 +29,7 @@ public static class GroupColumns
     public static string Header(GroupColumn column) => column switch
     {
         GroupColumn.Name => "Name",
+        GroupColumn.Parent => "Parent group",
         GroupColumn.People => "People",
         GroupColumn.ContactPerson => "Contact person",
         GroupColumn.DietaryInfo => "Dietary info",
@@ -43,6 +45,7 @@ public static class GroupColumns
     public static GroupColumn? Match(string header) => Normalize(header) switch
     {
         "name" or "group" or "groupname" => GroupColumn.Name,
+        "parent" or "parentgroup" or "partof" or "belongsto" or "ingroup" => GroupColumn.Parent,
         "people" or "peoplecount" or "count" or "size" or "persons" or "guests" or "numberofpeople" => GroupColumn.People,
         "contactperson" or "contact" => GroupColumn.ContactPerson,
         "dietaryinfo" or "dietary" or "diet" or "allergies" => GroupColumn.DietaryInfo,

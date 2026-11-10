@@ -100,6 +100,29 @@ public static class GroupImport
             }
         }
 
+        // Parent groups (levels) are resolved once all groups exist too. A row with an empty parent goes to the top level.
+        if (file.Columns.Contains(GroupColumn.Parent))
+        {
+            var allByName = ByName(setup.Groups);
+            foreach (var (row, group) in imported)
+            {
+                Guid? parentId = null;
+                if (row.Parent is { } parentName)
+                {
+                    if (!allByName.TryGetValue(parentName, out var parent))
+                        warnings.Add(new(row.RowNumber, $"'{row.Name}' belongs to '{parentName}', but there is no group with that name. It is put at the top level."));
+                    else if (!setup.CanMoveUnder(group.Id, parent.Id))
+                        warnings.Add(new(row.RowNumber, $"'{row.Name}' cannot go in '{parentName}': a group cannot be inside itself, and there can be at most {GroupTree.MaxLevels} levels. It is put at the top level."));
+                    else
+                        parentId = parent.Id;
+                }
+                if (parentId is { } p)
+                    SetupOperations.SetParent(project, group.Id, p);
+                else
+                    group.ParentId = null;
+            }
+        }
+
         // Preferences are resolved once all groups exist, so a group may prefer one further down the file.
         if (file.HasPreferences)
         {
@@ -156,6 +179,8 @@ public static class GroupImport
             details.Add("Colour");
         if (before.Notes != group.Notes)
             details.Add("Notes");
+        if (before.ParentId != group.ParentId)
+            details.Add("Parent group");
         if (!before.Preferences.SequenceEqual(group.PreferredGroupIds))
             details.Add("Preferences");
 
@@ -171,9 +196,9 @@ public static class GroupImport
         return byName;
     }
 
-    private sealed record Snapshot(string Name, int PeopleCount, string? ContactPerson, string? DietaryInfo, string? Colour, string? Notes, IReadOnlyList<Guid> Preferences)
+    private sealed record Snapshot(string Name, int PeopleCount, string? ContactPerson, string? DietaryInfo, string? Colour, string? Notes, IReadOnlyList<Guid> Preferences, Guid? ParentId)
     {
         public static Snapshot Of(Group g) =>
-            new(g.Name, g.PeopleCount, g.ContactPerson, g.DietaryInfo, g.Colour, g.Notes, g.PreferredGroupIds.ToList());
+            new(g.Name, g.PeopleCount, g.ContactPerson, g.DietaryInfo, g.Colour, g.Notes, g.PreferredGroupIds.ToList(), g.ParentId);
     }
 }

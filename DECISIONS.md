@@ -256,6 +256,10 @@ Wishes noted 2026-11-10, after testing (not started):
 - **Naming of levels:** "Group", "Level 1" and "Level 2" (e.g. "Colour by level 1", the import wizard's "Level 1,
   e.g. department") reads badly: subgroups are groups too. Find better words, e.g. "top-level group" / "subgroup", or
   let the project name its levels (department, team, …).
+- **Better alignment when moving tables:** the grid snaps a table's centre, so tables of different lengths end up with
+  their ends and seats out of line with the next table, and seats no longer sit back to back. Snap to neighbouring
+  tables instead: line up ends and edges, and put seats in line with the seats of the table next to it (with guide lines
+  while dragging).
 - **Zoom with the scroll wheel** in the layout editor and on the plan page (around the pointer), besides the buttons.
 - **Importing a project whose name (or ID) already exists:** ask to import it as a copy under a new name and ID,
   instead of only offering to replace the existing one.

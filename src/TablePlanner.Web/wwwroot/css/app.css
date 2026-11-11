@@ -355,7 +355,8 @@ code {
 .floor-canvas .wall-draft-corner { fill: var(--mud-palette-primary); pointer-events: none; }
 
 /* Element labels: a selected element's label can be dragged; a text element has no visible box (only when selected). */
-.floor-canvas .element text.label-handle { cursor: move; }
+/* Canvas text ignores the pointer, except a selected element's label, which can be dragged. */
+.floor-canvas .element text.label-handle { cursor: move; pointer-events: visiblePainted; }
 .floor-canvas .element.kind-text > rect { fill: transparent; stroke: transparent; }
 .floor-canvas .element.kind-text.selected > rect { stroke: var(--mud-palette-primary); stroke-dasharray: 0.12 0.08; stroke-width: 0.04; }
 

@@ -71,6 +71,15 @@ public sealed class PlanEvaluator
 
     /// <summary>Share of a neighbour's weight for two free seats next to each other.</summary>
     internal const double FreeTogetherShare = 0.3;
+
+    /// <summary>Per free seat at the outer edge of its floor's seating (half as much half-way to the middle).</summary>
+    internal const double FreeAtEdgeWeight = 3;
+
+    // Per seat: what it is worth when free, by how far out it is (see FreeAtEdgeWeight).
+    private readonly double[] _freeSeatBonus;
+
+    /// <summary>What a seat is worth when free, by how far out it is (0 in the middle of the floor).</summary>
+    internal double FreeSeatBonus(int seat) => _freeSeatBonus[seat];
     private readonly int[] _partPeople;
 
     // For parent groups: people per table (all zero between uses), the tables used, and single-group units.
@@ -118,6 +127,18 @@ public sealed class PlanEvaluator
                 }
         }
 
+
+        // Free seats are better at the outside of the room (the far end of a table) than in the middle: from 0 at the
+        // middle of the floor's seats to FreeAtEdgeWeight at the seat furthest from it.
+        _freeSeatBonus = new double[problem.Graph.Seats.Count];
+        foreach (var floorSeats in problem.Graph.Seats.GroupBy(s => s.FloorIndex))
+        {
+            var (cx, cy) = (floorSeats.Average(s => s.Position.X), floorSeats.Average(s => s.Position.Y));
+            double Distance(Core.Geometry.Point p) => Math.Sqrt((p.X - cx) * (p.X - cx) + (p.Y - cy) * (p.Y - cy));
+            var furthest = Math.Max(0.01, floorSeats.Max(s => Distance(s.Position)));
+            foreach (var seat in floorSeats)
+                _freeSeatBonus[seat.Index] = FreeAtEdgeWeight * Distance(seat.Position) / furthest;
+        }
         var groups = problem.Groups.Count;
         _placed = new int[groups];
         _tableCount2D = new int[groups * _tableCount];
@@ -259,15 +280,15 @@ public sealed class PlanEvaluator
         }
 
         var gap = _problem.Priorities.EmptySeatGapPenalty;
-        if (gap != 0)
-            for (var s = 0; s < plan.Length; s++)
-            {
-                if (plan[s] >= 0)
-                    continue;
-                var (left, right) = (_sideLeft[s], _sideRight[s]);
-                if (left >= 0 && right >= 0 && plan[left] >= 0 && plan[right] >= 0)
-                    score -= gap;
-            }
+        for (var s = 0; s < plan.Length; s++)
+        {
+            if (plan[s] >= 0)
+                continue;
+            score += _freeSeatBonus[s];
+            var (left, right) = (_sideLeft[s], _sideRight[s]);
+            if (gap != 0 && left >= 0 && right >= 0 && plan[left] >= 0 && plan[right] >= 0)
+                score -= gap;
+        }
         return score;
     }
 

@@ -11,6 +11,11 @@ internal sealed class PlanPolisher(SeatingProblem problem, SeatSequence sequence
     /// <summary>Parts up to this many people are tried; larger parts are left to the order search.</summary>
     internal const int MaxPartSize = 16;
 
+    /// <summary>Runs of free seats tried per pass: those furthest inside the room, and only if not already near its outside.</summary>
+    internal const int MaxFreeRuns = 3;
+
+    internal const double MaxFreeRunOutside = 0.7;
+
     private readonly List<(int Start, int Length)> _parts = [];
 
     /// <summary>Polishes <paramref name="plan"/> in place. Returns the number of swaps made.</summary>
@@ -111,6 +116,26 @@ internal sealed class PlanPolisher(SeatingProblem problem, SeatSequence sequence
             }
         }
         _parts.Sort((a, b) => a.Length.CompareTo(b.Length));
+
+        // Then runs of free seats: swapped with people elsewhere, they can move to the outside of the room (the order
+        // search decides where gaps go only through its fill order). Only the few furthest inside, as each is tried
+        // against every place.
+        var freeRuns = new List<(int Start, int Length, double Outside)>();
+        for (var i = 0; i < seats.Count;)
+        {
+            var j = i;
+            while (j < seats.Count && plan[seats[j]] < 0 && graph.Seats[seats[j]].TableIndex == graph.Seats[seats[i]].TableIndex)
+                j++;
+            if (j > i && j - i <= MaxPartSize)
+            {
+                var outside = Enumerable.Range(i, j - i).Average(k => evaluator.FreeSeatBonus(seats[k])) / PlanEvaluator.FreeAtEdgeWeight;
+                if (outside < MaxFreeRunOutside)
+                    freeRuns.Add((i, j - i, outside));
+            }
+            i = Math.Max(j, i + 1);
+        }
+        foreach (var run in freeRuns.OrderBy(r => r.Outside).Take(MaxFreeRuns))
+            _parts.Add((run.Start, run.Length));
     }
 
     private void Swap(int[] plan, int a, int b, int length)

@@ -301,6 +301,12 @@ Wishes noted 2026-11-10, after testing (not started):
     dropped**. Dragging Sales (50) onto the right end of table 103: the preview starts at that seat, but then follows the
     solver's fill order (4 seats at the end of 103, 6 at the end of 104, all of 105 and 106) instead of growing from
     the drop point into the nearest free seats (the rest of 103, then 102/106).
+- **For tomorrow (noted 2026-11-11 evening)**:
+  - Solver rethink (see the level-by-level method above). Care: keeping large groups together must not split a main
+    group because its subgroups want to sit together (or near other groups); a main group's unity comes first.
+  - Free seats in the middle of the room (beam search especially): gather them at the outside.
+  - CI: when the GitHub Actions deploy (on the remote master, to be merged) is in, consider running all tests
+    (`dotnet test`) before deploying, and failing the deploy when they fail. The solver's quick checks take ~40 s.
 - **Emoji picker for elements** (noted 2026-11-11): a small picker with the most common emojis (🎤 🍽️ 🍸 🎂 🎁 🚻 🚪
   🎵 📸 ☕ 🅿️ ♿ …) next to an element's label, for an element shown with just an emoji instead of text (the label font
   size can already be raised).
@@ -764,6 +770,10 @@ Notes: changes after testing (2026-11-07):
       at one end, so part of a table can be taken away): two free seats next to each other (any neighbour relation)
       get 0.3 × that neighbour's weight. On the example the 11 free seats went from 3 tables to 2 (9 at the corner
       table's end). Neutral on the other test plans (within the run-to-run spread).
+    - **Free seats at the outside** (same day): a free seat is worth up to 3 points by how far it is from the middle of
+      its floor's seats, and the polisher tries swapping the 3 runs of free seats furthest inside with people elsewhere.
+      Not enough yet: beam runs on the example still leave 6 free at the inner end of 108 (next to 107). To look at
+      tomorrow, as part of the solver rethink.
   - Preferences can name a parent group, and a parent group can have preferences; met when any of its groups sits at
     the same or the next table. Floor/table pins on a parent hold its groups that have no pin of their own; locking a
     parent locks each of its groups (no seat pin on a parent).

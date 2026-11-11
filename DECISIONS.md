@@ -252,16 +252,20 @@ Wishes noted 2026-11-10, after testing (not started):
 - **Free rotation of elements** (any angle, not only 90° steps). Decided 2026-11-11: elements only, not tables.
 - ~~**A text element**~~: done 2026-11-11 (kind Text: no box, the label fills its height; outlined only when selected).
 - ~~**Font size for element labels**~~: done 2026-11-11 ("Label size (cm)" in the panel; empty = fitted to the element).
-- **Looking at the plan level by level:** see how the top-level groups were seated, then switch to the next level
+- ~~**Looking at the plan level by level**~~: done 2026-11-11. "Show: groups / group – level 1 / group – level 2" on the
+  plan page (only the levels the groups have) sets colours, the names on the tables (one label per group at that level),
+  the group list (the groups at that level with their tables) and the warnings (about those groups). A department's
+  label selects it but is not dragged. Was: see how the top-level groups were seated, then switch to the next level
   and see how their subgroups were seated, and so on. "Colour by" is a start, but the display should follow the level
   as a whole: group names on the tables, the group list, highlighting and warnings at the chosen level (e.g. one label
   "Sales" over all its tables at level 1, its teams at level 2).
-- **The plan page's group list as a foldable tree:** it already shows parent groups in tree order with indentation
+- ~~**The plan page's group list as a foldable tree**~~: done 2026-11-11 (an arrow on each parent group; the tree had
+  not been showing at all, because the list was not given the setup; that also made the person search there work). Was: it already shows parent groups in tree order with indentation
   (when the plan has them), and selecting one highlights all its groups; folding parts open and closed is missing.
 - ~~**A warning on duplicate guest names**~~: done 2026-11-11 (a setup warning naming the groups).
 - **A poster of guest names and their tables**, like "find your table" for groups, but by person. (The poster's data
   already has each group's `Names`; the built-in poster does not show them.)
-- **Naming of levels:** "Group", "Level 1" and "Level 2" (e.g. "Colour by level 1", the import wizard's "Level 1,
+- ~~**Naming of levels**~~: done 2026-11-11 ("Group – level 1" … in the plan page and import wizard). Was: "Group", "Level 1" and "Level 2" (e.g. "Colour by level 1", the import wizard's "Level 1,
   e.g. department") reads badly: subgroups are groups too. Decided 2026-11-11: "Group – level 1", "Group – level 2" …
   for now (project-specific level names maybe later).
 - **Group names on tables overlap** in some cases and are hard to read (not the highest priority).

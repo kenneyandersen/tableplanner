@@ -360,3 +360,7 @@ code {
 
 /* Layout editor: the lines a dragged table snapped to (a neighbour's edge, centre or seats). */
 .floor-canvas .snap-guide { stroke: #e0457b; stroke-width: 0.03; stroke-dasharray: 0.15 0.1; pointer-events: none; }
+
+/* Plan page group list: the arrow that folds a parent group's groups open or shut. */
+.group-row .fold { display: inline-flex; margin-left: -4px; cursor: pointer; color: var(--mud-palette-text-secondary); }
+.editor-toolbar .level-select { width: 13rem; }

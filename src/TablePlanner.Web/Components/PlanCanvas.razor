@@ -63,12 +63,14 @@
                 }
                 @{ var numberAt = GroupLabels.TableNumberPosition(table); }
                 <text class="table-number" x="@Svg(numberAt.X)" y="@Svg(numberAt.Y)" font-size="@Svg(GroupLabels.TableNumberFontSize)">@table.Number</text>
-                @foreach (var block in GroupLabels.For(table, seats, _groupAt, Setup))
+                @foreach (var block in GroupLabels.For(table, seats, _labelAt, Setup))
                 {
-                    var dimmed = Selected is not null && !IsSelected(block.GroupId) && !MoveMode;
+                    var dimmed = Selected is not null && Selected != block.GroupId && !IsSelected(block.GroupId) && !MoveMode;
+                    // A parent group's label (when a level is shown) selects it, but is not dragged: its groups are moved one by one.
+                    var draggable = !Setup.HasChildren(block.GroupId);
                     @* Wrapped in <g>: a <text> element directly in a code block would be Razor's own <text> tag. *@
                     <g class="group-label @(dimmed ? "dimmed" : "")" @onclick="() => GroupClicked.InvokeAsync(block.GroupId)" @onclick:stopPropagation="true"
-                       @onpointerdown="e => OnGroupPointerDown(e, block.GroupId)">
+                       @onpointerdown="e => OnGroupPointerDown(e, draggable ? block.GroupId : null)">
                         <text x="@Svg(block.Position.X)" y="@Svg(block.Position.Y)" font-size="@Svg(block.FontSize)"
                               transform="@(block.Vertical ? $"rotate(90 {Svg(block.Position.X)} {Svg(block.Position.Y)})" : null)">@block.Text</text>
                     </g>
@@ -89,6 +91,10 @@
 
 @code {
     private Dictionary<SeatId, Guid> _groupAt = [];
+    private Dictionary<SeatId, Guid> _labelAt = [];
+
+    /// <summary>0: each group's name on its seats; 1, 2, …: the names of the groups at that level (e.g. departments).</summary>
+    [Parameter] public int ShowLevel { get; set; }
 
     [Parameter, EditorRequired] public EventSetup Setup { get; set; } = default!;
     [Parameter, EditorRequired] public Guid FloorId { get; set; }
@@ -176,6 +182,10 @@
         if (ListDrag is null && _drag is { IsListDrag: true })
             _drag = null;
         _groupAt = Assignment.Seats.GroupBy(s => s.Seat).ToDictionary(g => g.Key, g => g.First().GroupId);
+        // With a level shown, the names on the tables are those of the groups at that level.
+        _labelAt = ShowLevel > 0
+            ? _groupAt.ToDictionary(x => x.Key, x => Setup.FindGroup(x.Value) is { } g ? Setup.AtLevel(g, ShowLevel).Id : x.Value)
+            : _groupAt;
         _seats = Floor?.Tables.SelectMany(TableGeometry.GetSeats).Where(s => !s.IsDisabled).Select(s => (s.Id, s.Position)).ToList() ?? [];
         _render = true;
     }

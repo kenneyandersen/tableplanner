@@ -31,12 +31,16 @@
                 </MudToggleGroup>
                 @if (setup.HasLevels())
                 {
-                    @* With group levels: colour the seats by department (or team), so the levels stand out. *@
-                    <MudSelect T="int" Value="_colourLevel" ValueChanged="SetColourLevel" Variant="Variant.Outlined" Margin="Margin.Dense" Dense="true"
-                               Class="ml-2 method-select" aria-label="Colour by">
-                        <MudSelectItem Value="0">Colour by group</MudSelectItem>
-                        <MudSelectItem Value="1">Colour by level 1</MudSelectItem>
-                        <MudSelectItem Value="2">Colour by level 2</MudSelectItem>
+                    @* With group levels: look at the plan one level at a time: colours, names on the tables, the group list and
+                       warnings follow the chosen level (e.g. how the departments were seated, then their teams). *@
+                    <MudSelect T="int" Value="_showLevel" ValueChanged="SetShowLevel" Variant="Variant.Outlined" Margin="Margin.Dense" Dense="true"
+                               Class="ml-2 level-select" aria-label="Show">
+                        <MudSelectItem Value="0">Show: groups</MudSelectItem>
+                        @for (var level = 1; level < Levels(setup); level++)
+                        {
+                            var shown = level;
+                            <MudSelectItem Value="shown">Show: group – level @shown</MudSelectItem>
+                        }
                     </MudSelect>
                 }
 
@@ -96,7 +100,7 @@
                         </MudChip>
                     }
                     <PlanCanvas Setup="setup" FloorId="floor.Id" Assignment="DisplayedAssignment" Colours="_colours" Scale="_scale" BackgroundUrl="@Session.ImageUrl(floor.Background?.ImageId)"
-                                Selected="_highlight" SelectedGroups="HighlightedGroups" Pinned="_pinned" MoveMode="_moving" SeatClicked="OnSeatClicked" GroupClicked="HighlightGroup"
+                                Selected="_highlight" SelectedGroups="HighlightedGroups" ShowLevel="ShownLevel" Pinned="_pinned" MoveMode="_moving" SeatClicked="OnSeatClicked" GroupClicked="HighlightGroup"
                                 DragEnabled="_proposal is null" DropPreview="DropPreview" GroupDropped="OnGroupDropped" PersonDropped="OnPersonDropped" ListDrag="_listDrag" />
                 </div>
                 <div class="editor-side">
@@ -150,7 +154,7 @@
                     {
                         <MudTabs Elevation="0" Rounded="true" TabPanelsClass="pt-2" Class="side-tabs" MinimumTabWidth="70px" @bind-ActivePanelIndex="_tab">
                             <MudTabPanel Text="Groups">
-                                <PlanSummaryPanel Summary="summary" Colours="_colours" Pinned="_pinned" Highlight="_highlight" HighlightChanged="HighlightGroup"
+                                <PlanSummaryPanel Summary="summary" Setup="setup" ShowLevel="ShownLevel" Colours="_colours" Pinned="_pinned" Highlight="_highlight" HighlightChanged="HighlightGroup"
                                                   DragEnabled="_proposal is null" DragStarted="@(id => _listDrag = id)" DragEnded="@(() => _listDrag = null)" />
                             </MudTabPanel>
                             <MudTabPanel Text="Tables">
@@ -259,7 +263,7 @@
     {
         if (Session.Project is not { } project)
             return;
-        _colours = GroupColours.ForLevel(project.Setup, project.Setup.HasLevels() ? _colourLevel : 0);
+        _colours = GroupColours.ForLevel(project.Setup, ShownLevel);
         _pinned = project.Setup.Pins.Select(p => p.GroupId).ToHashSet();
         _problem = null;
         if (_highlight is { } id && project.Setup.FindGroup(id) is null)
@@ -495,16 +499,25 @@
                 PlanOperations.Unpin(p, bottom.Id);
     });
 
-    // ---- Colour by level ----
+    // ---- Showing one level ----
 
-    /// <summary>With group levels: 0 colours each group on its own, 1 by its top-level group, 2 by its group a level below.</summary>
-    private int _colourLevel;
+    /// <summary>
+    /// With group levels: 0 shows each group; 1, 2 … show the groups at that level (colours, names on the tables, the group
+    /// list, warnings).
+    /// </summary>
+    private int _showLevel;
 
-    private void SetColourLevel(int level)
+    /// <summary>The level shown, or 0 when the groups have no (more) levels.</summary>
+    private int ShownLevel => Session.Project is { } p && _showLevel < Levels(p.Setup) ? _showLevel : 0;
+
+    private void SetShowLevel(int level)
     {
-        _colourLevel = level;
+        _showLevel = level;
         Refresh();
     }
+
+    /// <summary>How many levels the groups have (1 without levels).</summary>
+    private static int Levels(EventSetup setup) => setup.Groups.Count == 0 ? 1 : setup.Groups.Max(setup.LevelOf);
 
     /// <summary>Selects a group (or deselects it when clicked again) and shows the floor where it sits.</summary>
     private void HighlightGroup(Guid? groupId)

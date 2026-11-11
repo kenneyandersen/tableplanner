@@ -20,11 +20,11 @@ else
     </MudSimpleTable>
 }
 
-@if (Summary.PeoplePlaced > 0 && Summary.Issues.Count > 0)
+@if (Summary.PeoplePlaced > 0 && Issues() is { Count: > 0 } issues)
 {
-    <MudAlert Severity="@(Summary.Issues.Any(i => i.Severity == Core.Validation.IssueSeverity.Error) ? Severity.Error : Severity.Warning)" Dense="true" Class="mb-2">
+    <MudAlert Severity="@(issues.Any(i => i.Severity == Core.Validation.IssueSeverity.Error) ? Severity.Error : Severity.Warning)" Dense="true" Class="mb-2">
         <ul class="message-list">
-            @foreach (var issue in Summary.Issues.Take(_showAllIssues ? int.MaxValue : MaxIssues))
+            @foreach (var issue in issues.Take(_showAllIssues ? int.MaxValue : MaxIssues))
             {
                 @* A warning about a group selects that group, as clicking it in the list does. *@
                 if (issue.GroupId is { } groupId)
@@ -37,11 +37,11 @@ else
                     <li>@issue.Message</li>
                 }
             }
-            @if (Summary.Issues.Count > MaxIssues)
+            @if (issues.Count > MaxIssues)
             {
                 <li>
                     <MudLink Typo="Typo.body2" OnClick="() => _showAllIssues = !_showAllIssues">
-                        @(_showAllIssues ? "Show fewer" : $"… and {Summary.Issues.Count - MaxIssues} more")
+                        @(_showAllIssues ? "Show fewer" : $"… and {issues.Count - MaxIssues} more")
                     </MudLink>
                 </li>
             }
@@ -50,7 +50,7 @@ else
 }
 
 <MudStack Row="true" AlignItems="AlignItems.Center" Class="mt-1">
-    <MudText Typo="Typo.subtitle2">Groups</MudText>
+    <MudText Typo="Typo.subtitle2">@(ShowLevel > 0 ? $"Groups – level {ShowLevel}" : "Groups")</MudText>
     <MudSpacer />
     <MudTextField T="string" @bind-Value="_search" Placeholder="Find a group or person" Immediate="true" Clearable="true"
                   Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search" Margin="Margin.Dense" Style="max-width: 220px" />
@@ -64,6 +64,13 @@ else
             var parentId = parent.GroupId;
             <div class="group-row parent-row @(Highlight == parentId ? "highlighted" : "")" style="padding-left: @((level - 1) * 14 + 4)px"
                  @onclick="() => HighlightChanged.InvokeAsync(parentId)">
+                @if (ShowLevel == 0 && Search is null)
+                {
+                    @* Fold the parent's groups open or shut (without selecting it). *@
+                    <span class="fold" @onclick="() => Fold(parentId)" @onclick:stopPropagation="true" title="@(_folded.Contains(parentId) ? "Show its groups" : "Hide its groups")">
+                        <MudIcon Icon="@(_folded.Contains(parentId) ? Icons.Material.Filled.ChevronRight : Icons.Material.Filled.ExpandMore)" Size="Size.Small" />
+                    </span>
+                }
                 <span class="group-dot" style="background: @Colours.GetValueOrDefault(parentId, "#ccc")"></span>
                 <span class="group-name"><b>@parent.Name</b> <span class="group-count">(@parent.PeopleCount)</span></span>
                 <span class="group-tables">
@@ -146,8 +153,33 @@ else
     }
 
     /// <summary>
+    /// Which groups the list shows: 0 all of them (a tree, with levels); 1, 2, … only the groups at that level (each
+    /// seated group counted in its group at that level; one without that many levels counts as itself).
+    /// </summary>
+    [Parameter] public int ShowLevel { get; set; }
+
+    /// <summary>The groups at <see cref="ShowLevel"/> (null when showing all).</summary>
+    private HashSet<Guid>? LevelGroups() => ShowLevel > 0 && Setup is { } setup
+        ? Summary.Groups.Select(g => setup.FindGroup(g.GroupId)).OfType<Group>().Select(g => setup.AtLevel(g, ShowLevel).Id).ToHashSet()
+        : null;
+
+    /// <summary>The warnings to show: all of them, or with a level chosen those about its groups (and the general ones).</summary>
+    private IReadOnlyList<PlanIssue> Issues() => LevelGroups() is { } level
+        ? Summary.Issues.Where(i => i.GroupId is not { } g || level.Contains(g)).ToList()
+        : Summary.Issues;
+
+    // Parent groups folded shut in the tree.
+    private readonly HashSet<Guid> _folded = [];
+
+    private void Fold(Guid parentId)
+    {
+        if (!_folded.Remove(parentId))
+            _folded.Add(parentId);
+    }
+
+    /// <summary>
     /// The rows of the group list: without levels the groups by name; with levels in tree order, parent groups (with
-    /// seated groups) included.
+    /// seated groups) included, leaving out what is folded shut; with a level chosen, the groups at that level by name.
     /// </summary>
     private IEnumerable<(GroupPlacement? Group, ParentPlacement? Parent, int Level)> AllRows()
     {
@@ -159,11 +191,25 @@ else
         }
         var groups = Summary.Groups.ToDictionary(g => g.GroupId);
         var parents = Summary.ParentGroups.ToDictionary(p => p.GroupId);
-        foreach (var (group, level) in setup.InTreeOrder())
+        if (LevelGroups() is { } level)
+        {
+            var names = level.Select(id => (Id: id, Name: setup.FindGroup(id)?.Name ?? "")).OrderBy(x => x.Name, StringComparer.CurrentCultureIgnoreCase);
+            foreach (var (id, _) in names)
+                if (groups.TryGetValue(id, out var placement))
+                    yield return (placement, null, 1);
+                else if (parents.TryGetValue(id, out var parent))
+                    yield return (null, parent, 1);
+            yield break;
+        }
+        foreach (var (group, depth) in setup.InTreeOrder())
+        {
+            if (Search is null && setup.AncestorsOf(group).Any(a => _folded.Contains(a.Id)))
+                continue;
             if (groups.TryGetValue(group.Id, out var placement))
-                yield return (placement, null, level);
+                yield return (placement, null, depth);
             else if (parents.TryGetValue(group.Id, out var parent))
-                yield return (null, parent, level);
+                yield return (null, parent, depth);
+        }
     }
     [Parameter, EditorRequired] public IReadOnlyDictionary<Guid, string> Colours { get; set; } = default!;
     [Parameter] public IReadOnlySet<Guid> Pinned { get; set; } = new HashSet<Guid>();

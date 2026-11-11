@@ -305,6 +305,10 @@ Wishes noted 2026-11-10, after testing (not started):
   - Solver rethink (see the level-by-level method above). Care: keeping large groups together must not split a main
     group because its subgroups want to sit together (or near other groups); a main group's unity comes first.
   - Free seats in the middle of the room (beam search especially): gather them at the outside.
+  - The user's clarification on free seats: they need not be at the outside of the room (fine if they are). The goal is
+    groups together, main groups and their subgroups, without many empty seats scattered all over. By hand the user
+    would: place the main groups first, then see whether the subgroups fit within those bounds, and if not, try placing
+    the main groups differently. (Points to the level-by-level method, with a retry loop at the top level.)
   - CI: when the GitHub Actions deploy (on the remote master, to be merged) is in, consider running all tests
     (`dotnet test`) before deploying, and failing the deploy when they fail. The solver's quick checks take ~40 s.
 - **Emoji picker for elements** (noted 2026-11-11): a small picker with the most common emojis (🎤 🍽️ 🍸 🎂 🎁 🚻 🚪

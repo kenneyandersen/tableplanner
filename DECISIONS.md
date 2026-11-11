@@ -244,7 +244,7 @@ algorithm works on setup + assignment. UI code never goes into model or algorith
   already shows its key figures in the list.
 
 Wishes noted 2026-11-10, after testing (not started):
-- **Copy a project** (a "Duplicate" on the projects page).
+- ~~**Copy a project**~~: done 2026-11-11 (a copy button on each project; images are copied too).
 - **Labels on top of element drawings:** e.g. "Buffet" is written over the dishes and "Stairs" over the steps. The
   label could go below the drawing, or be moved by hand (an offset per element).
 - **Rotate elements directly on the canvas** (a rotate handle), not only with the button or R.
@@ -257,7 +257,7 @@ Wishes noted 2026-11-10, after testing (not started):
   "Sales" over all its tables at level 1, its teams at level 2).
 - **The plan page's group list as a foldable tree:** it already shows parent groups in tree order with indentation
   (when the plan has them), and selecting one highlights all its groups; folding parts open and closed is missing.
-- **A warning on duplicate guest names** (the same name twice, in one group or in different groups).
+- ~~**A warning on duplicate guest names**~~: done 2026-11-11 (a setup warning naming the groups).
 - **A poster of guest names and their tables**, like "find your table" for groups, but by person. (The poster's data
   already has each group's `Names`; the built-in poster does not show them.)
 - **Naming of levels:** "Group", "Level 1" and "Level 2" (e.g. "Colour by level 1", the import wizard's "Level 1,
@@ -273,14 +273,16 @@ Wishes noted 2026-11-10, after testing (not started):
   warnings would change; "best place for this group" suggestions; moving a whole department or several selected
   groups at once; making room (pushing neighbours along) instead of only swapping; Re-optimize only a part (a floor,
   some tables) around what was placed by hand; touch-friendly moves (Shift+drag needs a keyboard).
-- **"Create test projects" in the app** (projects page): makes several different setups at once (long and round
+- ~~**"Create test projects" in the app**~~: done 2026-11-11 (7 projects each time, `TestProjects` in Core, with
+  fills from about 0.85 to 1.07; the test plans use the same generators with fixed seeds). Was: (projects page): makes several different setups at once (long and round
   tables, several floors and separate areas, disabled seats, group levels, names, preferences), with about as many
   people as seats (a little under, exactly, a little over). For testing the solver by hand, so they are deliberately
   not checked against it. The generators in `TestPlanGenerator` (tests) could move to Core and be reused, with a
   random seed each time.
-- **Zoom with the scroll wheel** in the layout editor and on the plan page (around the pointer), besides the buttons.
-- **Importing a project whose name (or ID) already exists:** ask to import it as a copy under a new name and ID,
-  instead of only offering to replace the existing one.
+- ~~**Zoom with the scroll wheel**~~: done 2026-11-11, in the layout editor and on the plan page, around the pointer.
+  A mouse wheel and a touchpad pinch zoom; two-finger scrolling on a touchpad and Shift+wheel still scroll.
+- ~~**Importing a project whose name (or ID) already exists**~~: done 2026-11-11. It asks: import as a copy (new ID,
+  name "… (copy)"), replace (same project) or keep the name (same name, other project), or cancel.
 
 Order agreed 2026-11-11:
 1. Small fixes: copy a project, import as a copy, duplicate guest names warning, test projects in the app, scroll

@@ -160,17 +160,37 @@
 
     protected override void OnInitialized() => Session.Changed += OnSessionChanged;
 
-    public void Dispose() => Session.Changed -= OnSessionChanged;
+    public void Dispose()
+    {
+        Session.Changed -= OnSessionChanged;
+        _self?.Dispose();
+    }
+
+    private DotNetObjectReference<LayoutEditor>? _self;
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        // The canvas only exists once the project has loaded, so hook the keys on the first render that has it.
+        // The canvas only exists once the project has loaded, so hook the keys and the wheel on the first render that has it.
         if (!_keysHooked && _canvasHost.Context is not null)
         {
             _keysHooked = true;
+            _self = DotNetObjectReference.Create(this);
             await JS.InvokeVoidAsync("tablePlanner.preventEditorKeys", _canvasHost);
+            await JS.InvokeVoidAsync("tablePlanner.wheelZoom", _canvasHost, _self);
         }
     }
+
+    /// <summary>Zooms in or out by one wheel step (from app.js); returns the scale before and after.</summary>
+    [JSInvokable]
+    public double[] WheelZoom(bool zoomIn)
+    {
+        var before = _scale;
+        _scale = Math.Clamp(zoomIn ? _scale * WheelStep : _scale / WheelStep, MinScale, MaxScale);
+        StateHasChanged();
+        return [before, _scale];
+    }
+
+    private const double WheelStep = 1.15;
 
     private void OnSessionChanged()
     {

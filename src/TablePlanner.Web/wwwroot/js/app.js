@@ -103,6 +103,33 @@ window.tablePlanner = {
     },
 
     /**
+     * Zooms a floor canvas with the mouse wheel, around the pointer: the page's WheelZoom(zoomIn) changes the scale
+     * and returns [old, new]; then the scroll position is moved so the point under the pointer stays there.
+     * A mouse wheel (whole lines or big steps) and a pinch on a touchpad (sent as Ctrl+wheel) zoom; two-finger
+     * scrolling on a touchpad (small pixel steps) and Shift+wheel scroll as usual.
+     */
+    wheelZoom(element, page) {
+        element.addEventListener("wheel", e => {
+            if (e.shiftKey) return;
+            const mouseWheel = e.deltaMode === 1 || (e.deltaX === 0 && Math.abs(e.deltaY) >= 50 && Number.isInteger(e.deltaY));
+            if (!e.ctrlKey && !mouseWheel) return;
+            e.preventDefault();
+            const box = element.getBoundingClientRect();
+            const px = e.clientX - box.left, py = e.clientY - box.top;
+            const before = { left: element.scrollLeft, top: element.scrollTop };
+            page.invokeMethodAsync("WheelZoom", e.deltaY < 0).then(([oldScale, newScale]) => {
+                if (oldScale === newScale) return;
+                const ratio = newScale / oldScale;
+                // After Blazor has drawn the canvas at the new size.
+                requestAnimationFrame(() => requestAnimationFrame(() => {
+                    element.scrollLeft = (before.left + px) * ratio - px;
+                    element.scrollTop = (before.top + py) * ratio - py;
+                }));
+            });
+        }, { passive: false });
+    },
+
+    /**
      * Stops the browser's own handling of the editor's shortcut keys (scrolling, bookmarking, …)
      * while the element has focus. Blazor still receives the key events.
      */

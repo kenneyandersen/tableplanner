@@ -3,6 +3,7 @@
 @inject ProjectSession Session
 @inject IDialogService Dialogs
 @inject ISnackbar Snackbar
+@inject IJSRuntime JS
 @using TablePlanner.Core.Serialization
 @using TablePlanner.Solver
 
@@ -87,7 +88,7 @@
             </MudToolBar>
 
             <div class="editor-body">
-                <div class="editor-canvas" tabindex="0" @onkeydown="OnKeyDown">
+                <div class="editor-canvas" tabindex="0" @ref="_canvasHost" @onkeydown="OnKeyDown">
                     @if (_moving && SelectedGroup is { } moving)
                     {
                         <MudChip T="string" Color="Color.Primary" Class="move-hint" OnClose="@(() => _moving = false)">
@@ -219,7 +220,33 @@
     {
         Session.Changed -= OnSessionChanged;
         _cancel?.Cancel();
+        _self?.Dispose();
     }
+
+    // The mouse wheel zooms the plan (see app.js), once the canvas exists.
+    private ElementReference _canvasHost;
+    private DotNetObjectReference<Plan>? _self;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (_self is null && _canvasHost.Context is not null)
+        {
+            _self = DotNetObjectReference.Create(this);
+            await JS.InvokeVoidAsync("tablePlanner.wheelZoom", _canvasHost, _self);
+        }
+    }
+
+    /// <summary>Zooms in or out by one wheel step (from app.js); returns the scale before and after.</summary>
+    [JSInvokable]
+    public double[] WheelZoom(bool zoomIn)
+    {
+        var before = _scale;
+        _scale = Math.Clamp(zoomIn ? _scale * WheelStep : _scale / WheelStep, MinScale, MaxScale);
+        StateHasChanged();
+        return [before, _scale];
+    }
+
+    private const double WheelStep = 1.15;
 
     private void OnSessionChanged()
     {

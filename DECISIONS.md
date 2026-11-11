@@ -301,6 +301,14 @@ Wishes noted 2026-11-10, after testing (not started):
     dropped**. Dragging Sales (50) onto the right end of table 103: the preview starts at that seat, but then follows the
     solver's fill order (4 seats at the end of 103, 6 at the end of 104, all of 105 and 106) instead of growing from
     the drop point into the nearest free seats (the rest of 103, then 102/106).
+- **A level-by-level solver, as an alternative method** (to design next, noted 2026-11-11). The user's idea: place the
+  main groups first, each as one area (split only when it must, and then along its subgroups), then place the next
+  level inside each area, and so on, handing each part to the existing algorithms. Possible shape: (1) divide the
+  tables into compact areas per main group, sized to its people (growing areas over the table adjacency, keeping
+  preferences between main groups next to each other); a main group too big for one area is split into whole
+  subgroups (a bin-packing step); (2) within each area, run the existing order search + polisher for its groups only;
+  (3) a final pass over the whole plan (polisher, short search) for what crosses areas. Offered as a third method next
+  to Search and Beam, compared with the test plans.
 - ~~**"Create test projects" in the app**~~: done 2026-11-11 (7 projects each time, `TestProjects` in Core, with
   fills from about 0.85 to 1.07; the test plans use the same generators with fixed seeds). Was: (projects page): makes several different setups at once (long and round
   tables, several floors and separate areas, disabled seats, group levels, names, preferences), with about as many

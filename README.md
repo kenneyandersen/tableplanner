@@ -72,6 +72,21 @@ group. To regenerate the generated plans: `$env:TABLEPLANNER_GENERATE=1; dotnet 
 
 ## Publishing to GitHub Pages
 
+### Automatically, with GitHub Actions
+
+`.github/workflows/deploy.yml` runs on every push to `master` (or by hand from the Actions tab). It runs the tests,
+publishes with AOT using `publish.ps1 -BasePath /tableplanner/`, and pushes the result to this repo's `gh-pages`
+branch, keeping `pages/` and `CNAME`. A run takes about 10 minutes. The site is then at
+https://kenneyandersen.github.io/tableplanner/.
+
+Set up once:
+
+1. Create a `gh-pages` branch (in the GitHub UI: branch dropdown, type `gh-pages`, "Create branch"). Its first
+   contents do not matter; the first deploy replaces them.
+2. Settings → Pages → Source: "Deploy from a branch", branch `gh-pages`, folder `/ (root)`.
+
+### By hand
+
 Release builds are compiled ahead of time (AOT), which makes the solver much faster in the browser.
 This needs the WebAssembly build tools once, and publishing takes several minutes:
 

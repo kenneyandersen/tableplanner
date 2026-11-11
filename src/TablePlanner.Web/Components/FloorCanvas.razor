@@ -93,6 +93,13 @@
             </g>
         }
 
+        @* While dragging a table: the lines it snapped to. *@
+        @foreach (var guide in _guides)
+        {
+            <line class="snap-guide" x1="@Svg(guide.Vertical ? guide.At : guide.From)" y1="@Svg(guide.Vertical ? guide.From : guide.At)"
+                  x2="@Svg(guide.Vertical ? guide.At : guide.To)" y2="@Svg(guide.Vertical ? guide.To : guide.At)" />
+        }
+
         @* Drawn last, so neighbouring tables can't cover it. *@
         @if (Selection.Count == 1 && !EditSeats && floor.Tables.FirstOrDefault(t => Selection.Contains(t.Id)) is { } resizable)
         {
@@ -184,6 +191,10 @@
 
 @code {
     private enum DragMode { None, Move, Resize, ResizeElement, MoveBackground, WallCorner, MoveLabel }
+
+    // Moving: the item under the pointer (a table there lines up with its neighbours), and the guides it snapped to.
+    private Guid _primaryId;
+    private List<SnapGuide> _guides = [];
 
     // A label being dragged: its element and its offset at the start.
     private Guid _labelElementId;
@@ -370,6 +381,7 @@
             .Concat(floor.Elements.Where(el => selection.Contains(el.Id)).Select(el => (el.Id, (el.X, el.Y))))
             .ToDictionary(x => x.Item1, x => x.Item2);
         _startWalls = floor.Walls.Where(w => selection.Contains(w.Id)).ToDictionary(w => w.Id, w => w.Points.ToList());
+        _primaryId = id;
         await BeginDrag(e, DragMode.Move);
     }
 
@@ -486,11 +498,20 @@
 
         if (_mode == DragMode.Move)
         {
-            // Snap the movement (not each position), so a group of items keeps its arrangement. Alt = no snapping.
+            // Snap the movement (not each position), so a group of items keeps its arrangement. The table under the
+            // pointer lines up with the tables near it (edges, centres, seats); an axis without such a match snaps to
+            // the grid. Alt = no snapping.
+            _guides = [];
             if (!e.AltKey)
             {
-                dx = Grid.Snap(dx);
-                dy = Grid.Snap(dy);
+                double? snappedX = null, snappedY = null;
+                if (floor.Tables.FirstOrDefault(t => t.Id == _primaryId) is { } primary && _startPositions.TryGetValue(primary.Id, out var start))
+                {
+                    (primary.X, primary.Y) = start;
+                    (snappedX, snappedY, _guides) = TableSnapping.Snap(primary, dx, dy, floor.Tables.Where(t => !_startPositions.ContainsKey(t.Id)));
+                }
+                dx = snappedX ?? Grid.Snap(dx);
+                dy = snappedY ?? Grid.Snap(dy);
             }
             foreach (var table in floor.Tables.Where(t => _startPositions.ContainsKey(t.Id)))
                 (table.X, table.Y) = (_startPositions[table.Id].X + dx, _startPositions[table.Id].Y + dy);
@@ -552,6 +573,7 @@
             _ => "Resize table",
         };
         _mode = DragMode.None;
+        _guides = [];
         _pending?.Commit(description);
         _pending = null;
     }

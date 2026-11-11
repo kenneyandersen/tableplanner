@@ -357,3 +357,6 @@ code {
 .floor-canvas .element text.label-handle { cursor: move; }
 .floor-canvas .element.kind-text > rect { fill: transparent; stroke: transparent; }
 .floor-canvas .element.kind-text.selected > rect { stroke: var(--mud-palette-primary); stroke-dasharray: 0.12 0.08; stroke-width: 0.04; }
+
+/* Layout editor: the lines a dragged table snapped to (a neighbour's edge, centre or seats). */
+.floor-canvas .snap-guide { stroke: #e0457b; stroke-width: 0.03; stroke-dasharray: 0.15 0.1; pointer-events: none; }

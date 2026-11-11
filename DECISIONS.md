@@ -245,12 +245,13 @@ algorithm works on setup + assignment. UI code never goes into model or algorith
 
 Wishes noted 2026-11-10, after testing (not started):
 - ~~**Copy a project**~~: done 2026-11-11 (a copy button on each project; images are copied too).
-- **Labels on top of element drawings:** e.g. "Buffet" is written over the dishes and "Stairs" over the steps. The
-  label could go below the drawing, or be moved by hand (an offset per element).
+- ~~**Labels on top of element drawings**~~: done 2026-11-11. Labels get a thin white outline (dark on a pillar), so
+  they read over any drawing, and a selected element's label can be dragged (`LabelOffsetX/Y`; "Reset label" in the
+  panel).
 - **Rotate elements directly on the canvas** (a rotate handle), not only with the button or R.
 - **Free rotation of elements** (any angle, not only 90° steps). Decided 2026-11-11: elements only, not tables.
-- **A text element:** just a label on the floor, no box ("Custom" with a label comes closest, but has a box).
-- **Font size for element labels** (per element), e.g. to show a large emoji as the element's symbol.
+- ~~**A text element**~~: done 2026-11-11 (kind Text: no box, the label fills its height; outlined only when selected).
+- ~~**Font size for element labels**~~: done 2026-11-11 ("Label size (cm)" in the panel; empty = fitted to the element).
 - **Looking at the plan level by level:** see how the top-level groups were seated, then switch to the next level
   and see how their subgroups were seated, and so on. "Colour by" is a start, but the display should follow the level
   as a whole: group names on the tables, the group list, highlighting and warnings at the chosen level (e.g. one label
@@ -264,7 +265,9 @@ Wishes noted 2026-11-10, after testing (not started):
   e.g. department") reads badly: subgroups are groups too. Decided 2026-11-11: "Group – level 1", "Group – level 2" …
   for now (project-specific level names maybe later).
 - **Group names on tables overlap** in some cases and are hard to read (not the highest priority).
-- **Better alignment when moving tables:** the grid snaps a table's centre, so tables of different lengths end up with
+- ~~**Better alignment when moving tables**~~: done 2026-11-11 (`TableSnapping`): the dragged table lines up its edges,
+  centre and seats with tables within 4 m (within 25 cm; closest match per axis), with pink guide lines; an axis without
+  a match snaps to the grid as before; Alt turns snapping off. Was: the grid snaps a table's centre, so tables of different lengths end up with
   their ends and seats out of line with the next table, and seats no longer sit back to back. Snap to neighbouring
   tables instead: line up ends and edges, and put seats in line with the seats of the table next to it (with guide lines
   while dragging).

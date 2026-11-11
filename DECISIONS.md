@@ -249,15 +249,17 @@ Wishes noted 2026-11-10, after testing (not started):
   label could go below the drawing, or be moved by hand (an offset per element).
 - **Rotate elements directly on the canvas** (a rotate handle), not only with the button or R.
 - **Free rotation of elements** (any angle, not only 90° steps).
-- **A text element:** just a label on the floor, no box.
+- **A text element:** just a label on the floor, no box ("Custom" with a label comes closest, but has a box).
 - **Font size for element labels** (per element), e.g. to show a large emoji as the element's symbol.
 - **Looking at the plan level by level:** see how the top-level groups were seated, then switch to the next level
   and see how their subgroups were seated, and so on. "Colour by" is a start, but the display should follow the level
   as a whole: group names on the tables, the group list, highlighting and warnings at the chosen level (e.g. one label
   "Sales" over all its tables at level 1, its teams at level 2).
-- **The plan page's group list as a tree** to fold open and closed, rather than mainly the bottom groups.
+- **The plan page's group list as a foldable tree:** it already shows parent groups in tree order with indentation
+  (when the plan has them), and selecting one highlights all its groups; folding parts open and closed is missing.
 - **A warning on duplicate guest names** (the same name twice, in one group or in different groups).
-- **A poster of guest names and their tables**, like "find your table" for groups, but by person.
+- **A poster of guest names and their tables**, like "find your table" for groups, but by person. (The poster's data
+  already has each group's `Names`; the built-in poster does not show them.)
 - **Naming of levels:** "Group", "Level 1" and "Level 2" (e.g. "Colour by level 1", the import wizard's "Level 1,
   e.g. department") reads badly: subgroups are groups too. Find better words, e.g. "top-level group" / "subgroup", or
   let the project name its levels (department, team, …).

@@ -40,8 +40,9 @@
                             XChanged="@(v => EditTable(table.Id, "Move table", t => t.X = v))"
                             YChanged="@(v => EditTable(table.Id, "Move table", t => t.Y = v))"
                             OnRotate="@(() => History.Execute("Rotate", p => SetupOperations.RotateItems(p, FloorId, [table.Id])))" />
-            <MudSwitch T="bool" Value="EditSeats" ValueChanged="EditSeatsChanged" Color="Color.Primary"
-                       Label="Disable seats: click seats in the plan" />
+            <MudText Typo="Typo.caption" Class="mud-text-secondary">
+                Click a seat of the selected table to make it unavailable; click it again to free it.
+            </MudText>
         </MudStack>
     }
     else if (SelectedElement is { } element)

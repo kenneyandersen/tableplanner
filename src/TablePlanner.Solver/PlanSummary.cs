@@ -136,3 +136,26 @@ public sealed class PlanSummary
         return new PlanSummary(score, groups.Sum(g => g.Placed), problem.PeopleCount, groups, parents, stats, issues);
     }
 }
+
+/// <summary>Table numbers as short text: runs of three or more are written as a range, e.g. "102, 108, 111–114".</summary>
+public static class TableNumberText
+{
+    public static string Format(IEnumerable<int> numbers)
+    {
+        var sorted = numbers.Distinct().Order().ToList();
+        var parts = new List<string>();
+        for (var i = 0; i < sorted.Count;)
+        {
+            var j = i;
+            while (j + 1 < sorted.Count && sorted[j + 1] == sorted[j] + 1)
+                j++;
+            if (j - i >= 2)
+                parts.Add($"{sorted[i]}–{sorted[j]}");
+            else
+                for (var k = i; k <= j; k++)
+                    parts.Add(sorted[k].ToString());
+            i = j + 1;
+        }
+        return string.Join(", ", parts);
+    }
+}

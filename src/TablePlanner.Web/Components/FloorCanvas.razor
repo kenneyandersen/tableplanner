@@ -271,6 +271,9 @@
 
     // The wall being drawn: its corners so far, where the next one would go, and the last click (to follow the pointer).
     private readonly List<Point> _wallPoints = [];
+
+    // The wall being continued (drawing started on its loose end), or null for a new wall.
+    private Guid? _continuing;
     private Point? _wallPreview;
     private Point _lastClickFloor;
     private (double X, double Y) _lastClickClient;
@@ -297,6 +300,16 @@
         var xy = await JS.InvokeAsync<double[]>("tablePlanner.svgPoint", _svg, e.ClientX, e.ClientY);
         var pointer = new Point(xy[0], xy[1]);
         (_lastClickFloor, _lastClickClient) = (pointer, (e.ClientX, e.ClientY));
+        // Starting on the loose end of a wall that is not closed: go on drawing that wall.
+        if (_wallPoints.Count == 0 && Floor?.Walls.FirstOrDefault(w => !w.Closed && w.Points.Count >= 2
+                && (WallDrawing.Length(pointer, w.Points[0]) < 0.35 || WallDrawing.Length(pointer, w.Points[^1]) < 0.35)) is { } open)
+        {
+            var fromStart = WallDrawing.Length(pointer, open.Points[0]) < WallDrawing.Length(pointer, open.Points[^1]);
+            _wallPoints.AddRange(fromStart ? open.Points.AsEnumerable().Reverse() : open.Points);
+            _continuing = open.Id;
+            _wallPreview = null;
+            return;
+        }
         if (_wallPoints.Count >= 3 && WallDrawing.Length(pointer, _wallPoints[0]) < 0.35)
         {
             FinishWall(closed: true);
@@ -314,7 +327,10 @@
         if (_wallPoints.Count >= 2)
         {
             var points = _wallPoints.ToList();
-            History.Execute(closed ? "Draw room" : "Draw wall", p => SetupOperations.AddWall(p, FloorId, points, closed));
+            if (_continuing is { } wallId)
+                History.Execute(closed ? "Close wall" : "Extend wall", p => SetupOperations.SetWallPoints(p, FloorId, wallId, points, closed));
+            else
+                History.Execute(closed ? "Draw room" : "Draw wall", p => SetupOperations.AddWall(p, FloorId, points, closed));
         }
         CancelWall();
     }
@@ -323,6 +339,7 @@
     public void CancelWall()
     {
         _wallPoints.Clear();
+        _continuing = null;
         _wallPreview = null;
         StateHasChanged();
     }
@@ -478,10 +495,17 @@
         return new Rect(left, top, right - left, bottom - top);
     }
 
+    /// <summary>A seat of the selected table pressed with the left button: made (un)available when released without dragging.</summary>
+    private (Guid TableId, int Index)? _pressedSeat;
+
     private void OnSeatDown(PointerEventArgs e, Guid tableId, int index)
     {
         if (EditSeats && Selection.Contains(tableId))
             History.Execute("Toggle seat", p => SetupOperations.ToggleSeatDisabled(p, tableId, index));
+        else if (e.Button == 0 && !e.ShiftKey && !e.CtrlKey && Selection.Count == 1 && Selection.Contains(tableId))
+            _pressedSeat = (tableId, index);
+        else
+            _pressedSeat = null;
     }
 
     private async Task BeginDrag(PointerEventArgs e, DragMode mode)
@@ -497,10 +521,11 @@
     {
         if (!Calibrating)
             _calibrationStart = null;
-        if (!DrawingWall && _wallPoints.Count > 0)
+        if (!DrawingWall && (_wallPoints.Count > 0 || _continuing is not null))
         {
             _wallPoints.Clear();
             _wallPreview = null;
+            _continuing = null;
         }
     }
 
@@ -635,8 +660,13 @@
 
     private void OnPointerUp(PointerEventArgs e)
     {
+        var seat = _pressedSeat;
+        _pressedSeat = null;
         if (_mode == DragMode.None)
             return;
+        // A click (not a drag) on a seat of the selected table.
+        var clicked = seat is not null && _mode == DragMode.Move
+            && Math.Abs(e.ClientX - _startClientX) + Math.Abs(e.ClientY - _startClientY) < 4;
         var description = _mode switch
         {
             DragMode.Move => _startPositions.Count + _startWalls.Count == 1 ? "Move item" : "Move items",
@@ -650,7 +680,12 @@
         };
         _mode = DragMode.None;
         _guides = [];
-        _pending?.Commit(description);
+        if (clicked)
+            _pending?.Cancel();
+        else
+            _pending?.Commit(description);
         _pending = null;
+        if (clicked && seat is { } s)
+            History.Execute("Toggle seat", p => SetupOperations.ToggleSeatDisabled(p, s.TableId, s.Index));
     }
 }

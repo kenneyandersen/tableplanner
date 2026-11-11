@@ -73,12 +73,12 @@ else
                 }
                 <span class="group-dot" style="background: @Colours.GetValueOrDefault(parentId, "#ccc")"></span>
                 <span class="group-name"><b>@parent.Name</b> <span class="group-count">(@parent.PeopleCount)</span></span>
-                <span class="group-tables">
+                <span class="group-tables" title="@TablesTitle(parent.TableNumbers)">
                     @if (parent.IsSpread)
                     {
                         <MudText Typo="Typo.caption" Color="Color.Warning" Inline="true">@parent.PeopleApart apart · </MudText>
                     }
-                    @string.Join(", ", parent.TableNumbers)
+                    @TableNumberText.Format(parent.TableNumbers)
                 </span>
             </div>
             continue;
@@ -100,14 +100,14 @@ else
             {
                 <MudIcon Icon="@Icons.Material.Filled.Lock" Size="Size.Small" Class="mud-text-secondary" Title="Locked or pinned" />
             }
-            <span class="group-tables">
+            <span class="group-tables" title="@TablesTitle(group.TableNumbers)">
                 @if (group.Placed == 0)
                 {
                     <MudText Typo="Typo.caption" Color="Color.Warning">No seats</MudText>
                 }
                 else
                 {
-                    @string.Join(", ", group.TableNumbers)
+                    @TableNumberText.Format(group.TableNumbers)
                     @if (!group.IsPlaced)
                     {
                         <MudText Typo="Typo.caption" Color="Color.Warning" Inline="true"> · @group.Placed seated</MudText>
@@ -119,6 +119,10 @@ else
 </div>
 
 @code {
+    /// <summary>The full list as a tooltip, for when it is cut short in the row.</summary>
+    private static string? TablesTitle(IReadOnlyList<int> tables) =>
+        tables.Count > 1 ? $"Tables {string.Join(", ", tables.Order())}" : null;
+
     private const int MaxIssues = 6;
 
     private bool _showAllIssues;

@@ -212,6 +212,14 @@ public static class SetupOperations
             wall.Closed = false;
     }
 
+    /// <summary>Replaces a wall's corners (e.g. after drawing it further), closing it into a room when asked (at least 3 corners).</summary>
+    public static void SetWallPoints(EventProject project, Guid floorId, Guid wallId, IReadOnlyList<Point> points, bool closed)
+    {
+        var wall = GetWall(project, floorId, wallId);
+        wall.Points = [.. points];
+        wall.Closed = closed && points.Count >= 3;
+    }
+
     public static void SetWallClosed(EventProject project, Guid floorId, Guid wallId, bool closed)
     {
         var wall = GetWall(project, floorId, wallId);

@@ -807,3 +807,12 @@ Notes: changes after testing (2026-11-07):
   - Drawn as thin dark lines (`WallDrawing`, the same SVG in the editor, plan page, poster and guest page) under
     everything else. An Entrance or Exit element placed on a wall cuts a gap in it (an SVG mask), so a door needs no
     tool of its own. Walls count towards the canvas and poster extent.
+  - A finished open wall can be **continued**: start drawing walls (W) with a click on one of its loose ends, and the new
+    corners are added to that wall (from that end); a click on its other end closes it into a room. Undo takes it back
+    in one step ("Extend wall" / "Close wall").
+- **Unavailable seats by clicking** (replaces the "Disable seats" switch): with one table selected, a click (press and
+  release without dragging) on one of its seats makes it unavailable, and a click on it again frees it. Dragging from a
+  seat still moves the table, and the first click on a table only selects it, so seats are not blocked by accident.
+- **Group list on the plan page**: a group spread over many tables no longer squeezes its name. The table numbers are
+  shortened (runs of three or more as a range, e.g. "108, 111–114", `TableNumberText`), cut short with "…" when there
+  is still no room, and shown in full in a tooltip.

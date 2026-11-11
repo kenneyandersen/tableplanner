@@ -21,7 +21,7 @@ public class ElementDrawingTests
         var element = Element(kind, round: kind == FloorElementKind.Pillar);
         var svg = ElementDrawing.Svg(element);
 
-        if (kind is FloorElementKind.Custom)
+        if (kind is FloorElementKind.Custom or FloorElementKind.Text)
             Assert.Equal("", svg);
         else
         {
@@ -32,7 +32,7 @@ public class ElementDrawingTests
         var (x, y, size) = ElementDrawing.Label(element);
         Assert.InRange(x, b.Left, b.Right);
         Assert.InRange(y, b.Top, b.Bottom);
-        Assert.InRange(size, 0.01, 0.45);
+        Assert.InRange(size, 0.01, kind == FloorElementKind.Text ? 3 : 0.45);
         Assert.StartsWith("#", ElementDrawing.Fill(kind));
     }
 
@@ -89,5 +89,42 @@ public class ElementGallery
                 svg.Append($"<text x=\"{label.X}\" y=\"{label.Y}\" font-size=\"{label.FontSize}\" text-anchor=\"middle\" dominant-baseline=\"middle\" fill=\"#33435a\">{element.Label}</text>");
             }
         File.WriteAllText(path, $"<!doctype html><body style=\"margin:0\"><svg viewBox=\"-1 -1 18 {kinds.Length * 6.5 + 2}\" width=\"720\" style=\"font-family:sans-serif\">{svg}</svg></body>");
+    }
+}
+
+public class ElementLabelTests
+{
+    [Fact]
+    public void A_label_can_have_its_own_size_and_be_moved()
+    {
+        var element = new FloorElement { Kind = FloorElementKind.Buffet, X = 10, Y = 5, Width = 4, Depth = 1 };
+        var (x, y, size) = ElementDrawing.Label(element);
+        Assert.Equal((10.0, 5.0), (x, y));
+        Assert.InRange(size, 0.1, 0.45);
+
+        element.LabelSize = 1.2;
+        element.LabelOffsetX = 0.5;
+        element.LabelOffsetY = 1.5;
+
+        Assert.Equal((10.5, 6.5, 1.2), ElementDrawing.Label(element));
+    }
+
+    [Fact]
+    public void A_text_element_has_no_box_and_a_label_that_fills_it()
+    {
+        var text = new FloorElement { Kind = FloorElementKind.Text, Label = "🎉 Party", X = 0, Y = 0, Width = 3, Depth = 1 };
+
+        Assert.Equal("none", ElementDrawing.Fill(FloorElementKind.Text));
+        Assert.Equal("", ElementDrawing.Svg(text));
+        Assert.Equal(0.7, ElementDrawing.Label(text).FontSize, 6);
+    }
+
+    [Fact]
+    public void Labels_get_an_outline_to_stay_readable_over_drawings()
+    {
+        var buffet = new FloorElement { Kind = FloorElementKind.Buffet };
+
+        Assert.Contains("paint-order=\"stroke\"", ElementDrawing.LabelHalo(buffet, 0.4));
+        Assert.Contains("stroke=\"#ffffff\"", ElementDrawing.LabelHalo(buffet, 0.4));
     }
 }

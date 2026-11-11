@@ -17,6 +17,7 @@ public static class FloorElementGeometry
         FloorElementKind.DanceFloor => "Dance floor",
         FloorElementKind.DjBooth => "DJ booth",
         FloorElementKind.PhotoBooth => "Photo booth",
+        FloorElementKind.Text => "Text",
         _ => kind.ToString(),
     };
 
@@ -35,6 +36,7 @@ public static class FloorElementGeometry
         FloorElementKind.Pillar => (0.5, 0.5),
         FloorElementKind.DjBooth => (2.5, 1.2),
         FloorElementKind.PhotoBooth => (2, 2),
+        FloorElementKind.Text => (3, 0.8),
         _ => (2, 1),
     };
 }

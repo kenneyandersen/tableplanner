@@ -29,6 +29,7 @@ public static class ElementDrawing
         FloorElementKind.Entrance or FloorElementKind.Exit => "#e1f1e3",
         FloorElementKind.Toilets or FloorElementKind.Cloakroom => "#e3edf6",
         FloorElementKind.PhotoBooth => "#f6eadf",
+        FloorElementKind.Text => "none",
         _ => "#e3eaf3",
     };
 
@@ -36,16 +37,39 @@ public static class ElementDrawing
     private static bool HasIcon(FloorElementKind kind) =>
         kind is FloorElementKind.Toilets or FloorElementKind.Cloakroom or FloorElementKind.DjBooth or FloorElementKind.PhotoBooth;
 
-    /// <summary>Where the label goes and how big: the middle, or under an icon; never wider than the element allows.</summary>
+    /// <summary>
+    /// Where the label goes and how big: the middle (or under an icon), moved by the element's label offset; its own size
+    /// if set, otherwise fitted to the element (a text element's fills its box).
+    /// </summary>
     public static (double X, double Y, double FontSize) Label(FloorElement element)
     {
         var b = FloorElementGeometry.GetBounds(element);
-        var size = Math.Min(0.45, Math.Min(b.Height, b.Width) * 0.45);
-        if (!HasIcon(element.Kind) || b.Height < 1)
-            return (element.X, element.Y, size);
-        size = Math.Min(size, b.Height * 0.18);
-        return (element.X, element.Y + b.Height * 0.3, size);
+        var (x, y) = (element.X + element.LabelOffsetX, element.Y + element.LabelOffsetY);
+        double size;
+        if (element.Kind == FloorElementKind.Text)
+            size = Math.Min(b.Height * 0.7, 3);
+        else if (!HasIcon(element.Kind) || b.Height < 1)
+            size = Math.Min(0.45, Math.Min(b.Height, b.Width) * 0.45);
+        else
+        {
+            size = Math.Min(Math.Min(0.45, Math.Min(b.Height, b.Width) * 0.45), b.Height * 0.18);
+            y += b.Height * 0.3;
+        }
+        return (x, y, element.LabelSize is > 0 and var own ? own : size);
     }
+
+    /// <summary>
+    /// The outline drawn around a label's letters (SVG text attributes), so it stays readable over the element's drawing:
+    /// white, or dark on a pillar.
+    /// </summary>
+    public static string LabelHalo(FloorElement element, double fontSize) =>
+        $"stroke=\"{HaloColour(element)}\" stroke-width=\"{N(HaloWidth(fontSize))}\" stroke-linejoin=\"round\" paint-order=\"stroke\"";
+
+    /// <summary>The colour of the outline around a label's letters (see <see cref="LabelHalo"/>).</summary>
+    public static string HaloColour(FloorElement element) => element.Kind == FloorElementKind.Pillar ? "#5d6673" : "#ffffff";
+
+    /// <summary>The width of the outline around a label's letters (see <see cref="LabelHalo"/>).</summary>
+    public static double HaloWidth(double fontSize) => Math.Round(fontSize * 0.22, 3);
 
     /// <summary>The element's drawing, without its box and label. Empty for kinds that are just a box.</summary>
     public static string Svg(FloorElement element)

@@ -36,7 +36,8 @@
             <g class="element kind-@element.Kind.ToString().ToLowerInvariant() @(element.IsRound ? "round" : "")">
                 <rect x="@Svg(bounds.Left)" y="@Svg(bounds.Top)" width="@Svg(bounds.Width)" height="@Svg(bounds.Height)" rx="0.05" fill="@ElementDrawing.Fill(element.Kind)" />
                 @((MarkupString)ElementDrawing.Svg(element))
-                <text x="@Svg(label.X)" y="@Svg(label.Y)" font-size="@Svg(label.FontSize)">@element.Label</text>
+                <text x="@Svg(label.X)" y="@Svg(label.Y)" font-size="@Svg(label.FontSize)"
+                      stroke="@ElementDrawing.HaloColour(element)" stroke-width="@Svg(ElementDrawing.HaloWidth(label.FontSize))" stroke-linejoin="round" paint-order="stroke">@element.Label</text>
             </g>
         }
 

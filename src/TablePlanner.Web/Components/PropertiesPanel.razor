@@ -58,6 +58,19 @@
                     <MudSelectItem Value="kind">@FloorElementGeometry.DisplayName(kind)</MudSelectItem>
                 }
             </MudSelect>
+            <MudStack Row="true" AlignItems="AlignItems.Center">
+                <MudNumericField T="int?" Label="Label size (cm)" Value="@(element.LabelSize is { } size ? (int?)Math.Round(size * 100) : null)"
+                                 Min="5" Max="500" Step="5" Variant="Variant.Outlined" Margin="Margin.Dense" Placeholder="Auto" Clearable="true"
+                                 HelperText="Empty: fitted to the element"
+                                 ValueChanged="@(v => EditElement(element.Id, "Change label size", el => el.LabelSize = v is > 0 ? v / 100.0 : null))" />
+                @if (element.LabelOffsetX != 0 || element.LabelOffsetY != 0)
+                {
+                    <MudTooltip Text="The label was dragged; put it back in its usual place">
+                        <MudButton Size="Size.Small" Variant="Variant.Text" OnClick="@(() => EditElement(element.Id, "Reset label position", el => (el.LabelOffsetX, el.LabelOffsetY) = (0, 0)))">Reset label</MudButton>
+                    </MudTooltip>
+                }
+            </MudStack>
+            <MudText Typo="Typo.caption" Class="mud-text-secondary">Drag the label to move it (when the element is selected).</MudText>
             @if (element.Kind == FloorElementKind.Pillar)
             {
                 <MudSwitch T="bool" Value="element.IsRound" Label="Round" Color="Color.Primary"

@@ -56,7 +56,9 @@
                @onpointerdown="e => OnItemDown(e, id)" @onpointerdown:stopPropagation="true">
                 <rect x="@Svg(bounds.Left)" y="@Svg(bounds.Top)" width="@Svg(bounds.Width)" height="@Svg(bounds.Height)" rx="0.05" fill="@ElementDrawing.Fill(element.Kind)" />
                 @((MarkupString)ElementDrawing.Svg(element))
-                <text x="@Svg(label.X)" y="@Svg(label.Y)" font-size="@Svg(label.FontSize)">@element.Label</text>
+                <text x="@Svg(label.X)" y="@Svg(label.Y)" font-size="@Svg(label.FontSize)" class="@(Selection.Contains(id) ? "label-handle" : null)"
+                      stroke="@ElementDrawing.HaloColour(element)" stroke-width="@Svg(ElementDrawing.HaloWidth(label.FontSize))" stroke-linejoin="round" paint-order="stroke"
+                      @onpointerdown="e => OnLabelDown(e, id)" @onpointerdown:stopPropagation="Selection.Contains(id)">@element.Label</text>
             </g>
         }
 
@@ -181,7 +183,21 @@
 }
 
 @code {
-    private enum DragMode { None, Move, Resize, ResizeElement, MoveBackground, WallCorner }
+    private enum DragMode { None, Move, Resize, ResizeElement, MoveBackground, WallCorner, MoveLabel }
+
+    // A label being dragged: its element and its offset at the start.
+    private Guid _labelElementId;
+    private (double X, double Y) _startLabelOffset;
+
+    /// <summary>Pressing a selected element's label drags the label alone (its offset); otherwise the press moves the element.</summary>
+    private async Task OnLabelDown(PointerEventArgs e, Guid elementId)
+    {
+        if (e.Button != 0 || !Selection.Contains(elementId) || Floor?.Elements.FirstOrDefault(el => el.Id == elementId) is not { } element)
+            return;
+        _labelElementId = elementId;
+        _startLabelOffset = (element.LabelOffsetX, element.LabelOffsetY);
+        await BeginDrag(e, DragMode.MoveLabel);
+    }
 
     // ---- Walls ----
 
@@ -483,6 +499,11 @@
             foreach (var wall in floor.Walls.Where(w => _startWalls.ContainsKey(w.Id)))
                 wall.Points = _startWalls[wall.Id].Select(p => p.Offset(dx, dy)).ToList();
         }
+        else if (_mode == DragMode.MoveLabel)
+        {
+            if (floor.Elements.FirstOrDefault(el => el.Id == _labelElementId) is { } labelled)
+                (labelled.LabelOffsetX, labelled.LabelOffsetY) = (Math.Round(_startLabelOffset.X + dx, 2), Math.Round(_startLabelOffset.Y + dy, 2));
+        }
         else if (_mode == DragMode.WallCorner)
         {
             var to = _startCorner.Offset(dx, dy);
@@ -525,6 +546,7 @@
         {
             DragMode.Move => _startPositions.Count + _startWalls.Count == 1 ? "Move item" : "Move items",
             DragMode.WallCorner => "Move wall corner",
+            DragMode.MoveLabel => "Move label",
             DragMode.MoveBackground => "Move background image",
             DragMode.ResizeElement => "Resize element",
             _ => "Resize table",

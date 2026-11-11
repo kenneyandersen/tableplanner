@@ -56,10 +56,10 @@ public static class FloorPlanSvg
             var roundPillar = element is { Kind: FloorElementKind.Pillar, IsRound: true };
             var pillar = element.Kind == FloorElementKind.Pillar;
             svg.Append($"<g class=\"element kind-{element.Kind.ToString().ToLowerInvariant()}\">");
-            if (!roundPillar)
+            if (!roundPillar && element.Kind != FloorElementKind.Text)
                 svg.Append($"<rect x=\"{N(b.Left)}\" y=\"{N(b.Top)}\" width=\"{N(b.Width)}\" height=\"{N(b.Height)}\" rx=\"0.05\" fill=\"{ElementDrawing.Fill(element.Kind)}\" stroke=\"{(pillar ? "#5d6673" : "#8a96a8")}\" stroke-width=\"0.03\"/>");
             svg.Append(ElementDrawing.Svg(element));
-            svg.Append($"<text x=\"{N(label.X)}\" y=\"{N(label.Y)}\" font-size=\"{N(label.FontSize)}\" fill=\"{(pillar ? "#ffffff" : "#44536a")}\">{HtmlTemplate.Escape(element.Label)}</text>");
+            svg.Append($"<text x=\"{N(label.X)}\" y=\"{N(label.Y)}\" font-size=\"{N(label.FontSize)}\" fill=\"{(pillar ? "#ffffff" : "#44536a")}\" {ElementDrawing.LabelHalo(element, label.FontSize)}>{HtmlTemplate.Escape(element.Label)}</text>");
             svg.Append("</g>");
         }
 

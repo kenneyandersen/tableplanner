@@ -352,3 +352,8 @@ code {
 .floor-canvas .drawing-layer { fill: transparent; cursor: crosshair; }
 .floor-canvas .wall-draft { fill: none; stroke: var(--mud-palette-primary); stroke-width: 0.1; stroke-dasharray: 0.25 0.12; pointer-events: none; }
 .floor-canvas .wall-draft-corner { fill: var(--mud-palette-primary); pointer-events: none; }
+
+/* Element labels: a selected element's label can be dragged; a text element has no visible box (only when selected). */
+.floor-canvas .element text.label-handle { cursor: move; }
+.floor-canvas .element.kind-text > rect { fill: transparent; stroke: transparent; }
+.floor-canvas .element.kind-text.selected > rect { stroke: var(--mud-palette-primary); stroke-dasharray: 0.12 0.08; stroke-width: 0.04; }

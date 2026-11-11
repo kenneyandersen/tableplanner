@@ -14,6 +14,7 @@ public enum FloorElementKind
     Pillar,
     DjBooth,
     PhotoBooth,
+    Text,
     Custom,
 }
 
@@ -36,4 +37,13 @@ public sealed class FloorElement
 
     /// <summary>For a pillar: drawn round (an ellipse in its box) rather than square.</summary>
     public bool IsRound { get; set; }
+
+    /// <summary>The label's height in metres; null fits it to the element automatically.</summary>
+    public double? LabelSize { get; set; }
+
+    /// <summary>How far the label is moved from where it goes by default, in metres (dragged in the editor).</summary>
+    public double LabelOffsetX { get; set; }
+
+    /// <inheritdoc cref="LabelOffsetX"/>
+    public double LabelOffsetY { get; set; }
 }

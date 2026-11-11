@@ -33,7 +33,7 @@ public class ElementDrawingTests
         Assert.InRange(x, b.Left, b.Right);
         Assert.InRange(y, b.Top, b.Bottom);
         Assert.InRange(size, 0.01, kind == FloorElementKind.Text ? 3 : 0.45);
-        Assert.StartsWith("#", ElementDrawing.Fill(kind));
+        Assert.Matches(kind == FloorElementKind.Text ? "^none$" : "^#", ElementDrawing.Fill(kind));
     }
 
     [Fact]

@@ -79,6 +79,10 @@ publishes with AOT using `publish.ps1 -BasePath /tableplanner/`, and pushes the 
 branch, keeping `pages/` and `CNAME`. A run takes about 10 minutes. The site is then at
 https://kenneyandersen.github.io/tableplanner/.
 
+Each deploy gets a version from the date and the run number (e.g. `2026.11.12.42`), shown at the bottom of the
+projects page with the commit (hover for the build time), and the deployed commit is tagged `v2026.11.12.42`. A
+local build, or `publish.ps1` without `-Version`, shows "Development build".
+
 Set up once:
 
 1. Create a `gh-pages` branch (in the GitHub UI: branch dropdown, type `gh-pages`, "Create branch"). Its first

@@ -28,7 +28,13 @@ param(
     # Build without AOT: much quicker, but the solver is much slower in the browser.
     [switch] $NoAot,
 
-    [string] $Output = "publish"
+    [string] $Output = "publish",
+
+    # Shown in the app (e.g. 2026.11.12.42; the deploy workflow passes the date and run number). Empty: a development build.
+    [string] $Version,
+
+    # The commit the build is made from, shown with the version.
+    [string] $Commit
 )
 
 $ErrorActionPreference = "Stop"
@@ -39,6 +45,8 @@ if (-not $BasePath.EndsWith("/")) { $BasePath = $BasePath + "/" }
 
 $publishArgs = @("publish", "src/TablePlanner.Web", "-c", "Release", "-o", $Output)
 if ($NoAot) { $publishArgs += "-p:RunAOTCompilation=false" }
+if ($Version) { $publishArgs += "-p:BuildVersion=$Version" }
+if ($Commit) { $publishArgs += "-p:BuildCommit=$Commit" }
 Write-Host "dotnet $($publishArgs -join ' ')" -ForegroundColor Cyan
 & dotnet @publishArgs
 if ($LASTEXITCODE -ne 0) { throw "dotnet publish failed." }

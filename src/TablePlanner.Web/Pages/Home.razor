@@ -79,6 +79,8 @@
             </RowTemplate>
         </MudTable>
     }
+    @* Which build is running (set by the deploy workflow; see BuildInfo). *@
+    <MudText Typo="Typo.caption" Class="mud-text-secondary mt-8 d-block" title="@BuildInfo.Details">@BuildInfo.Text</MudText>
 </MudContainer>
 
 @code {

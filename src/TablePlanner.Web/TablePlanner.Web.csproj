@@ -10,6 +10,14 @@
     <RunAOTCompilation Condition="'$(Configuration)' == 'Release'">true</RunAOTCompilation>
   </PropertyGroup>
 
+  <!-- Build information shown in the app (BuildInfo): the version and commit are passed by the deploy workflow
+       (publish.ps1 -Version/-Commit); a local build has only its build time. -->
+  <ItemGroup>
+    <AssemblyMetadata Include="BuildTime" Value="$([System.DateTime]::UtcNow.ToString('s'))Z" />
+    <AssemblyMetadata Include="BuildVersion" Value="$(BuildVersion)" />
+    <AssemblyMetadata Include="BuildCommit" Value="$(BuildCommit)" />
+  </ItemGroup>
+
   <ItemGroup>
     <PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly" Version="10.0.11" />
     <PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly.DevServer" Version="10.0.11" PrivateAssets="all" />

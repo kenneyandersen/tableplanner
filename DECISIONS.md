@@ -21,6 +21,9 @@ The result can be adjusted by hand, saved, and printed as posters and table card
   pushes this repo's `gh-pages` branch with the built-in token. It reuses `publish.ps1`, so the manual and
   automatic deploys do the same steps. (Before this, the site was published by hand to a separate repo,
   `TableAssigner`; deploying there from Actions would need a token for that repo.)
+  **Version** (2026-11-11, no manual bumping): date (UTC) + run number, e.g. `2026.11.12.42`, passed by the workflow
+  to `publish.ps1 -Version -Commit` (assembly metadata, `BuildInfo`), shown at the bottom of the projects page with
+  the short commit and, on hover, the build time; the deployed commit is tagged `v<version>`.
 - **UI library:** MudBlazor.
 - **UI language:** English. No localization framework. Text on cards and posters comes from the
   user-editable templates, so it can be in any language.

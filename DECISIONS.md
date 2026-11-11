@@ -16,7 +16,8 @@ The result can be adjusted by hand, saved, and printed as posters and table card
   (`<base href>` set at publish), and Pages needs `.nojekyll` and a `404.html` SPA fallback.
 - **Repository:** a local git repo only. The user creates the public GitHub repo, pushes, and sets up
   CI and Pages themselves. Since 2026-11-11 a GitHub Actions workflow (`.github/workflows/deploy.yml`) deploys on
-  every push to `master`: it runs the tests, then `publish.ps1 -BasePath /tableplanner/ -Target gh-pages`, and
+  every push to `master`: it runs `publish.ps1 -BasePath /tableplanner/ -Target gh-pages` (no tests, to keep it short;
+  they are run during development), and
   pushes this repo's `gh-pages` branch with the built-in token. It reuses `publish.ps1`, so the manual and
   automatic deploys do the same steps. (Before this, the site was published by hand to a separate repo,
   `TableAssigner`; deploying there from Actions would need a token for that repo.)
@@ -313,8 +314,8 @@ Wishes noted 2026-11-10, after testing (not started):
     the main groups differently. (Points to the level-by-level method, with a retry loop at the top level.)
   - It must still work without levels (a flat list of groups, the common case): then the groups themselves are the
     "main groups" and the method reduces to placing them well, at least as good as Search today.
-  - CI: when the GitHub Actions deploy (on the remote master, to be merged) is in, consider running all tests
-    (`dotnet test`) before deploying, and failing the deploy when they fail. The solver's quick checks take ~40 s.
+  - CI: decided 2026-11-11 that the Actions deploy does not run the tests (kept short); tests run during
+    development. A separate test workflow (e.g. on pull requests, or by hand) can come later.
 - **Emoji picker for elements** (noted 2026-11-11): a small picker with the most common emojis (🎤 🍽️ 🍸 🎂 🎁 🚻 🚪
   🎵 📸 ☕ 🅿️ ♿ …) next to an element's label, for an element shown with just an emoji instead of text (the label font
   size can already be raised).

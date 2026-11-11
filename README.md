@@ -74,7 +74,7 @@ group. To regenerate the generated plans: `$env:TABLEPLANNER_GENERATE=1; dotnet 
 
 ### Automatically, with GitHub Actions
 
-`.github/workflows/deploy.yml` runs on every push to `master` (or by hand from the Actions tab). It runs the tests,
+`.github/workflows/deploy.yml` runs on every push to `master` (or by hand from the Actions tab). It does not run the tests (they are run during development),
 publishes with AOT using `publish.ps1 -BasePath /tableplanner/`, and pushes the result to this repo's `gh-pages`
 branch, keeping `pages/` and `CNAME`. A run takes about 10 minutes. The site is then at
 https://kenneyandersen.github.io/tableplanner/.

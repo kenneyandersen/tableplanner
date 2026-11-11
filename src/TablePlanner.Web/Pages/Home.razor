@@ -4,6 +4,7 @@
 @inject NavigationManager Navigation
 @inject IDialogService Dialogs
 @inject ISnackbar Snackbar
+@inject ImageStore Images
 
 <PageTitle>Projects · Table Planner</PageTitle>
 
@@ -64,6 +65,10 @@
                 <MudTd Style="text-align: right">
                     @* The span keeps the click from also opening the project (row click). *@
                     <span @onclick:stopPropagation="true">
+                        <MudTooltip Text="Copy the project (with its plans and images)">
+                            <MudIconButton Icon="@Icons.Material.Filled.ContentCopy" Size="Size.Small" aria-label="Copy project"
+                                           OnClick="@(() => Copy(context))" />
+                        </MudTooltip>
                         <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" aria-label="Delete project"
                                        OnClick="@(() => Delete(context))" />
                     </span>
@@ -125,17 +130,43 @@
             return;
         }
 
-        if (_projects!.Any(p => p.Id == project.Id))
+        // The same project (ID) or one with the same name is already here: import it as a copy, or replace it (same project).
+        var projects = _projects ?? [];
+        var sameProject = projects.Any(p => p.Id == project.Id);
+        var sameName = projects.Any(p => string.Equals(p.Name.Trim(), project.Name.Trim(), StringComparison.OrdinalIgnoreCase));
+        if (sameProject || sameName)
         {
-            var replace = await Dialogs.ShowMessageBoxAsync("Replace project?",
-                $"'{project.Name}' is already in this browser. Replace it with the imported file?",
-                yesText: "Replace", cancelText: "Cancel");
-            if (replace != true)
+            var copyName = ProjectCopies.CopyName(project.Name, projects.Select(p => p.Name));
+            var choice = await Dialogs.ShowMessageBoxAsync(sameProject ? "This project is already here" : "A project with this name is already here",
+                sameProject
+                    ? $"'{project.Name}' is already in this browser. Import the file as a copy named '{copyName}', or replace the project here with the file?"
+                    : $"There is already a project named '{project.Name}'. Import the file as '{copyName}', or keep the name?",
+                yesText: "Import as a copy", noText: sameProject ? "Replace" : "Keep the name", cancelText: "Cancel");
+            if (choice is null)
                 return;
+            if (choice == true)
+                project = ProjectCopies.Copy(project, copyName);
         }
 
         await Session.OpenNewAsync(project, result.Images);
         Open(project.Id);
+    }
+
+    private async Task Copy(ProjectSummary summary)
+    {
+        if (await Store.LoadAsync(summary.Id) is not { } source)
+        {
+            Snackbar.Add("The project could not be read.", Severity.Error);
+            return;
+        }
+        var copy = ProjectCopies.Copy(source, ProjectCopies.CopyName(source.Name, _projects!.Select(p => p.Name)));
+        // Images are stored per project, so the copy gets its own.
+        foreach (var imageId in await Images.ListAsync(source.Id))
+            if (await Images.LoadAsync(source.Id, imageId) is { } image)
+                await Images.SaveAsync(copy.Id, image);
+        await Store.SaveAsync(copy, DateTimeOffset.Now);
+        await Reload();
+        Snackbar.Add($"Copied as '{copy.Name}'.", Severity.Success);
     }
 
     private async Task Delete(ProjectSummary project)

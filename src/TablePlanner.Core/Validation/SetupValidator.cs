@@ -25,6 +25,7 @@ public enum IssueCode
     GroupLevelsInvalid,
     GroupParentHasPeople,
     GroupNamesExceedPeople,
+    PersonNameDuplicate,
     TableSizeInvalid,
     TableEndSeatsInvalid,
     TableDimensionsInvalid,
@@ -115,6 +116,20 @@ public static class SetupValidator
             .Where(d => d.Count() > 1);
         foreach (var duplicate in duplicateNames)
             issues.Add(Error(IssueCode.GroupNameDuplicate, $"Group name '{duplicate.Key}' is used {duplicate.Count()} times.", duplicate.First().Id));
+
+        // The same person named twice: maybe two people with one name, maybe a mistake (listed in two groups).
+        var duplicatePeople = setup.Groups
+            .SelectMany(g => g.Members.Select(m => (Group: g, Name: m.Name.Trim())))
+            .Where(x => x.Name.Length > 0)
+            .GroupBy(x => x.Name, StringComparer.OrdinalIgnoreCase)
+            .Where(d => d.Count() > 1);
+        foreach (var duplicate in duplicatePeople)
+        {
+            var groups = duplicate.Select(x => x.Group.Name).Distinct().ToList();
+            var where = groups.Count == 1 ? $"in '{groups[0]}'" : $"in {string.Join(", ", groups.Select(g => $"'{g}'"))}";
+            issues.Add(Warning(IssueCode.PersonNameDuplicate,
+                $"'{duplicate.Key}' is named {duplicate.Count()} times ({where}). Two people with the same name, or one listed twice?", duplicate.First().Group.Id));
+        }
     }
 
     /// <summary>Whether following the parents from this group comes back to it.</summary>

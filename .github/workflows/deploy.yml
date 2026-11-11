@@ -25,7 +25,9 @@ jobs:
       - name: Install WebAssembly build tools (needed for AOT)
         run: dotnet workload install wasm-tools
 
-      # No tests here, to keep the deploy short: they are run during development (dotnet test).
+      # Tests are off to keep the deploy short; they are run during development. Remove the # to run them again.
+      # - name: Test
+      #   run: dotnet test TablePlanner.slnx
 
       - name: Check out gh-pages
         uses: actions/checkout@v5

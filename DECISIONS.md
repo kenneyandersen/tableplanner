@@ -267,6 +267,11 @@ Wishes noted 2026-11-10, after testing (not started):
   their ends and seats out of line with the next table, and seats no longer sit back to back. Snap to neighbouring
   tables instead: line up ends and edges, and put seats in line with the seats of the table next to it (with guide lines
   while dragging).
+- **A better experience for planning by hand** (to look at as a whole; details to be collected while testing). Ideas:
+  a list of groups without seats to drag from; while dragging, show where the group fits and how the score and
+  warnings would change; "best place for this group" suggestions; moving a whole department or several selected
+  groups at once; making room (pushing neighbours along) instead of only swapping; Re-optimize only a part (a floor,
+  some tables) around what was placed by hand; touch-friendly moves (Shift+drag needs a keyboard).
 - **"Create test projects" in the app** (projects page): makes several different setups at once (long and round
   tables, several floors and separate areas, disabled seats, group levels, names, preferences), with about as many
   people as seats (a little under, exactly, a little over). For testing the solver by hand, so they are deliberately

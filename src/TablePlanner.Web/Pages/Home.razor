@@ -14,6 +14,9 @@
         <MudSpacer />
         <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add" OnClick="CreateEmpty">New project</MudButton>
         <MudButton Variant="Variant.Outlined" StartIcon="@Icons.Material.Filled.AutoAwesome" OnClick="CreateExample">New from example</MudButton>
+        <MudTooltip Text="Make 7 made-up projects for trying the solver: round tables, several floors, separate rooms, departments with teams, names; from roomy to a little overbooked. New ones each time.">
+            <MudButton Variant="Variant.Text" StartIcon="@Icons.Material.Filled.Science" OnClick="CreateTestProjects">Create test projects</MudButton>
+        </MudTooltip>
         <MudButton HtmlTag="label" Variant="Variant.Outlined" StartIcon="@Icons.Material.Filled.Upload" for="import-file">Import</MudButton>
         <InputFile id="import-file" accept=".json,application/json" OnChange="Import" hidden />
     </MudStack>
@@ -102,6 +105,17 @@
     }
 
     private Task CreateExample() => OpenNew(ExampleProject.Create());
+
+    /// <summary>Stores the made-up test projects (new ones each time) and lists them.</summary>
+    private async Task CreateTestProjects()
+    {
+        var projects = TestProjects.All(new Random());
+        var now = DateTimeOffset.Now;
+        foreach (var project in projects)
+            await Store.SaveAsync(project, now);
+        await Reload();
+        Snackbar.Add($"Created {projects.Count} test projects.", Severity.Success);
+    }
 
     private async Task OpenNew(EventProject project)
     {

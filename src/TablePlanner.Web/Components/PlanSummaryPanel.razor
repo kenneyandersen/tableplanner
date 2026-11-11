@@ -50,7 +50,7 @@ else
 }
 
 <MudStack Row="true" AlignItems="AlignItems.Center" Class="mt-1">
-    <MudText Typo="Typo.subtitle2">@(ShowLevel > 0 ? $"Groups – level {ShowLevel}" : "Groups")</MudText>
+    <MudText Typo="Typo.subtitle2">@(ShowLevel > 0 && Setup is { } named ? named.LevelName(ShowLevel) : "Groups")</MudText>
     <MudSpacer />
     <MudTextField T="string" @bind-Value="_search" Placeholder="Find a group or person" Immediate="true" Clearable="true"
                   Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search" Margin="Margin.Dense" Style="max-width: 220px" />

@@ -25,6 +25,23 @@ public static class GroupTree
     /// <summary>Whether any group has a parent: the setup uses levels.</summary>
     public static bool HasLevels(this EventSetup setup) => setup.Groups.Any(g => g.ParentId is not null);
 
+    /// <summary>The name of a level when the project has none: "Main groups", "Subgroups", "Sub-subgroups".</summary>
+    public static string DefaultLevelName(int level) => level switch
+    {
+        1 => "Main groups",
+        2 => "Subgroups",
+        _ => string.Concat(Enumerable.Repeat("Sub-", level - 2)) + "subgroups",
+    };
+
+    /// <summary>What the groups at <paramref name="level"/> (1 = top) are called: the project's name for it, or the default.</summary>
+    public static string LevelName(this EventSetup setup, int level) =>
+        level >= 1 && level <= setup.LevelNames.Count && !string.IsNullOrWhiteSpace(setup.LevelNames[level - 1])
+            ? setup.LevelNames[level - 1].Trim()
+            : DefaultLevelName(level);
+
+    /// <summary>How many levels the groups have (1 without parent groups).</summary>
+    public static int LevelCount(this EventSetup setup) => setup.Groups.Count == 0 ? 1 : setup.Groups.Max(setup.LevelOf);
+
     /// <summary>The group's parent, its parent and so on, nearest first. Stops at a loop or a missing parent.</summary>
     public static List<Group> AncestorsOf(this EventSetup setup, Group group)
     {

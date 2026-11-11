@@ -35,11 +35,11 @@
                        warnings follow the chosen level (e.g. how the departments were seated, then their teams). *@
                     <MudSelect T="int" Value="_showLevel" ValueChanged="SetShowLevel" Variant="Variant.Outlined" Margin="Margin.Dense" Dense="true"
                                Class="ml-2 level-select" aria-label="Show">
-                        <MudSelectItem Value="0">Show: groups</MudSelectItem>
-                        @for (var level = 1; level < Levels(setup); level++)
+                        <MudSelectItem Value="0">Show: all groups</MudSelectItem>
+                        @for (var level = 1; level < setup.LevelCount(); level++)
                         {
                             var shown = level;
-                            <MudSelectItem Value="shown">Show: group – level @shown</MudSelectItem>
+                            <MudSelectItem Value="shown">Show: @setup.LevelName(shown)</MudSelectItem>
                         }
                     </MudSelect>
                 }
@@ -509,16 +509,13 @@
     private int _showLevel;
 
     /// <summary>The level shown, or 0 when the groups have no (more) levels.</summary>
-    private int ShownLevel => Session.Project is { } p && _showLevel < Levels(p.Setup) ? _showLevel : 0;
+    private int ShownLevel => Session.Project is { } p && _showLevel < p.Setup.LevelCount() ? _showLevel : 0;
 
     private void SetShowLevel(int level)
     {
         _showLevel = level;
         Refresh();
     }
-
-    /// <summary>How many levels the groups have (1 without levels).</summary>
-    private static int Levels(EventSetup setup) => setup.Groups.Count == 0 ? 1 : setup.Groups.Max(setup.LevelOf);
 
     /// <summary>Selects a group (or deselects it when clicked again) and shows the floor where it sits.</summary>
     private void HighlightGroup(Guid? groupId)

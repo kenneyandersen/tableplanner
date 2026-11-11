@@ -26,6 +26,12 @@ public sealed class EventSetup
     public List<Group> Groups { get; set; } = [];
     public List<Pin> Pins { get; set; } = [];
 
+    /// <summary>
+    /// What the groups at each level are called in this project, from the top (e.g. "Departments", "Teams"). Optional:
+    /// a missing or blank name falls back to <see cref="GroupTree.DefaultLevelName"/>.
+    /// </summary>
+    public List<string> LevelNames { get; set; } = [];
+
     public IEnumerable<Table> AllTables => Floors.SelectMany(f => f.Tables);
 
     public Table? FindTable(Guid tableId) => AllTables.FirstOrDefault(t => t.Id == tableId);

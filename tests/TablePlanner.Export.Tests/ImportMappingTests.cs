@@ -170,4 +170,30 @@ public class ImportMappingTests
         Assert.Contains(file.Errors, e => e.Text.Contains("Ann"));
         Assert.Single(file.Groups);
     }
+
+    [Fact]
+    public void The_level_columns_headings_name_the_levels()
+    {
+        var data = ImportMapping.WithHeaderAt(Tabular.CsvFile.ReadRows("Afdeling;Team;Navn\nSalg;Nord;Ann\nSalg;Syd;Bo\n"u8.ToArray()), 1);
+
+        var file = ImportMapping.Build(data, [ColumnRole.Level1, ColumnRole.Level2, ColumnRole.PersonName]);
+        var project = Import(file);
+
+        Assert.Equal(["Afdeling", "Team"], file.LevelNames);
+        Assert.Equal("Afdeling", project.Setup.LevelName(1));
+        Assert.Equal("Team", project.Setup.LevelName(2));
+    }
+
+    [Fact]
+    public void Level_names_the_project_already_has_are_kept_on_import()
+    {
+        var data = ImportMapping.WithHeaderAt(Tabular.CsvFile.ReadRows("Afdeling;Navn\nSalg;Ann\n"u8.ToArray()), 1);
+        var file = ImportMapping.Build(data, [ColumnRole.Level1, ColumnRole.PersonName]);
+        var project = new EventProject();
+        project.Setup.LevelNames = ["Departments"];
+
+        GroupImport.Apply(project, file, GroupImportMode.Merge);
+
+        Assert.Equal("Departments", project.Setup.LevelName(1));
+    }
 }

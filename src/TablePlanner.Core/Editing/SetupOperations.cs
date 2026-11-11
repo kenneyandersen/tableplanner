@@ -454,6 +454,19 @@ public static class SetupOperations
         RemoveGroup(project, parentId);
     }
 
+    /// <summary>Names the groups at a level (1 = top); blank goes back to the default name. Trailing blank names are dropped.</summary>
+    public static void SetLevelName(EventProject project, int level, string? name)
+    {
+        if (level < 1 || level > GroupTree.MaxLevels)
+            throw new ArgumentOutOfRangeException(nameof(level));
+        var names = project.Setup.LevelNames;
+        while (names.Count < level)
+            names.Add("");
+        names[level - 1] = name?.Trim() ?? "";
+        while (names.Count > 0 && names[^1].Length == 0)
+            names.RemoveAt(names.Count - 1);
+    }
+
     /// <summary>
     /// Moves a group (with its subgroups) under <paramref name="parentId"/>, or to the top level when null. When the new
     /// parent is a bottom group with people, those people move to a new subgroup "&lt;name&gt; – other" (with its seats

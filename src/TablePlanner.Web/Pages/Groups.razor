@@ -68,6 +68,21 @@
         }
 
         @{ var hasLevels = setup.HasLevels(); }
+        @if (hasLevels)
+        {
+            @* What the groups at each level are called (shown on the plan page, e.g. "Show: Departments"). *@
+            <MudStack Row="true" AlignItems="AlignItems.Center" Wrap="Wrap.Wrap" Spacing="2" Class="mb-2">
+                <MudText Typo="Typo.body2">Levels are called:</MudText>
+                @for (var level = 1; level <= setup.LevelCount(); level++)
+                {
+                    var current = level;
+                    <MudTextField T="string" Value="@(current <= setup.LevelNames.Count ? setup.LevelNames[current - 1] : "")"
+                                  ValueChanged="@(v => NameLevel(current, v))" Placeholder="@GroupTree.DefaultLevelName(current)"
+                                  Label="@($"Level {current}")" Variant="Variant.Outlined" Margin="Margin.Dense" Style="max-width: 180px" />
+                }
+                <MudText Typo="Typo.caption" Class="mud-text-secondary">e.g. Departments, Teams</MudText>
+            </MudStack>
+        }
         <MudTable T="GroupRow" Items="Rows(setup)" Filter="Matches" Dense="true" Hover="true" Elevation="0" Outlined="true" Breakpoint="Breakpoint.None">
             <HeaderContent>
                 <MudTh Style="width: 40px">
@@ -224,6 +239,9 @@
 </ProjectLoader>
 
 @code {
+    private void NameLevel(int level, string? name) =>
+        Session.History!.Execute("Name level", p => SetupOperations.SetLevelName(p, level, name));
+
     private const long MaxImportBytes = 5 * 1024 * 1024;
 
     private string? _search;

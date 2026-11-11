@@ -100,6 +100,10 @@ public static class GroupImport
             }
         }
 
+        // The file's names for its levels (its column headings), unless the project has named them already.
+        if (file.LevelNames.Any(n => n.Length > 0) && setup.LevelNames.All(string.IsNullOrWhiteSpace))
+            setup.LevelNames = [.. file.LevelNames];
+
         // Parent groups (levels) are resolved once all groups exist too. A row with an empty parent goes to the top level.
         if (file.Columns.Contains(GroupColumn.Parent))
         {

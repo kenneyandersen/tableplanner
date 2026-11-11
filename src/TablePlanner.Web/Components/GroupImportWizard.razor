@@ -224,11 +224,11 @@
     private static string RoleLabel(ColumnRole role) => role switch
     {
         ColumnRole.Ignore => "(ignore)",
-        ColumnRole.GroupName => "Group (its own name, below any levels)",
+        ColumnRole.GroupName => "Group (the group itself, below any main group or subgroup)",
         ColumnRole.ParentGroup => "Parent group (its name)",
-        ColumnRole.Level1 => "Group – level 1 (e.g. department)",
-        ColumnRole.Level2 => "Group – level 2 (e.g. team)",
-        ColumnRole.Level3 => "Group – level 3 (e.g. subteam)",
+        ColumnRole.Level1 => "Main group (e.g. department)",
+        ColumnRole.Level2 => "Subgroup (e.g. team)",
+        ColumnRole.Level3 => "Sub-subgroup (e.g. subteam)",
         ColumnRole.People => "Number of people",
         ColumnRole.PersonName => "Person's name",
         ColumnRole.FirstName => "First name",

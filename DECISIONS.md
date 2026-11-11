@@ -277,6 +277,11 @@ Wishes noted 2026-11-10, after testing (not started):
 - ~~**Naming of levels**~~: done 2026-11-11 ("Group – level 1" … in the plan page and import wizard). Was: "Group", "Level 1" and "Level 2" (e.g. "Colour by level 1", the import wizard's "Level 1,
   e.g. department") reads badly: subgroups are groups too. Decided 2026-11-11: "Group – level 1", "Group – level 2" …
   for now (project-specific level names maybe later).
+  Then (2026-11-11) **level names per project**: `EventSetup.LevelNames` (e.g. "Departments", "Teams"), set on the Groups
+  page ("Levels are called:", one field per level) and taken from the level columns' headings when groups are imported
+  (unless the project has names already). Unnamed levels are "Main groups", "Subgroups", "Sub-subgroups"
+  (`GroupTree.LevelName`). The plan page shows "Show: all groups / Show: Departments / …" and the group list's heading;
+  the import wizard's column roles are "Main group (e.g. department)", "Subgroup (e.g. team)", "Sub-subgroup".
 - ~~**Group names on tables overlap**~~: done 2026-11-11. Long tables have two lines for names (a group on the top side
   only uses the upper, otherwise the lower); a name that would overlap another, or the table number, moves to the other
   line, else is made smaller or shortened to fit the gap. Names sit over the group's longest unbroken run of seats (a

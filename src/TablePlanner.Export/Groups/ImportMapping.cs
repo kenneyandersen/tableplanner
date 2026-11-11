@@ -263,7 +263,14 @@ public static class ImportMapping
             if (roles.Contains(ColumnRole.Preference)) columns.Add(GroupColumn.Preference1);
             if (groups.Count == 0 && _errors.Count == 0)
                 _errors.Add(new(null, "No groups were found. Check which columns hold the department, team, group or name."));
-            return GroupFile.Create(groups, columns, _errors, _warnings);
+            var file = GroupFile.Create(groups, columns, _errors, _warnings);
+            // The level columns' headings name the levels (only when they are in order, as levels are counted from the top).
+            file.LevelNames = new[] { ColumnRole.Level1, ColumnRole.Level2, ColumnRole.Level3 }
+                .Select(role => Enumerable.Range(0, roles.Count).FirstOrDefault(i => roles[i] == role, -1))
+                .TakeWhile(i => i >= 0)
+                .Select(i => i < data.Header.Count ? data.Header[i].Trim() : "")
+                .ToList();
+            return file;
         }
 
         private void ReadRow(TabularRow row)

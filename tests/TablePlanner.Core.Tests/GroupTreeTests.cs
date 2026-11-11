@@ -188,4 +188,29 @@ public class GroupTreeSerializationTests
         Assert.Equal(sales.Id, loaded.Setup.FindGroup(team.Id)!.ParentId);
         Assert.Null(loaded.Setup.FindGroup(sales.Id)!.ParentId);
     }
+
+    [Fact]
+    public void Levels_have_default_names_until_named()
+    {
+        var setup = new EventSetup();
+
+        Assert.Equal("Main groups", setup.LevelName(1));
+        Assert.Equal("Subgroups", setup.LevelName(2));
+        Assert.Equal("Sub-subgroups", setup.LevelName(3));
+    }
+
+    [Fact]
+    public void A_level_is_named_and_a_blank_name_goes_back_to_the_default()
+    {
+        var project = new EventProject();
+
+        SetupOperations.SetLevelName(project, 2, " Teams ");
+        Assert.Equal(["", "Teams"], project.Setup.LevelNames);
+        Assert.Equal("Main groups", project.Setup.LevelName(1));
+        Assert.Equal("Teams", project.Setup.LevelName(2));
+
+        SetupOperations.SetLevelName(project, 2, "");
+        Assert.Empty(project.Setup.LevelNames);
+        Assert.Equal("Subgroups", project.Setup.LevelName(2));
+    }
 }

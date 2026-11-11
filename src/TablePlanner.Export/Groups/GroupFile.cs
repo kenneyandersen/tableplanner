@@ -51,6 +51,12 @@ public sealed partial class GroupFile
     /// <summary>Names on rows that have errors.</summary>
     public IReadOnlyList<string> SkippedNames { get; }
 
+    /// <summary>
+    /// What the file calls its levels of groups, from the top: the headings of its level columns (e.g. "Department",
+    /// "Team"). Empty when the file has no levels.
+    /// </summary>
+    public IReadOnlyList<string> LevelNames { get; internal set; } = [];
+
     public bool HasPreferences => GroupColumns.Preferences.Any(Columns.Contains);
 
     /// <summary>Reads a .csv/.txt or .xlsx file, chosen by the file name. Never throws; problems are reported in <see cref="Errors"/>.</summary>

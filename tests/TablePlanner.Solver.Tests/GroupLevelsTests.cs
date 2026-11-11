@@ -139,4 +139,26 @@ public class GroupLevelsTests(ITestOutputHelper output)
         Assert.Equal(result.Summary!.PeopleTotal, result.Summary.PeoplePlaced);
         Assert.All(result.Summary.ParentGroups, p => Assert.Equal(1, p.FloorCount));
     }
+
+    [Fact]
+    public async Task A_department_sits_as_one_block_not_around_other_groups()
+    {
+        // The user's example: department "a" (146 people) used to sit in a ring on the ground floor around "hh", which
+        // counted as together because the ring's tables are next to each other. Before the fix: 51-53 such neighbours.
+        if (TestPlans.Folder() is null)
+            return;
+        var project = TestPlans.Load("Example party levels.tableplanner.json");
+        var problem = SeatingProblem.Create(project.Setup, project.Priorities);
+
+        var result = await SeatingSolver.SolveAsync(project, Options());
+
+        var summary = result.Summary!;
+        Assert.Equal(summary.PeopleTotal, summary.PeoplePlaced);
+        Assert.All(summary.ParentGroups, p => Assert.Equal(0, p.PeopleApart));
+        var plan = problem.ToPlan(result.Assignment!);
+        var top = problem.Groups.Select(g => project.Setup.TopOf(g).Id).ToArray();
+        var mixed = problem.Graph.Edges.Count(e => plan[e.A] >= 0 && plan[e.B] >= 0 && top[plan[e.A]] != top[plan[e.B]]);
+        output.WriteLine($"neighbours from different top-level groups: {mixed}");
+        Assert.True(mixed <= 45, $"{mixed} neighbours from different top-level groups");
+    }
 }

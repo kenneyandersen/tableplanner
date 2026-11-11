@@ -297,6 +297,10 @@ Wishes noted 2026-11-10, after testing (not started):
   warnings would change; "best place for this group" suggestions; moving a whole department or several selected
   groups at once; making room (pushing neighbours along) instead of only swapping; Re-optimize only a part (a floor,
   some tables) around what was placed by hand; touch-friendly moves (Shift+drag needs a keyboard).
+  - Noted 2026-11-11 (user, testing): **dropping a group from the list onto the plan should place it where it is
+    dropped**. Dragging Sales (50) onto the right end of table 103: the preview starts at that seat, but then follows the
+    solver's fill order (4 seats at the end of 103, 6 at the end of 104, all of 105 and 106) instead of growing from
+    the drop point into the nearest free seats (the rest of 103, then 102/106).
 - ~~**"Create test projects" in the app**~~: done 2026-11-11 (7 projects each time, `TestProjects` in Core, with
   fills from about 0.85 to 1.07; the test plans use the same generators with fixed seeds). Was: (projects page): makes several different setups at once (long and round
   tables, several floors and separate areas, disabled seats, group levels, names, preferences), with about as many
@@ -727,6 +731,20 @@ Notes: changes after testing (2026-11-07):
     level below the top counts double, so teams stay closer than whole departments; both far below a bottom group's
     200, so a large department can spread over areas and floors when it must, and then splits between whole teams.
     "Keep groups together" uses 120.
+    Added 2026-11-11 (the user's example, `tests/testplans/Example party levels`: department "a" sat in a ring around
+    another top-level group, which counted as together since the ring's tables are all next to each other):
+    - **Sister groups next to each other**: two seat neighbours (next to, across, diagonal, back to back) from different
+      groups with a parent group in common get a share of the weight two people of one group get: parent apart penalty
+      / 100 (0.4 by default), × 1.5 with two parents in common, at most 0.8. A department then forms one block, with
+      other groups at its edge rather than inside it.
+    - **A mild pull towards the main table**: per person and metre (between table middles; another floor is 30 m) from
+      the table where most of the parent group sits, 0.02 × the parent apart penalty (0.8 by default). Keeps the block
+      compact rather than a long strip.
+    - **Polisher**: also tries moving whole small groups (up to 16) that sit on another floor than most of their
+      top-level group (the order search seldom moves them, as that shifts everyone after them).
+    - Result: on the example, people away from their parent group went from 6 (search) and 30 (beam) to 0, and seat
+      neighbours from different top-level groups from 51-53 to about 31-40. Plans without levels are unchanged; on
+      "Company levels 440" no difference in warnings over 16 runs (that plan varies a lot between runs).
   - Preferences can name a parent group, and a parent group can have preferences; met when any of its groups sits at
     the same or the next table. Floor/table pins on a parent hold its groups that have no pin of their own; locking a
     parent locks each of its groups (no seat pin on a parent).

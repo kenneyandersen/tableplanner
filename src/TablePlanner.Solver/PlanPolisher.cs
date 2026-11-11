@@ -84,6 +84,32 @@ internal sealed class PlanPolisher(SeatingProblem problem, SeatSequence sequence
                 if (run != largest && run.Length <= MaxPartSize)
                     _parts.Add((run.Start, run.Length));
         }
+
+        // Whole small groups on another floor than most of their parent group (e.g. one family of the guests downstairs
+        // while the rest are upstairs): the order search rarely moves them back, as that shifts everyone after them.
+        if (problem.ParentGroups.Count > 0)
+        {
+            var floors = graph.Floors.Count;
+            var perFloor = new int[problem.ParentGroups.Count * floors];
+            var groupFloor = new int[problem.Groups.Count];
+            Array.Fill(groupFloor, -1);
+            foreach (var run in runs)
+            {
+                var floor = graph.Seats[seats[run.Start]].FloorIndex;
+                groupFloor[run.Group] = groupFloor[run.Group] == -1 || groupFloor[run.Group] == floor ? floor : -2;
+                foreach (var c in problem.GroupParents[run.Group])
+                    perFloor[c * floors + floor] += run.Length;
+            }
+            foreach (var run in runs)
+            {
+                if (run.Length > MaxPartSize || groupFloor[run.Group] < 0 || problem.GroupParents[run.Group] is not [.., var top])
+                    continue;
+                var floor = groupFloor[run.Group];
+                var mainFloor = Enumerable.Range(0, floors).MaxBy(f => perFloor[top * floors + f]);
+                if (floor != mainFloor && !_parts.Contains((run.Start, run.Length)))
+                    _parts.Add((run.Start, run.Length));
+            }
+        }
         _parts.Sort((a, b) => a.Length.CompareTo(b.Length));
     }
 

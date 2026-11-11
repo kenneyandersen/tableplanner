@@ -1,0 +1,61 @@
+{
+  "schemaVersion": 1,
+  "id": "09206ae7-71d0-4ca4-95c3-6ceeed73e380",
+  "name": "Example party levels",
+  "setup": {
+    "floors": [
+      { "id": "185b22bd-40af-4b97-92b8-f0ae72ba112c", "name": "Ground floor", "number": 1,
+        "tables": [
+          { "id": "80fd6afb-fe73-4f0b-89b3-7592d69521b1", "number": 101, "shape": "Long", "x": 4, "y": 4, "rotation": "R0", "seatsPerSide": 10, "endSeats": 0, "seatSpacing": 0.6, "width": 0.8, "disabledSeats": [], "roundSeats": 8 },
+          { "id": "1aa5d7e6-a822-4098-82bb-cae9062dbcf6", "number": 102, "shape": "Long", "x": 10.5, "y": 4, "rotation": "R0", "seatsPerSide": 10, "endSeats": 0, "seatSpacing": 0.6, "width": 0.8, "disabledSeats": [], "roundSeats": 8 },
+          { "id": "39988346-9a9f-4fd5-a9a7-56b9756f6a12", "number": 103, "shape": "Long", "x": 17, "y": 4, "rotation": "R0", "seatsPerSide": 10, "endSeats": 0, "seatSpacing": 0.6, "width": 0.8, "disabledSeats": [], "roundSeats": 8 },
+          { "id": "a28ad967-5189-4832-81f4-e997a0e8b710", "number": 104, "shape": "Long", "x": 4, "y": 6.5, "rotation": "R0", "seatsPerSide": 10, "endSeats": 0, "seatSpacing": 0.6, "width": 0.8, "disabledSeats": [], "roundSeats": 8 },
+          { "id": "4215e499-ea2e-4014-b542-1577161cac54", "number": 105, "shape": "Long", "x": 10.5, "y": 6.5, "rotation": "R0", "seatsPerSide": 10, "endSeats": 0, "seatSpacing": 0.6, "width": 0.8, "disabledSeats": [], "roundSeats": 8 },
+          { "id": "b2f19d8e-f5ea-43f5-aafa-d65ed50692be", "number": 106, "shape": "Long", "x": 17, "y": 6.5, "rotation": "R0", "seatsPerSide": 10, "endSeats": 0, "seatSpacing": 0.6, "width": 0.8, "disabledSeats": [], "roundSeats": 8 },
+          { "id": "8310a71e-d18e-4666-b0df-51b1c1815d96", "number": 107, "shape": "Long", "x": 4, "y": 9, "rotation": "R0", "seatsPerSide": 10, "endSeats": 0, "seatSpacing": 0.6, "width": 0.8, "disabledSeats": [], "roundSeats": 8 },
+          { "id": "9be36320-4237-4733-8d11-df6d67b7f6ba", "number": 108, "shape": "Long", "x": 10.5, "y": 9, "rotation": "R0", "seatsPerSide": 10, "endSeats": 0, "seatSpacing": 0.6, "width": 0.8, "disabledSeats": [], "roundSeats": 8 },
+          { "id": "4d6a1980-14e4-42ad-8214-6a4407370652", "number": 109, "shape": "Long", "x": 17, "y": 9, "rotation": "R0", "seatsPerSide": 10, "endSeats": 0, "seatSpacing": 0.6, "width": 0.8, "disabledSeats": [], "roundSeats": 8 }
+        ],
+        "elements": [], "walls": [], "background": null },
+      { "id": "707ff5eb-df3c-4f1d-b74b-cd62c639256a", "name": "1st floor", "number": 2,
+        "tables": [
+          { "id": "7947b5a2-b4a3-4d20-99b1-af9f9ecb52ca", "number": 201, "shape": "Long", "x": 4, "y": 3, "rotation": "R0", "seatsPerSide": 8, "endSeats": 2, "seatSpacing": 0.6, "width": 0.8, "disabledSeats": [], "roundSeats": 8 },
+          { "id": "dc39cfeb-0ea0-4c7e-933c-3c3812f6f9f1", "number": 202, "shape": "Long", "x": 10, "y": 3, "rotation": "R0", "seatsPerSide": 8, "endSeats": 2, "seatSpacing": 0.6, "width": 0.8, "disabledSeats": [], "roundSeats": 8 },
+          { "id": "e63665b6-ab03-4166-a599-7de059ed1433", "number": 203, "shape": "Long", "x": 4, "y": 5.5, "rotation": "R0", "seatsPerSide": 8, "endSeats": 2, "seatSpacing": 0.6, "width": 0.8, "disabledSeats": [], "roundSeats": 8 },
+          { "id": "956cfbab-4765-4736-8121-92df509b86d3", "number": 204, "shape": "Long", "x": 10, "y": 5.5, "rotation": "R0", "seatsPerSide": 8, "endSeats": 2, "seatSpacing": 0.6, "width": 0.8, "disabledSeats": [], "roundSeats": 8 }
+        ],
+        "elements": [], "walls": [], "background": null }
+    ],
+    "groups": [
+      { "id": "07a95fa3-48f3-46c9-b5bd-75e2067bbe93", "name": "a", "parentId": null, "peopleCount": 0, "members": [], "preferredGroupIds": [] },
+      { "id": "c28ad16c-5627-476b-a199-ebcd4c4e432e", "name": "b", "parentId": "07a95fa3-48f3-46c9-b5bd-75e2067bbe93", "peopleCount": 0, "members": [], "preferredGroupIds": [] },
+      { "id": "8a8be22a-5d85-4830-adbb-c81478fcfe99", "name": "Sales", "parentId": "c28ad16c-5627-476b-a199-ebcd4c4e432e", "peopleCount": 50, "members": [], "preferredGroupIds": ["8d3447d2-67fb-4239-9e39-c5fca1b039a8", "de50a3e0-3d6e-47cd-aa3b-fed99287948c"] },
+      { "id": "716e10e1-79ad-4793-b897-2cde5ea3e8f0", "name": "Engineering", "parentId": "c28ad16c-5627-476b-a199-ebcd4c4e432e", "peopleCount": 40, "members": [], "preferredGroupIds": ["de50a3e0-3d6e-47cd-aa3b-fed99287948c", "842a6520-e07e-4a17-ada1-68c29a90a249"] },
+      { "id": "de50a3e0-3d6e-47cd-aa3b-fed99287948c", "name": "Support", "parentId": "07a95fa3-48f3-46c9-b5bd-75e2067bbe93", "peopleCount": 32, "members": [], "preferredGroupIds": [] },
+      { "id": "8d3447d2-67fb-4239-9e39-c5fca1b039a8", "name": "Marketing", "parentId": "07a95fa3-48f3-46c9-b5bd-75e2067bbe93", "peopleCount": 24, "members": [], "preferredGroupIds": ["8a8be22a-5d85-4830-adbb-c81478fcfe99"] },
+      { "id": "9d133bfb-4a5f-4da4-bd5e-c68832bc5f76", "name": "g2", "parentId": null, "peopleCount": 0, "members": [], "preferredGroupIds": [] },
+      { "id": "a3895e06-6b6a-47d0-ad8a-f87dfcd0973f", "name": "Finance", "parentId": "9d133bfb-4a5f-4da4-bd5e-c68832bc5f76", "peopleCount": 18, "members": [], "preferredGroupIds": ["842a6520-e07e-4a17-ada1-68c29a90a249"] },
+      { "id": "842a6520-e07e-4a17-ada1-68c29a90a249", "name": "Board", "parentId": "9d133bfb-4a5f-4da4-bd5e-c68832bc5f76", "peopleCount": 12, "members": [], "preferredGroupIds": [] },
+      { "id": "56581c87-1e58-4361-b22e-f0494f988d95", "name": "Smith family", "parentId": "9d133bfb-4a5f-4da4-bd5e-c68832bc5f76", "peopleCount": 10, "members": [], "preferredGroupIds": ["e418f98d-ffc5-4624-806e-eb1f4c123368", "836e587b-3a0b-4d6f-ad67-a62c25ce281d"] },
+      { "id": "e418f98d-ffc5-4624-806e-eb1f4c123368", "name": "Jensen family", "parentId": "9d133bfb-4a5f-4da4-bd5e-c68832bc5f76", "peopleCount": 8, "members": [], "preferredGroupIds": ["56581c87-1e58-4361-b22e-f0494f988d95", "ab8072ae-692e-40b2-823b-9b9bc2d88bba"] },
+      { "id": "ab8072ae-692e-40b2-823b-9b9bc2d88bba", "name": "Hansen family", "parentId": "9d133bfb-4a5f-4da4-bd5e-c68832bc5f76", "peopleCount": 8, "members": [], "preferredGroupIds": [] },
+      { "id": "4376d865-8665-439c-819b-ab989daae29d", "name": "Old classmates", "parentId": "9d133bfb-4a5f-4da4-bd5e-c68832bc5f76", "peopleCount": 6, "members": [], "preferredGroupIds": [] },
+      { "id": "dde72ae7-5586-4510-a720-8f2a36d9f86f", "name": "hh", "parentId": null, "peopleCount": 0, "members": [], "preferredGroupIds": [] },
+      { "id": "836e587b-3a0b-4d6f-ad67-a62c25ce281d", "name": "Neighbours", "parentId": "dde72ae7-5586-4510-a720-8f2a36d9f86f", "peopleCount": 6, "members": [], "preferredGroupIds": [] },
+      { "id": "f1b25700-fc9e-4a2f-9a4b-52373ec74fd0", "name": "Book club", "parentId": "dde72ae7-5586-4510-a720-8f2a36d9f86f", "peopleCount": 5, "members": [], "preferredGroupIds": [] },
+      { "id": "1d971667-521e-46f8-b9a4-f6a1104b2a0c", "name": "Nielsen family", "parentId": "dde72ae7-5586-4510-a720-8f2a36d9f86f", "peopleCount": 4, "members": [], "preferredGroupIds": ["6396c2d5-5b11-4013-be6b-f69e35698f62", "2006432e-f091-417c-95f3-80d0012dbcaf"] },
+      { "id": "6396c2d5-5b11-4013-be6b-f69e35698f62", "name": "Andersen family", "parentId": null, "peopleCount": 4, "members": [], "preferredGroupIds": ["1d971667-521e-46f8-b9a4-f6a1104b2a0c"] },
+      { "id": "2006432e-f091-417c-95f3-80d0012dbcaf", "name": "Larsen family", "parentId": null, "peopleCount": 4, "members": [], "preferredGroupIds": [] }
+    ],
+    "pins": [],
+    "levelNames": []
+  },
+  "priorities": {
+    "nextToWeight": 10, "acrossWeight": 10, "diagonalWeight": 6, "backToBackWeight": 5, "sameTableWeight": 2, "adjacentTableWeight": 1,
+    "tableSplitPenalty": 50, "distantTableSplitPenalty": 100, "apartPersonPenalty": 200, "parentApartPenalty": 40, "floorSplitPenalty": 1000,
+    "neverSplitAcrossFloors": false, "minimumFragmentSize": 5, "smallFragmentPenalty": 150, "emptySeatGapPenalty": 5, "movedPersonPenalty": 20,
+    "preferenceRankWeights": [200, 60, 20, 6, 2], "mutualPreferenceBonus": 50, "timeBudgetSeconds": 8, "method": "Search"
+  },
+  "currentAssignment": { "seats": [] },
+  "savedAssignments": []
+}

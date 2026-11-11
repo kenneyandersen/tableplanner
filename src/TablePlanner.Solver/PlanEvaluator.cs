@@ -25,6 +25,16 @@ public sealed class PlanEvaluator
     private readonly int _tableCount;
     private readonly int _floorCount;
     private readonly double[] _edgeWeight;
+
+    // Per pair of seated groups (g * groups + h): the share of a neighbour's weight they get for sitting next to each
+    // other because they have a parent group in common (0 when they have none). See SeatTerms.
+    private readonly double[] _kinShare;
+
+    /// <summary>Share of a neighbour's weight for two groups with the same parent, per 100 of the parent apart penalty.</summary>
+    internal const double KinShareFor100 = 1.0;
+
+    /// <summary>The share for groups with two parent groups in common (e.g. two teams of one department's section) is this much more.</summary>
+    internal const double KinShareSecondLevel = 1.5;
     private readonly int[] _edgeA;
     private readonly int[] _edgeB;
     private readonly int[] _seatTable;
@@ -52,6 +62,12 @@ public sealed class PlanEvaluator
 
     // Shortest distance between two tables' tops, capped at ApartMaxDistance (which other floors count as).
     private readonly double[] _tableDistance;
+
+    // Distance between two tables' middles on a floor, capped at ApartMaxDistance (which other floors count as).
+    private readonly double[] _centreDistance;
+
+    /// <summary>Per person and metre from a parent group's main table, as a share of the parent apart penalty.</summary>
+    internal const double ParentSpreadFactor = 0.02;
     private readonly int[] _partPeople;
 
     // For parent groups: people per table (all zero between uses), the tables used, and single-group units.
@@ -82,6 +98,23 @@ public sealed class PlanEvaluator
         _rankWeight = Enumerable.Range(0, Group.MaxPreferences)
             .Select(r => r < p.PreferenceRankWeights.Count ? p.PreferenceRankWeights[r] : 0).ToArray();
 
+        // Groups with a parent group in common (teams of one department) are rewarded for sitting next to each other,
+        // less than people of one group: so a department sits as one block, not around other groups.
+        _kinShare = new double[problem.Groups.Count * problem.Groups.Count];
+        if (problem.ParentGroups.Count > 0 && p.ParentApartPenalty > 0)
+        {
+            var share = Math.Min(0.6, p.ParentApartPenalty / 100 * KinShareFor100);
+            for (var g = 0; g < problem.Groups.Count; g++)
+                for (var h = 0; h < problem.Groups.Count; h++)
+                {
+                    if (g == h)
+                        continue;
+                    var common = problem.GroupParents[g].Intersect(problem.GroupParents[h]).Count();
+                    if (common > 0)
+                        _kinShare[g * problem.Groups.Count + h] = Math.Min(0.8, share * (common > 1 ? KinShareSecondLevel : 1));
+                }
+        }
+
         var groups = problem.Groups.Count;
         _placed = new int[groups];
         _tableCount2D = new int[groups * _tableCount];
@@ -94,6 +127,13 @@ public sealed class PlanEvaluator
         _single = Enumerable.Range(0, groups).Select(g => new[] { g }).ToArray();
 
         var tables = problem.Graph.Tables;
+        _centreDistance = new double[_tableCount * _tableCount];
+        for (var a = 0; a < _tableCount; a++)
+            for (var b = 0; b < _tableCount; b++)
+                if (a != b)
+                    _centreDistance[a * _tableCount + b] = tables[a].FloorIndex == tables[b].FloorIndex
+                        ? Math.Min(ApartMaxDistance, Math.Sqrt(Math.Pow(tables[a].Table.X - tables[b].Table.X, 2) + Math.Pow(tables[a].Table.Y - tables[b].Table.Y, 2)))
+                        : ApartMaxDistance;
         _tableDistance = new double[_tableCount * _tableCount];
         for (var a = 0; a < _tableCount; a++)
             for (var b = 0; b < _tableCount; b++)
@@ -200,8 +240,13 @@ public sealed class PlanEvaluator
         for (var e = 0; e < _edgeA.Length; e++)
         {
             var g = plan[_edgeA[e]];
-            if (g >= 0 && g == plan[_edgeB[e]])
+            if (g < 0)
+                continue;
+            var h = plan[_edgeB[e]];
+            if (g == h)
                 score += _edgeWeight[e];
+            else if (h >= 0)
+                score += _edgeWeight[e] * _kinShare[g * _placed.Length + h];
         }
 
         var gap = _problem.Priorities.EmptySeatGapPenalty;
@@ -375,6 +420,21 @@ public sealed class PlanEvaluator
             var weighted = 0.0;
             var apart = parts > 1 ? PeopleApart(_parentCount, 0, _parentTables, parts, out weighted) : 0;
             score -= weighted * penalty * Math.Min(2, _problem.ParentLevel[c]);
+
+            // A mild pull towards the parent's main table (where most of its people sit), per person and metre between
+            // the tables' middles: the parent's groups form a compact block rather than a ring or a long strip around
+            // other groups, which all count as "together" above.
+            if (_parentTables.Count > 1)
+            {
+                var main = _parentTables[0];
+                foreach (var t in _parentTables)
+                    if (_parentCount[t] > _parentCount[main])
+                        main = t;
+                var spread = 0.0;
+                foreach (var t in _parentTables)
+                    spread += _parentCount[t] * _centreDistance[main * _tableCount + t];
+                score -= spread * penalty * ParentSpreadFactor;
+            }
 
             if (_parentDetails is { } details)
             {

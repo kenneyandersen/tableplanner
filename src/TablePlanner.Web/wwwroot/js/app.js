@@ -130,6 +130,44 @@ window.tablePlanner = {
     },
 
     /**
+     * Pans a scrolled floor canvas by dragging: with the left button on empty background (the grid, a locked background
+     * picture, or on the plan page a floor element), or with the middle button anywhere. A click without dragging still
+     * reaches the page (e.g. to clear the selection); after a drag that click is swallowed.
+     */
+    dragPan(element) {
+        let pan = null;
+        const isBackground = target =>
+            target.closest(".pan-surface, image.background-image.locked, .plan-canvas g.element") !== null;
+        element.addEventListener("pointerdown", e => {
+            if (!(e.button === 1 || (e.button === 0 && !e.shiftKey && !e.ctrlKey && isBackground(e.target)))) return;
+            if (e.button === 1) e.preventDefault(); // no auto-scroll mode
+            pan = { x: e.clientX, y: e.clientY, left: element.scrollLeft, top: element.scrollTop, moved: false, id: e.pointerId };
+        });
+        element.addEventListener("pointermove", e => {
+            if (!pan || e.pointerId !== pan.id) return;
+            const dx = e.clientX - pan.x, dy = e.clientY - pan.y;
+            if (!pan.moved && Math.abs(dx) + Math.abs(dy) < 5) return;
+            if (!pan.moved) {
+                pan.moved = true;
+                element.classList.add("panning");
+            }
+            element.scrollLeft = pan.left - dx;
+            element.scrollTop = pan.top - dy;
+        });
+        const end = () => {
+            if (!pan) return;
+            if (pan.moved) {
+                element.classList.remove("panning");
+                // The click that ends a drag must not clear the selection.
+                element.addEventListener("click", ev => ev.stopPropagation(), { capture: true, once: true });
+            }
+            pan = null;
+        };
+        element.addEventListener("pointerup", end);
+        element.addEventListener("pointercancel", end);
+    },
+
+    /**
      * Stops the browser's own handling of the editor's shortcut keys (scrolling, bookmarking, …)
      * while the element has focus. Blazor still receives the key events.
      */

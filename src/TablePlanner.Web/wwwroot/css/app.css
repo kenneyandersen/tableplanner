@@ -368,3 +368,7 @@ code {
 /* Layout editor: the handle to turn a selected element, and the thin line from its centre to the handle. */
 .floor-canvas .rotate-handle { cursor: grab; }
 .floor-canvas .rotate-arm { stroke: var(--mud-palette-primary); stroke-width: 0.025; pointer-events: none; }
+
+/* Dragging the background pans the canvas. */
+.editor-canvas .pan-surface { cursor: grab; }
+.editor-canvas.panning, .editor-canvas.panning * { cursor: grabbing !important; }

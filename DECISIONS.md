@@ -299,7 +299,9 @@ Wishes noted 2026-11-10, after testing (not started):
   not checked against it. The generators in `TestPlanGenerator` (tests) could move to Core and be reused, with a
   random seed each time.
 - ~~**Zoom with the scroll wheel**~~: done 2026-11-11, in the layout editor and on the plan page, around the pointer.
-  A mouse wheel and a touchpad pinch zoom; two-finger scrolling on a touchpad and Shift+wheel still scroll.
+  A mouse wheel and a touchpad pinch zoom; two-finger scrolling on a touchpad and Shift+wheel still scroll. Panning:
+  drag the empty background (grid, locked picture, or a floor element on the plan page), or drag with the middle button
+  anywhere; a pan does not clear the plan page's selection (in the editor pressing the background still does).
 - ~~**Importing a project whose name (or ID) already exists**~~: done 2026-11-11. It asks: import as a copy (new ID,
   name "… (copy)"), replace (same project) or keep the name (same name, other project), or cancel.
 

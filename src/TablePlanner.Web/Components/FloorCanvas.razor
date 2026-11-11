@@ -19,7 +19,7 @@
                 <path d="M 5 0 L 0 0 0 5" class="grid-major" />
             </pattern>
         </defs>
-        <rect x="@Svg(extent.Left)" y="@Svg(extent.Top)" width="@Svg(width)" height="@Svg(height)" fill="url(#grid-major)" />
+        <rect class="pan-surface" x="@Svg(extent.Left)" y="@Svg(extent.Top)" width="@Svg(width)" height="@Svg(height)" fill="url(#grid-major)" />
 
         @if (floor.Background is { } background && BackgroundUrl is { } url)
         {

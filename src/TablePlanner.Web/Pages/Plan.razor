@@ -237,6 +237,7 @@
         {
             _self = DotNetObjectReference.Create(this);
             await JS.InvokeVoidAsync("tablePlanner.wheelZoom", _canvasHost, _self);
+            await JS.InvokeVoidAsync("tablePlanner.dragPan", _canvasHost);
         }
     }
 

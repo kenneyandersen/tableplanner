@@ -760,6 +760,10 @@ Notes: changes after testing (2026-11-07):
     - Result: on the example, people away from their parent group went from 6 (search) and 30 (beam) to 0, and seat
       neighbours from different top-level groups from 51-53 to about 31-40. Plans without levels are unchanged; on
       "Company levels 440" no difference in warnings over 16 runs (that plan varies a lot between runs).
+    - **Free seats together** (same day, the user: free seats were left in the middle, 3 here and 6 there; better all
+      at one end, so part of a table can be taken away): two free seats next to each other (any neighbour relation)
+      get 0.3 × that neighbour's weight. On the example the 11 free seats went from 3 tables to 2 (9 at the corner
+      table's end). Neutral on the other test plans (within the run-to-run spread).
   - Preferences can name a parent group, and a parent group can have preferences; met when any of its groups sits at
     the same or the next table. Floor/table pins on a parent hold its groups that have no pin of their own; locking a
     parent locks each of its groups (no seat pin on a parent).

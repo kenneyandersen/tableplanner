@@ -68,6 +68,9 @@ public sealed class PlanEvaluator
 
     /// <summary>Per person and metre from a parent group's main table, as a share of the parent apart penalty.</summary>
     internal const double ParentSpreadFactor = 0.02;
+
+    /// <summary>Share of a neighbour's weight for two free seats next to each other.</summary>
+    internal const double FreeTogetherShare = 0.3;
     private readonly int[] _partPeople;
 
     // For parent groups: people per table (all zero between uses), the tables used, and single-group units.
@@ -240,9 +243,15 @@ public sealed class PlanEvaluator
         for (var e = 0; e < _edgeA.Length; e++)
         {
             var g = plan[_edgeA[e]];
-            if (g < 0)
-                continue;
             var h = plan[_edgeB[e]];
+            if (g < 0)
+            {
+                // Free seats next to each other: they gather in one place (e.g. the end of a table, which can then be
+                // shortened) rather than a few here and there.
+                if (h < 0)
+                    score += _edgeWeight[e] * FreeTogetherShare;
+                continue;
+            }
             if (g == h)
                 score += _edgeWeight[e];
             else if (h >= 0)

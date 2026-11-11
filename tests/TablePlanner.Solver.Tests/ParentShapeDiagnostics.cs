@@ -25,7 +25,8 @@ public class ParentShapeDiagnostics(ITestOutputHelper output)
             var result = await SeatingSolver.SolveAsync(project, new SolverOptions { Seed = seed, TimeBudget = TimeSpan.FromSeconds(2), Yield = _ => Task.CompletedTask });
             var plan = problem.ToPlan(result.Assignment!);
             var mixed = problem.Graph.Edges.Count(e => plan[e.A] >= 0 && plan[e.B] >= 0 && top[plan[e.A]] != top[plan[e.B]]);
-            output.WriteLine($"{file} seed {seed}: score {result.Summary!.Score:0}, edges between top-level groups {mixed}, warnings {result.Summary.Issues.Count}");
+            var freeTables = problem.Graph.Tables.Count(t => t.Seats.Any(s => plan[s] < 0));
+            output.WriteLine($"{file} seed {seed}: score {result.Summary!.Score:0}, edges between top-level groups {mixed}, warnings {result.Summary.Issues.Count}, tables with free seats {freeTables}");
             foreach (var parent in result.Summary.ParentGroups.Where(p => p.Level == 1))
                 output.WriteLine($"   {parent.Name}: tables {TableNumberText.Format(parent.TableNumbers)}, apart {parent.PeopleApart}");
             if (seed == 1 && Environment.GetEnvironmentVariable("TABLEPLANNER_DETAILS") == "1")

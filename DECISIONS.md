@@ -301,6 +301,13 @@ Wishes noted 2026-11-10, after testing (not started):
     dropped**. Dragging Sales (50) onto the right end of table 103: the preview starts at that seat, but then follows the
     solver's fill order (4 seats at the end of 103, 6 at the end of 104, all of 105 and 106) instead of growing from
     the drop point into the nearest free seats (the rest of 103, then 102/106).
+- **Emoji picker for elements** (noted 2026-11-11): a small picker with the most common emojis (🎤 🍽️ 🍸 🎂 🎁 🚻 🚪
+  🎵 📸 ☕ 🅿️ ♿ …) next to an element's label, for an element shown with just an emoji instead of text (the label font
+  size can already be raised).
+- **Continuing a wall should be easier to find** (noted 2026-11-11): the user expected an edit mode on a selected wall
+  that adds pieces at its last (or first) corner, as when drawing. It exists since 2026-11-11 (Walls / W, then click a
+  loose end of an open wall), but is not discoverable: offer it on the selected wall, e.g. "Continue from this end"
+  handles or buttons in the wall panel that start drawing from the first or last corner.
 - **A level-by-level solver, as an alternative method** (to design next, noted 2026-11-11). The user's idea: place the
   main groups first, each as one area (split only when it must, and then along its subgroups), then place the next
   level inside each area, and so on, handing each part to the existing algorithms. Possible shape: (1) divide the

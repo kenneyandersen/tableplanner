@@ -248,7 +248,7 @@ Wishes noted 2026-11-10, after testing (not started):
 - **Labels on top of element drawings:** e.g. "Buffet" is written over the dishes and "Stairs" over the steps. The
   label could go below the drawing, or be moved by hand (an offset per element).
 - **Rotate elements directly on the canvas** (a rotate handle), not only with the button or R.
-- **Free rotation of elements** (any angle, not only 90° steps).
+- **Free rotation of elements** (any angle, not only 90° steps). Decided 2026-11-11: elements only, not tables.
 - **A text element:** just a label on the floor, no box ("Custom" with a label comes closest, but has a box).
 - **Font size for element labels** (per element), e.g. to show a large emoji as the element's symbol.
 - **Looking at the plan level by level:** see how the top-level groups were seated, then switch to the next level
@@ -261,8 +261,9 @@ Wishes noted 2026-11-10, after testing (not started):
 - **A poster of guest names and their tables**, like "find your table" for groups, but by person. (The poster's data
   already has each group's `Names`; the built-in poster does not show them.)
 - **Naming of levels:** "Group", "Level 1" and "Level 2" (e.g. "Colour by level 1", the import wizard's "Level 1,
-  e.g. department") reads badly: subgroups are groups too. Find better words, e.g. "top-level group" / "subgroup", or
-  let the project name its levels (department, team, …).
+  e.g. department") reads badly: subgroups are groups too. Decided 2026-11-11: "Group – level 1", "Group – level 2" …
+  for now (project-specific level names maybe later).
+- **Group names on tables overlap** in some cases and are hard to read (not the highest priority).
 - **Better alignment when moving tables:** the grid snaps a table's centre, so tables of different lengths end up with
   their ends and seats out of line with the next table, and seats no longer sit back to back. Snap to neighbouring
   tables instead: line up ends and edges, and put seats in line with the seats of the table next to it (with guide lines
@@ -280,6 +281,7 @@ Wishes noted 2026-11-10, after testing (not started):
 - **Zoom with the scroll wheel** in the layout editor and on the plan page (around the pointer), besides the buttons.
 - **Importing a project whose name (or ID) already exists:** ask to import it as a copy under a new name and ID,
   instead of only offering to replace the existing one.
+Order agreed 2026-11-11: (1) small fixes: copy a project, import as a copy, duplicate guest names warning, test projectsin the app, scroll wheel zoom; (2) editor: labels not over drawings, label font size, text element, snapping tables toneighbours; (3) group levels: naming, level-by-level view, foldable tree; (4) names poster; (5) element rotation handle,then free rotation; (6) planning by hand (collect specifics first). Overlapping group names on tables: when convenient.
 
 ## Defaults chosen without explicit discussion (change if wrong)
 

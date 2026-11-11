@@ -114,6 +114,13 @@
                     <title>Drag to add or remove seats at this end</title>
                 </rect>
             }
+            @* The rotate handle: beyond the chairs on the table's top side; turns it a quarter at a time. *@
+            var knob = TableRotateHandle(resizable);
+            <line class="rotate-arm" x1="@Svg(resizable.X)" y1="@Svg(resizable.Y)" x2="@Svg(knob.X)" y2="@Svg(knob.Y)" />
+            <circle class="resize-handle rotate-handle" cx="@Svg(knob.X)" cy="@Svg(knob.Y)" r="0.16"
+                    @onpointerdown="e => OnTableRotateHandleDown(e, id)" @onpointerdown:stopPropagation="true">
+                <title>Drag around to turn the table (90° at a time)</title>
+            </circle>
         }
         else if (Selection.Count == 1 && floor.Elements.FirstOrDefault(el => Selection.Contains(el.Id)) is { } sizable)
         {
@@ -199,7 +206,25 @@
 }
 
 @code {
-    private enum DragMode { None, Move, Resize, ResizeElement, MoveBackground, WallCorner, MoveLabel, RotateElement }
+    private enum DragMode { None, Move, Resize, ResizeElement, MoveBackground, WallCorner, MoveLabel, RotateElement, RotateTable }
+
+    // A table being turned with its handle.
+    private Guid _rotateTableId;
+
+    /// <summary>Where a table's rotate handle is: beyond the chairs on its top side (in its own frame), turned with it.</summary>
+    private static Point TableRotateHandle(Table table)
+    {
+        var reach = table.TopWidth / 2 + TableGeometry.ChairOffset + 0.6;
+        return new Point(0, -reach).Rotate(table.Rotation).Offset(table.X, table.Y);
+    }
+
+    private async Task OnTableRotateHandleDown(PointerEventArgs e, Guid tableId)
+    {
+        if (e.Button != 0 || History.Project.Setup.FindTable(tableId) is not { } table)
+            return;
+        (_rotateTableId, _rotateStart) = (tableId, TableRotateHandle(table));
+        await BeginDrag(e, DragMode.RotateTable);
+    }
 
     // An element being turned with its handle: the element, and where the handle was when pressed.
     private Guid _rotateElementId;
@@ -549,6 +574,16 @@
             foreach (var wall in floor.Walls.Where(w => _startWalls.ContainsKey(w.Id)))
                 wall.Points = _startWalls[wall.Id].Select(p => p.Offset(dx, dy)).ToList();
         }
+        else if (_mode == DragMode.RotateTable)
+        {
+            // The quarter turn nearest to the direction from the table's centre to the pointer (0 = straight up).
+            if (History.Project.Setup.FindTable(_rotateTableId) is { } turning)
+            {
+                var pointer = _rotateStart.Offset(dx, dy);
+                var degrees = Math.Atan2(pointer.X - turning.X, turning.Y - pointer.Y) * 180 / Math.PI;
+                turning.Rotation = (Rotation)(((int)Math.Round(degrees / 90) % 4 + 4) % 4);
+            }
+        }
         else if (_mode == DragMode.RotateElement)
         {
             // The angle from the element's centre to the pointer, 0° straight up, clockwise; in 15° steps unless Alt.
@@ -608,6 +643,7 @@
             DragMode.WallCorner => "Move wall corner",
             DragMode.MoveLabel => "Move label",
             DragMode.RotateElement => "Turn element",
+            DragMode.RotateTable => "Rotate table",
             DragMode.MoveBackground => "Move background image",
             DragMode.ResizeElement => "Resize element",
             _ => "Resize table",

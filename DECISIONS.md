@@ -249,7 +249,8 @@ Wishes noted 2026-11-10, after testing (not started):
   they read over any drawing, and a selected element's label can be dragged (`LabelOffsetX/Y`; "Reset label" in the
   panel).
 - ~~**Rotate elements directly on the canvas**~~: done 2026-11-11. A selected element has a round handle 0.5 m above it
-  (turned with it): drag to turn in 15° steps, Alt for any angle.
+  (turned with it): drag to turn in 15° steps, Alt for any angle. Tables got the same handle (beyond the chairs on their top side),
+  turning them 90° at a time (tables keep quarter turns only).
 - ~~**Free rotation of elements**~~: done 2026-11-11 (elements only, not tables). `FloorElement.Angle` in degrees; the old
   `Rotation` (R0…R270) stays for older files and sets the angle when read (in files it comes before the angle, so a
   saved angle wins). Boxes, drawings, labels, wall gaps and bounds follow the angle; R and the button still add 90°;

@@ -33,7 +33,27 @@ public sealed class FloorElement
 
     public double Width { get; set; } = 2;
     public double Depth { get; set; } = 1;
-    public Rotation Rotation { get; set; } = Rotation.R0;
+    /// <summary>
+    /// The quarter turn nearest to <see cref="Angle"/>. Kept for projects saved before elements could turn freely: setting
+    /// it sets the angle (R90 = 90°). In files it comes before <see cref="Angle"/>, so a saved angle wins.
+    /// </summary>
+    public Rotation Rotation
+    {
+        get => (Rotation)((int)Math.Round(Angle / 90) % 4);
+        set => Angle = (int)value * 90;
+    }
+
+    /// <summary>How far the element is turned around its centre, clockwise, in degrees (0 ≤ angle &lt; 360).</summary>
+    public double Angle
+    {
+        get => _angle;
+        set => _angle = ((Math.Round(value, 3) % 360) + 360) % 360;
+    }
+
+    private double _angle;
+
+    /// <summary>Whether the element is turned a whole number of quarter turns (its box lines up with the grid).</summary>
+    public bool IsQuarterTurn => Math.Abs(Angle / 90 - Math.Round(Angle / 90)) < 1e-9;
 
     /// <summary>For a pillar: drawn round (an ellipse in its box) rather than square.</summary>
     public bool IsRound { get; set; }

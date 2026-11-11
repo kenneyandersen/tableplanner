@@ -248,8 +248,13 @@ Wishes noted 2026-11-10, after testing (not started):
 - ~~**Labels on top of element drawings**~~: done 2026-11-11. Labels get a thin white outline (dark on a pillar), so
   they read over any drawing, and a selected element's label can be dragged (`LabelOffsetX/Y`; "Reset label" in the
   panel).
-- **Rotate elements directly on the canvas** (a rotate handle), not only with the button or R.
-- **Free rotation of elements** (any angle, not only 90° steps). Decided 2026-11-11: elements only, not tables.
+- ~~**Rotate elements directly on the canvas**~~: done 2026-11-11. A selected element has a round handle 0.5 m above it
+  (turned with it): drag to turn in 15° steps, Alt for any angle.
+- ~~**Free rotation of elements**~~: done 2026-11-11 (elements only, not tables). `FloorElement.Angle` in degrees; the old
+  `Rotation` (R0…R270) stays for older files and sets the angle when read (in files it comes before the angle, so a
+  saved angle wins). Boxes, drawings, labels, wall gaps and bounds follow the angle; R and the button still add 90°;
+  "Angle (°)" in the panel. At an angle that is not a quarter turn the resize handles are hidden (width and depth in
+  the panel). Copying an element (Ctrl+D) now also keeps its round shape and label size and position.
 - ~~**A text element**~~: done 2026-11-11 (kind Text: no box, the label fills its height; outlined only when selected).
 - ~~**Font size for element labels**~~: done 2026-11-11 ("Label size (cm)" in the panel; empty = fitted to the element).
 - **The interface for group levels needs more work** (noted 2026-11-11, after the first level view): how levels are

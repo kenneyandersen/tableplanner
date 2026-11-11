@@ -34,7 +34,8 @@
             var bounds = FloorElementGeometry.GetBounds(element);
             var label = ElementDrawing.Label(element);
             <g class="element kind-@element.Kind.ToString().ToLowerInvariant() @(element.IsRound ? "round" : "")">
-                <rect x="@Svg(bounds.Left)" y="@Svg(bounds.Top)" width="@Svg(bounds.Width)" height="@Svg(bounds.Height)" rx="0.05" fill="@ElementDrawing.Fill(element.Kind)" />
+                @{ var box = FloorElementGeometry.Unturned(element); }
+                <rect x="@Svg(box.Left)" y="@Svg(box.Top)" width="@Svg(box.Width)" height="@Svg(box.Height)" rx="0.05" fill="@ElementDrawing.Fill(element.Kind)" transform="@FloorElementGeometry.Transform(element)" />
                 @((MarkupString)ElementDrawing.Svg(element))
                 <text x="@Svg(label.X)" y="@Svg(label.Y)" font-size="@Svg(label.FontSize)"
                       stroke="@ElementDrawing.HaloColour(element)" stroke-width="@Svg(ElementDrawing.HaloWidth(label.FontSize))" stroke-linejoin="round" paint-order="stroke">@element.Label</text>

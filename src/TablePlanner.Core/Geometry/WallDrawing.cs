@@ -26,7 +26,7 @@ public static class WallDrawing
         if (floor.Walls.Count == 0)
             return "";
         var svg = new StringBuilder();
-        var doors = floor.Elements.Where(e => e.Kind is FloorElementKind.Entrance or FloorElementKind.Exit).Select(FloorElementGeometry.GetBounds).ToList();
+        var doors = floor.Elements.Where(e => e.Kind is FloorElementKind.Entrance or FloorElementKind.Exit).ToList();
         var mask = "";
         if (doors.Count > 0)
         {
@@ -34,8 +34,13 @@ public static class WallDrawing
             var maskId = $"wall-gaps-{id}";
             svg.Append($"<defs><mask id=\"{maskId}\" maskUnits=\"userSpaceOnUse\" x=\"{N(b.Left - 1)}\" y=\"{N(b.Top - 1)}\" width=\"{N(b.Width + 2)}\" height=\"{N(b.Height + 2)}\">");
             svg.Append($"<rect x=\"{N(b.Left - 1)}\" y=\"{N(b.Top - 1)}\" width=\"{N(b.Width + 2)}\" height=\"{N(b.Height + 2)}\" fill=\"white\"/>");
-            foreach (var d in doors)
-                svg.Append($"<rect x=\"{N(d.Left)}\" y=\"{N(d.Top)}\" width=\"{N(d.Width)}\" height=\"{N(d.Height)}\" fill=\"black\"/>");
+            foreach (var door in doors)
+            {
+                // The door's own box, turned with it.
+                var d = FloorElementGeometry.Unturned(door);
+                var turn = FloorElementGeometry.Transform(door) is { } t ? $" transform=\"{t}\"" : "";
+                svg.Append($"<rect x=\"{N(d.Left)}\" y=\"{N(d.Top)}\" width=\"{N(d.Width)}\" height=\"{N(d.Height)}\" fill=\"black\"{turn}/>");
+            }
             svg.Append("</mask></defs>");
             mask = $" mask=\"url(#{maskId})\"";
         }

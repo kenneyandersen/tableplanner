@@ -242,7 +242,7 @@ public static class SetupOperations
         foreach (var table in floor.Tables.Where(t => itemIds.Contains(t.Id)))
             table.Rotation = Next(table.Rotation);
         foreach (var element in floor.Elements.Where(e => itemIds.Contains(e.Id)))
-            element.Rotation = Next(element.Rotation);
+            element.Angle += 90;
         foreach (var wall in floor.Walls.Where(w => itemIds.Contains(w.Id)))
         {
             // A quarter turn around the middle of the wall.
@@ -654,6 +654,14 @@ public static class SetupOperations
         Y = e.Y,
         Width = e.Width,
         Depth = e.Depth,
-        Rotation = e.Rotation,
+        Angle = e.Angle,
+        IsRound = e.IsRound,
+        LabelSize = e.LabelSize,
+        LabelOffsetX = e.LabelOffsetX,
+        LabelOffsetY = e.LabelOffsetY,
     };
+
+    /// <summary>Turns an element to <paramref name="degrees"/> (clockwise; any angle, kept between 0 and 360).</summary>
+    public static void SetElementAngle(EventProject project, Guid floorId, Guid elementId, double degrees) =>
+        GetElement(project, floorId, elementId).Angle = degrees;
 }

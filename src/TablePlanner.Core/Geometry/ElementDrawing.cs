@@ -77,12 +77,12 @@ public static class ElementDrawing
         var svg = new StringBuilder();
         var (w, d) = (element.Width, element.Depth);
         var (left, top) = (element.X - w / 2, element.Y - d / 2);
-        var turned = element.Rotation switch { Rotation.R90 => 90, Rotation.R180 => 180, Rotation.R270 => 270, _ => 0 };
+        var turned = element.Angle;
         var b = FloorElementGeometry.GetBounds(element);
 
         void Open() => svg.Append(turned == 0
             ? "<g class=\"symbol\" pointer-events=\"none\">"
-            : $"<g class=\"symbol\" pointer-events=\"none\" transform=\"rotate({turned} {N(element.X)} {N(element.Y)})\">");
+            : $"<g class=\"symbol\" pointer-events=\"none\" transform=\"rotate({N(turned)} {N(element.X)} {N(element.Y)})\">");
         void Upright() => svg.Append("<g class=\"symbol\" pointer-events=\"none\">");
 
         switch (element.Kind)
@@ -166,8 +166,8 @@ public static class ElementDrawing
                 // Filled; the box itself is drawn in the pillar colour, so only a round pillar needs a shape.
                 if (element.IsRound)
                 {
-                    Upright();
-                    svg.Append($"<ellipse cx=\"{N(element.X)}\" cy=\"{N(element.Y)}\" rx=\"{N(b.Width / 2)}\" ry=\"{N(b.Height / 2)}\" fill=\"#8d96a3\" stroke=\"#5d6673\" stroke-width=\"{N(Thin)}\"/>");
+                    Open();
+                    svg.Append($"<ellipse cx=\"{N(element.X)}\" cy=\"{N(element.Y)}\" rx=\"{N(w / 2)}\" ry=\"{N(d / 2)}\" fill=\"#8d96a3\" stroke=\"#5d6673\" stroke-width=\"{N(Thin)}\"/>");
                 }
                 else
                     return "";

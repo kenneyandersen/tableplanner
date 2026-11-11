@@ -364,3 +364,7 @@ code {
 /* Plan page group list: the arrow that folds a parent group's groups open or shut. */
 .group-row .fold { display: inline-flex; margin-left: -4px; cursor: pointer; color: var(--mud-palette-text-secondary); }
 .editor-toolbar .level-select { width: 13rem; }
+
+/* Layout editor: the handle to turn a selected element, and the thin line from its centre to the handle. */
+.floor-canvas .rotate-handle { cursor: grab; }
+.floor-canvas .rotate-arm { stroke: var(--mud-palette-primary); stroke-width: 0.025; pointer-events: none; }

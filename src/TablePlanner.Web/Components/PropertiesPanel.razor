@@ -86,6 +86,9 @@
                             XChanged="@(v => EditElement(element.Id, "Move", el => el.X = v))"
                             YChanged="@(v => EditElement(element.Id, "Move", el => el.Y = v))"
                             OnRotate="@(() => History.Execute("Rotate", p => SetupOperations.RotateItems(p, FloorId, [element.Id])))" />
+            <MudNumericField T="double" Label="Angle (°)" Value="element.Angle" Min="-360" Max="720" Step="15" Variant="Variant.Outlined" Margin="Margin.Dense"
+                             HelperText="@(element.IsQuarterTurn ? "Or drag the round handle above it" : "Resize with width and depth at this angle")"
+                             ValueChanged="@(v => History.Execute("Turn element", p => SetupOperations.SetElementAngle(p, FloorId, element.Id, v)))" />
             <div>
                 <MudText Typo="Typo.caption" Class="mud-text-secondary">Layer (tables are always on top)</MudText>
                 <MudButtonGroup Size="Size.Small" Variant="Variant.Outlined">

@@ -54,7 +54,8 @@
             var label = ElementDrawing.Label(element);
             <g class="item element kind-@element.Kind.ToString().ToLowerInvariant() @(element.IsRound ? "round" : "") @(Selection.Contains(id) ? "selected" : "")"
                @onpointerdown="e => OnItemDown(e, id)" @onpointerdown:stopPropagation="true">
-                <rect x="@Svg(bounds.Left)" y="@Svg(bounds.Top)" width="@Svg(bounds.Width)" height="@Svg(bounds.Height)" rx="0.05" fill="@ElementDrawing.Fill(element.Kind)" />
+                @{ var box = FloorElementGeometry.Unturned(element); }
+                <rect x="@Svg(box.Left)" y="@Svg(box.Top)" width="@Svg(box.Width)" height="@Svg(box.Height)" rx="0.05" fill="@ElementDrawing.Fill(element.Kind)" transform="@FloorElementGeometry.Transform(element)" />
                 @((MarkupString)ElementDrawing.Svg(element))
                 <text x="@Svg(label.X)" y="@Svg(label.Y)" font-size="@Svg(label.FontSize)" class="@(Selection.Contains(id) ? "label-handle" : null)"
                       stroke="@ElementDrawing.HaloColour(element)" stroke-width="@Svg(ElementDrawing.HaloWidth(label.FontSize))" stroke-linejoin="round" paint-order="stroke"
@@ -118,7 +119,8 @@
         {
             var bounds = FloorElementGeometry.GetBounds(sizable);
             var id = sizable.Id;
-            foreach (var (hx, hy) in ElementHandles)
+            // Resize handles only while the box lines up with the grid; at another angle the size is set in the panel.
+            foreach (var (hx, hy) in sizable.IsQuarterTurn ? ElementHandles : [])
             {
                 var x = bounds.Left + bounds.Width * (hx + 1) / 2;
                 var y = bounds.Top + bounds.Height * (hy + 1) / 2;
@@ -128,6 +130,13 @@
                     <title>Drag to resize</title>
                 </rect>
             }
+            @* The rotate handle: above the element, turned with it. *@
+            var knob = RotateHandle(sizable);
+            <line class="rotate-arm" x1="@Svg(sizable.X)" y1="@Svg(sizable.Y)" x2="@Svg(knob.X)" y2="@Svg(knob.Y)" />
+            <circle class="resize-handle rotate-handle" cx="@Svg(knob.X)" cy="@Svg(knob.Y)" r="0.16"
+                    @onpointerdown="e => OnRotateHandleDown(e, id)" @onpointerdown:stopPropagation="true">
+                <title>Drag to turn (in 15° steps; Alt: any angle)</title>
+            </circle>
         }
 
         @* A selected wall: its corners to drag (Alt+click removes one), a "+" in the middle of each piece to add a corner, and lengths. *@
@@ -190,7 +199,27 @@
 }
 
 @code {
-    private enum DragMode { None, Move, Resize, ResizeElement, MoveBackground, WallCorner, MoveLabel }
+    private enum DragMode { None, Move, Resize, ResizeElement, MoveBackground, WallCorner, MoveLabel, RotateElement }
+
+    // An element being turned with its handle: the element, and where the handle was when pressed.
+    private Guid _rotateElementId;
+    private Point _rotateStart;
+
+    /// <summary>Where the rotate handle is: 0.5 m beyond the top of the element's box, turned with it.</summary>
+    private static Point RotateHandle(FloorElement element)
+    {
+        var reach = element.Depth / 2 + 0.5;
+        var radians = element.Angle * Math.PI / 180;
+        return new Point(element.X + reach * Math.Sin(radians), element.Y - reach * Math.Cos(radians));
+    }
+
+    private async Task OnRotateHandleDown(PointerEventArgs e, Guid elementId)
+    {
+        if (e.Button != 0 || Floor?.Elements.FirstOrDefault(el => el.Id == elementId) is not { } element)
+            return;
+        (_rotateElementId, _rotateStart) = (elementId, RotateHandle(element));
+        await BeginDrag(e, DragMode.RotateElement);
+    }
 
     // Moving: the item under the pointer (a table there lines up with its neighbours), and the guides it snapped to.
     private Guid _primaryId;
@@ -520,6 +549,16 @@
             foreach (var wall in floor.Walls.Where(w => _startWalls.ContainsKey(w.Id)))
                 wall.Points = _startWalls[wall.Id].Select(p => p.Offset(dx, dy)).ToList();
         }
+        else if (_mode == DragMode.RotateElement)
+        {
+            // The angle from the element's centre to the pointer, 0° straight up, clockwise; in 15° steps unless Alt.
+            if (floor.Elements.FirstOrDefault(el => el.Id == _rotateElementId) is { } turning)
+            {
+                var pointer = _rotateStart.Offset(dx, dy);
+                var degrees = Math.Atan2(pointer.X - turning.X, turning.Y - pointer.Y) * 180 / Math.PI;
+                turning.Angle = e.AltKey ? Math.Round(degrees, 1) : Math.Round(degrees / 15) * 15;
+            }
+        }
         else if (_mode == DragMode.MoveLabel)
         {
             if (floor.Elements.FirstOrDefault(el => el.Id == _labelElementId) is { } labelled)
@@ -568,6 +607,7 @@
             DragMode.Move => _startPositions.Count + _startWalls.Count == 1 ? "Move item" : "Move items",
             DragMode.WallCorner => "Move wall corner",
             DragMode.MoveLabel => "Move label",
+            DragMode.RotateElement => "Turn element",
             DragMode.MoveBackground => "Move background image",
             DragMode.ResizeElement => "Resize element",
             _ => "Resize table",

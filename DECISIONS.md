@@ -277,7 +277,10 @@ Wishes noted 2026-11-10, after testing (not started):
 - ~~**Naming of levels**~~: done 2026-11-11 ("Group – level 1" … in the plan page and import wizard). Was: "Group", "Level 1" and "Level 2" (e.g. "Colour by level 1", the import wizard's "Level 1,
   e.g. department") reads badly: subgroups are groups too. Decided 2026-11-11: "Group – level 1", "Group – level 2" …
   for now (project-specific level names maybe later).
-- **Group names on tables overlap** in some cases and are hard to read (not the highest priority).
+- ~~**Group names on tables overlap**~~: done 2026-11-11. Long tables have two lines for names (a group on the top side
+  only uses the upper, otherwise the lower); a name that would overlap another, or the table number, moves to the other
+  line, else is made smaller or shortened to fit the gap. Names sit over the group's longest unbroken run of seats (a
+  group in two pieces was labelled between them). On round tables a clashing name moves outwards, then is shortened.
 - ~~**Better alignment when moving tables**~~: done 2026-11-11 (`TableSnapping`): the dragged table lines up its edges,
   centre and seats with tables within 4 m (within 25 cm; closest match per axis), with pink guide lines; an axis without
   a match snaps to the grid as before; Alt turns snapping off. Was: the grid snaps a table's centre, so tables of different lengths end up with

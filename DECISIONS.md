@@ -15,9 +15,11 @@ The result can be adjusted by hand, saved, and printed as posters and table card
 - **Static hosting** (e.g. GitHub Pages), with no backend. The app must work under a sub-path
   (`<base href>` set at publish), and Pages needs `.nojekyll` and a `404.html` SPA fallback.
 - **Repository:** a local git repo only. The user creates the public GitHub repo, pushes, and sets up
-  CI and Pages themselves. No GitHub Actions workflow in the repo for now (confirmed 2026-11-07: deploying stays
-  manual, with `publish.ps1`). The site is served from a separate repo (`TableAssigner`, branch `gh-pages`), so an
-  Actions workflow here would need a token for that repo.
+  CI and Pages themselves. Since 2026-11-11 a GitHub Actions workflow (`.github/workflows/deploy.yml`) deploys on
+  every push to `master`: it runs the tests, then `publish.ps1 -BasePath /tableplanner/ -Target gh-pages`, and
+  pushes this repo's `gh-pages` branch with the built-in token. It reuses `publish.ps1`, so the manual and
+  automatic deploys do the same steps. (Before this, the site was published by hand to a separate repo,
+  `TableAssigner`; deploying there from Actions would need a token for that repo.)
 - **UI library:** MudBlazor.
 - **UI language:** English. No localization framework. Text on cards and posters comes from the
   user-editable templates, so it can be in any language.

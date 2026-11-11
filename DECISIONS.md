@@ -281,7 +281,16 @@ Wishes noted 2026-11-10, after testing (not started):
 - **Zoom with the scroll wheel** in the layout editor and on the plan page (around the pointer), besides the buttons.
 - **Importing a project whose name (or ID) already exists:** ask to import it as a copy under a new name and ID,
   instead of only offering to replace the existing one.
-Order agreed 2026-11-11: (1) small fixes: copy a project, import as a copy, duplicate guest names warning, test projectsin the app, scroll wheel zoom; (2) editor: labels not over drawings, label font size, text element, snapping tables toneighbours; (3) group levels: naming, level-by-level view, foldable tree; (4) names poster; (5) element rotation handle,then free rotation; (6) planning by hand (collect specifics first). Overlapping group names on tables: when convenient.
+
+Order agreed 2026-11-11:
+1. Small fixes: copy a project, import as a copy, duplicate guest names warning, test projects in the app, scroll
+   wheel zoom.
+2. Layout editor: labels not over drawings, label font size, text element, snapping tables to their neighbours.
+3. Group levels: naming ("Group – level x"), the level-by-level view, the foldable tree.
+4. The names poster.
+5. Element rotation: a handle on the canvas, then free rotation (elements only).
+6. Planning by hand (collect specifics while testing first).
+Overlapping group names on tables: when convenient.
 
 ## Defaults chosen without explicit discussion (change if wrong)
 

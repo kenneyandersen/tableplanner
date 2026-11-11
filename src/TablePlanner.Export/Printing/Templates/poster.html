@@ -44,6 +44,7 @@
   .name { flex: 1; }
   .where { white-space: nowrap; font-weight: 600; }
   .where small { font-weight: 400; color: #666; }
+  .name .group { color: #666; font-size: 0.85em; }
   .scan { margin-left: auto; display: flex; align-items: center; gap: calc(3mm * var(--s)); font-size: calc(11pt * var(--s)); color: #444; text-align: right; }
   .scan .qr-code { width: calc(28mm * var(--s)); height: calc(28mm * var(--s)); }
   @media screen {
@@ -91,5 +92,27 @@
   </div>
 </section>
 {{/ShowGroupList}}
+{{#ShowPeopleList}}
+<section class="page list-page">
+  <header>{{#EventName}}<h1>{{EventName}}</h1>{{/EventName}}<h2>Find your table by name</h2>
+    {{#GuestPageUrl}}<div class="scan"><span>Or scan to look it up<br>on your phone</span>{{GuestPageQr}}</div>{{/GuestPageUrl}}
+  </header>
+  <div class="list">
+    {{#PeopleLetters}}
+    <div class="letter-block">
+    <div class="letter">{{Letter}}</div>
+    {{#People}}
+    <div class="row">
+      <span class="dot" style="background: {{Colour}}"></span>
+      <span class="name">{{PersonName}} <small class="group">{{GroupName}}</small></span>
+      <span class="where">{{Tables}}{{#ShowFloorNames}} <small>{{FloorName}}</small>{{/ShowFloorNames}}</span>
+    </div>
+    {{/People}}
+    </div>
+    {{/PeopleLetters}}
+    {{^People}}<p>No one with a name is seated yet. Add names to the groups, and make a plan.</p>{{/People}}
+  </div>
+</section>
+{{/ShowPeopleList}}
 </body>
 </html>

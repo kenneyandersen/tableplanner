@@ -265,8 +265,9 @@ Wishes noted 2026-11-10, after testing (not started):
   not been showing at all, because the list was not given the setup; that also made the person search there work). Was: it already shows parent groups in tree order with indentation
   (when the plan has them), and selecting one highlights all its groups; folding parts open and closed is missing.
 - ~~**A warning on duplicate guest names**~~: done 2026-11-11 (a setup warning naming the groups).
-- **A poster of guest names and their tables**, like "find your table" for groups, but by person. (The poster's data
-  already has each group's `Names`; the built-in poster does not show them.)
+- ~~**A poster of guest names and their tables**~~: done 2026-11-11. "Names list" on the print page (shown when there
+  are names) adds a "Find your table by name" page: the named people alphabetically, with their group (as chosen under
+  "Group names") and its tables. People without a name are not listed. Templates get `People` and `PeopleLetters`.
 - ~~**Naming of levels**~~: done 2026-11-11 ("Group – level 1" … in the plan page and import wizard). Was: "Group", "Level 1" and "Level 2" (e.g. "Colour by level 1", the import wizard's "Level 1,
   e.g. department") reads badly: subgroups are groups too. Decided 2026-11-11: "Group – level 1", "Group – level 2" …
   for now (project-specific level names maybe later).

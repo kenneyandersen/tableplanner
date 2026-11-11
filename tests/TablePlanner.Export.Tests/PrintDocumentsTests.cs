@@ -311,9 +311,32 @@ public class PrintDocumentsTests
         Assert.Contains("Type your name or your group's", html);
     }
 
+    [Fact]
+    public void The_poster_can_list_named_people_with_their_groups_tables()
+    {
+        var (project, _, _, alpha, zeta) = Setup();
+        Core.Editing.SetupOperations.AddPeople(project, alpha.Id, ["Bo Lund", "Ann Holm"]);
+        Core.Editing.SetupOperations.AddPeople(project, zeta.Id, ["Cy Berg"]);
+        var plan = new PrintedPlan(project.Setup, project.CurrentAssignment);
+
+        var data = Poster.BuildData("Gala", plan, new PosterOptions(ShowPeopleList: true));
+        var html = HtmlTemplate.Render(DefaultTemplates.For(PrintKind.Poster), data).Html;
+        var without = HtmlTemplate.Render(DefaultTemplates.For(PrintKind.Poster), Poster.BuildData("Gala", plan, new PosterOptions())).Html;
+
+        var people = List(data, "People");
+        Assert.Equal(["Ann Holm", "Bo Lund", "Cy Berg"], people.Select(p => p["PersonName"]));
+        Assert.Equal("101, 102", people[0]["Tables"]);
+        Assert.Equal("Alpha", people[0]["GroupName"]);
+        Assert.Equal(3, data["NamedPeople"]);
+        Assert.Equal(["A", "B", "C"], List(data, "PeopleLetters").Select(l => l["Letter"]));
+        Assert.Contains("Find your table by name", html);
+        Assert.DoesNotContain("Find your table by name", without);
+    }
+
     private static EventProject SeatedExample()
     {
         var project = ExampleProject.Create();
+        project.Setup.Groups[0].Members = [new Person { Name = "Ann Holm" }, new Person { Name = "Bo Lund" }];
         var seats = project.Setup.AllTables.SelectMany(TableGeometry.GetSeats).Where(s => !s.IsDisabled).Select(s => s.Id).ToList();
         var next = 0;
         foreach (var group in project.Setup.Groups)

@@ -221,8 +221,9 @@ public static class PaperSizes
 }
 
 /// <summary>What the poster shows and the paper it is printed on.</summary>
+/// <param name="ShowPeopleList">A "find your table by name" list of the named people (only those with a name).</param>
 public sealed record PosterOptions(PaperSize Paper = PaperSize.A3, bool Landscape = true, bool ShowFloorPlans = true, bool ShowGroupList = true,
-    GroupNaming Naming = GroupNaming.Group);
+    GroupNaming Naming = GroupNaming.Group, bool ShowPeopleList = false);
 
 /// <summary>The poster: a floor plan page per floor and an alphabetical "find your table" list.</summary>
 public static class Poster
@@ -252,6 +253,14 @@ public static class Poster
             new("Letter", "The first letter, or # for names that start with something else."),
             new("Groups", "The groups starting with this letter.", GroupItems),
         ]),
+        new("ShowPeopleList", "True when the list of people by name is wanted."),
+        new("NamedPeople", "How many seated people have a name (and are in the list of people)."),
+        new("People", "The seated people who have a name, by name.", PersonItems),
+        new("PeopleLetters", "The seated people who have a name, by first letter.",
+        [
+            new("Letter", "The first letter, or # for names that start with something else."),
+            new("People", "The people whose name starts with this letter.", PersonItems),
+        ]),
         .. QrCode.Placeholders,
     ];
 
@@ -274,6 +283,7 @@ public static class Poster
         var (shortSide, longSide) = PaperSizes.Millimetres(options.Paper);
         var (width, height) = options.Landscape ? (longSide, shortSide) : (shortSide, longSide);
         var groups = GroupList(plan, colours, options.Naming);
+        var people = PeopleList(plan, colours, options.Naming);
 
         var data = new TemplateData
         {
@@ -294,6 +304,12 @@ public static class Poster
             ["Groups"] = groups.Select(g => g.Data).ToList(),
             ["Letters"] = groups.GroupBy(g => g.Letter)
                 .Select(l => new TemplateData { ["Letter"] = l.Key, ["Groups"] = l.Select(g => g.Data).ToList() })
+                .ToList(),
+            ["ShowPeopleList"] = options.ShowPeopleList,
+            ["NamedPeople"] = people.Count,
+            ["People"] = people.Select(p => p.Data).ToList(),
+            ["PeopleLetters"] = people.GroupBy(p => p.Letter)
+                .Select(l => new TemplateData { ["Letter"] = l.Key, ["People"] = l.Select(p => p.Data).ToList() })
                 .ToList(),
         };
         QrCode.AddTo(data, guestPageUrl);
@@ -323,6 +339,33 @@ public static class Poster
                 GroupFields.AddTo(data, plan.Setup, g.Key, naming, names);
                 return (LetterOf(x.Shown), data);
             })
+            .ToList();
+    }
+
+    internal static IReadOnlyList<Placeholder> PersonItems =>
+    [
+        new("PersonName", "The person's name."),
+        new("GroupName", "Their group's name, as chosen under \"Group names\"."),
+        new("Tables", "Their group's table numbers, e.g. \"104, 105\" (people have no seats of their own)."),
+        new("FloorName", "The floor (or floors) the group sits on."),
+        new("Colour", "The group's colour."),
+    ];
+
+    /// <summary>The named people of seated groups, by name, each with its first letter. People without a name are not listed.</summary>
+    internal static List<(string Letter, TemplateData Data)> PeopleList(PrintedPlan plan, IReadOnlyDictionary<Guid, string> colours, GroupNaming naming)
+    {
+        var comparer = StringComparer.Create(CultureInfo.InvariantCulture, ignoreCase: true);
+        return plan.Parts.GroupBy(p => p.Group)
+            .SelectMany(g => g.Key.Members.Where(m => m.Name.Trim().Length > 0).Select(m => (Person: m.Name.Trim(), Parts: g)))
+            .OrderBy(x => x.Person, comparer)
+            .Select(x => (LetterOf(x.Person), new TemplateData
+            {
+                ["PersonName"] = x.Person,
+                ["GroupName"] = GroupFields.Display(plan.Setup, x.Parts.Key, naming),
+                ["Tables"] = string.Join(", ", x.Parts.Select(p => p.Table.Number).Distinct()),
+                ["FloorName"] = string.Join(", ", x.Parts.Select(p => p.Floor.Name).Distinct()),
+                ["Colour"] = colours.GetValueOrDefault(x.Parts.Key.Id, "#cccccc"),
+            }))
             .ToList();
     }
 

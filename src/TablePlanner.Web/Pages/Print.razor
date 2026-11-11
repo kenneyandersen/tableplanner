@@ -100,6 +100,12 @@
                 <MudSwitch T="bool" Value="_poster.Landscape" ValueChanged="@(v => SetPoster(_poster with { Landscape = v }))" Label="Landscape" Color="Color.Primary" Class="ml-3" />
                 <MudCheckBox T="bool" Value="_poster.ShowFloorPlans" ValueChanged="@(v => SetPoster(_poster with { ShowFloorPlans = v }))" Label="Floor plans" Dense="true" />
                 <MudCheckBox T="bool" Value="_poster.ShowGroupList" ValueChanged="@(v => SetPoster(_poster with { ShowGroupList = v }))" Label="Group list" Dense="true" />
+                @if (project.Setup.Groups.Any(g => g.Members.Count > 0))
+                {
+                    <MudTooltip Text="A list of the named people with their group and table. People without a name are not on it.">
+                        <MudCheckBox T="bool" Value="_poster.ShowPeopleList" ValueChanged="@(v => SetPoster(_poster with { ShowPeopleList = v }))" Label="Names list" Dense="true" />
+                    </MudTooltip>
+                }
             }
 
             @if (project.Setup.HasLevels())

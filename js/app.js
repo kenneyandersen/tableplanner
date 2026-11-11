@@ -103,6 +103,71 @@ window.tablePlanner = {
     },
 
     /**
+     * Zooms a floor canvas with the mouse wheel, around the pointer: the page's WheelZoom(zoomIn) changes the scale
+     * and returns [old, new]; then the scroll position is moved so the point under the pointer stays there.
+     * A mouse wheel (whole lines or big steps) and a pinch on a touchpad (sent as Ctrl+wheel) zoom; two-finger
+     * scrolling on a touchpad (small pixel steps) and Shift+wheel scroll as usual.
+     */
+    wheelZoom(element, page) {
+        element.addEventListener("wheel", e => {
+            if (e.shiftKey) return;
+            const mouseWheel = e.deltaMode === 1 || (e.deltaX === 0 && Math.abs(e.deltaY) >= 50 && Number.isInteger(e.deltaY));
+            if (!e.ctrlKey && !mouseWheel) return;
+            e.preventDefault();
+            const box = element.getBoundingClientRect();
+            const px = e.clientX - box.left, py = e.clientY - box.top;
+            const before = { left: element.scrollLeft, top: element.scrollTop };
+            page.invokeMethodAsync("WheelZoom", e.deltaY < 0).then(([oldScale, newScale]) => {
+                if (oldScale === newScale) return;
+                const ratio = newScale / oldScale;
+                // After Blazor has drawn the canvas at the new size.
+                requestAnimationFrame(() => requestAnimationFrame(() => {
+                    element.scrollLeft = (before.left + px) * ratio - px;
+                    element.scrollTop = (before.top + py) * ratio - py;
+                }));
+            });
+        }, { passive: false });
+    },
+
+    /**
+     * Pans a scrolled floor canvas by dragging: with the left button on empty background (the grid, a locked background
+     * picture, or on the plan page a floor element), or with the middle button anywhere. A click without dragging still
+     * reaches the page (e.g. to clear the selection); after a drag that click is swallowed.
+     */
+    dragPan(element) {
+        let pan = null;
+        const isBackground = target =>
+            target.closest(".pan-surface, image.background-image.locked, .plan-canvas g.element") !== null;
+        element.addEventListener("pointerdown", e => {
+            if (!(e.button === 1 || (e.button === 0 && !e.shiftKey && !e.ctrlKey && isBackground(e.target)))) return;
+            if (e.button === 1) e.preventDefault(); // no auto-scroll mode
+            pan = { x: e.clientX, y: e.clientY, left: element.scrollLeft, top: element.scrollTop, moved: false, id: e.pointerId };
+        });
+        element.addEventListener("pointermove", e => {
+            if (!pan || e.pointerId !== pan.id) return;
+            const dx = e.clientX - pan.x, dy = e.clientY - pan.y;
+            if (!pan.moved && Math.abs(dx) + Math.abs(dy) < 5) return;
+            if (!pan.moved) {
+                pan.moved = true;
+                element.classList.add("panning");
+            }
+            element.scrollLeft = pan.left - dx;
+            element.scrollTop = pan.top - dy;
+        });
+        const end = () => {
+            if (!pan) return;
+            if (pan.moved) {
+                element.classList.remove("panning");
+                // The click that ends a drag must not clear the selection.
+                element.addEventListener("click", ev => ev.stopPropagation(), { capture: true, once: true });
+            }
+            pan = null;
+        };
+        element.addEventListener("pointerup", end);
+        element.addEventListener("pointercancel", end);
+    },
+
+    /**
      * Stops the browser's own handling of the editor's shortcut keys (scrolling, bookmarking, …)
      * while the element has focus. Blazor still receives the key events.
      */

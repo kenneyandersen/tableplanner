@@ -252,6 +252,8 @@ Wishes noted 2026-11-10, after testing (not started):
 - **Free rotation of elements** (any angle, not only 90° steps). Decided 2026-11-11: elements only, not tables.
 - ~~**A text element**~~: done 2026-11-11 (kind Text: no box, the label fills its height; outlined only when selected).
 - ~~**Font size for element labels**~~: done 2026-11-11 ("Label size (cm)" in the panel; empty = fitted to the element).
+- **The interface for group levels needs more work** (noted 2026-11-11, after the first level view): how levels are
+  shown and switched on the plan page, and how they are built on the groups page. Collect specifics while testing.
 - ~~**Looking at the plan level by level**~~: done 2026-11-11. "Show: groups / group – level 1 / group – level 2" on the
   plan page (only the levels the groups have) sets colours, the names on the tables (one label per group at that level),
   the group list (the groups at that level with their tables) and the warnings (about those groups). A department's

@@ -290,6 +290,7 @@ public static class SeatingSolver
             // Without levels (no parent groups) it is the same as the order search.
             var levels = options.Mode == SolveMode.Fresh && (options.Method ?? project.Priorities.Method) == SolverMethod.Levels
                 && problem.ParentGroups.Count > 0 ? new LevelOrder(problem, free) : null;
+            sequence.BalanceSplits = levels is not null;
             // The order search gets most of the time; polishing the seats (PlanPolisher) gets the rest.
             var searchEnd = attemptStart + (attemptEnd - attemptStart) * SearchShare;
             var iterationsAtStart = Iterations;

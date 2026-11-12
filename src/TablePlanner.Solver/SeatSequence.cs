@@ -55,6 +55,9 @@ internal sealed class SeatSequence
 
     public int Length => _seats.Length;
 
+    /// <summary>Start a group a seat or two later when it would otherwise leave only a few of its people at the next table (see Place).</summary>
+    public bool BalanceSplits { get; set; }
+
     /// <summary>The free seats in fill order.</summary>
     public IReadOnlyList<int> Seats => _seats;
 
@@ -155,6 +158,19 @@ internal sealed class SeatSequence
             pos = areaEnd;
         else if (size > tableEnd - pos && tableEnd - pos <= spare && tableEnd < length && size <= _tableEnd[tableEnd] - tableEnd)
             pos = tableEnd;
+
+        // Running on to the next table with only a few people there (fewer than the minimum part): start a seat or two
+        // later, if seats can be spared, so both parts are large enough ("By levels", whose order cannot slip a small
+        // group in between).
+        if (BalanceSplits && _minimumPart > 0)
+        {
+            var here = _tableEnd[pos] - pos;
+            var tail = size - here;
+            var shift = _minimumPart - tail;
+            if (tail > 0 && shift > 0 && here - shift >= _minimumPart && shift <= length - pos - remainingPeople
+                && _tableEnd[pos] < length && tail + shift <= _tableEnd[_tableEnd[pos]] - _tableEnd[pos])
+                pos += shift;
+        }
 
         for (var k = 0; k < size; k++)
             plan[_seats[pos++]] = g;

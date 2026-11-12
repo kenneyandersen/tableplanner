@@ -332,6 +332,12 @@ Wishes noted 2026-11-10, after testing (not started):
   group is therefore one run of the order, so one stretch of the room; a main group too large for an area or floor is
   split by the fill rule, between whole subgroups. The same score, polishing and attempts as the order search; without
   group levels it is the order search. Start order: at each level the largest first.
+  For "By levels" only, the fill order starts a group a seat or two later when it would otherwise leave fewer than the
+  minimum part at the next table, if seats can be spared (`SeatSequence.BalanceSplits`): its order cannot slip a small
+  group in between, as the order search does (the example's Marketing, 24 at tables of 20, was split 20 + 4).
+  Comparison (2 s, 5 runs each): Company levels 440: 0 warnings and 21/30 first choices (Search 0 and 18, Beam 1 and
+  15; the first run without the shift had 1 warning, Search 7 with 53 people away from their department); Example party
+  levels: 1 warning (Search and Beam 0); plans without levels as Search.
 - **For tomorrow (noted 2026-11-11 evening)**:
   - Solver rethink (see the level-by-level method above). Care: keeping large groups together must not split a main
     group because its subgroups want to sit together (or near other groups); a main group's unity comes first.

@@ -90,6 +90,12 @@ public sealed class PlanSummary
 
     public IReadOnlyList<PlanIssue> Issues { get; }
 
+    /// <summary>The issues weighed by tier, for comparing plans: one serious issue outweighs any number of warnings, and one warning any number of minor ones.</summary>
+    public int IssueWeight => Issues.Sum(i => i.Severity switch { IssueSeverity.Error => 10_000, IssueSeverity.Warning => 100, _ => 1 });
+
+    /// <summary>Only minor issues, or none.</summary>
+    public bool OnlyMinorIssues => Issues.All(i => i.Severity == IssueSeverity.Minor);
+
     public IEnumerable<GroupPlacement> UnplacedGroups => Groups.Where(g => !g.IsPlaced);
 
     public int SplitGroups => Groups.Count(g => g.IsSplit);
@@ -106,32 +112,36 @@ public sealed class PlanSummary
             .Where(s => s.Wanted > 0)
             .ToList();
 
+        // Three tiers: serious (people without seats, a broken pin, a group split across floors or far apart, a main
+        // group split across floors), warnings (a parent group spread over the room) and minor (a small part of a group
+        // alone at a table). Listed serious first.
         var issues = new List<PlanIssue>();
         foreach (var g in groups)
         {
             if (g.Placed == 0)
-                issues.Add(new(IssueSeverity.Warning, $"'{g.Name}' ({g.PeopleCount}) has no seats.", g.GroupId));
+                issues.Add(new(IssueSeverity.Error, $"'{g.Name}' ({g.PeopleCount}) has no seats.", g.GroupId));
             else if (g.Placed < g.PeopleCount)
-                issues.Add(new(IssueSeverity.Warning, $"Only {g.Placed} of {g.PeopleCount} in '{g.Name}' have seats.", g.GroupId));
+                issues.Add(new(IssueSeverity.Error, $"Only {g.Placed} of {g.PeopleCount} in '{g.Name}' have seats.", g.GroupId));
             if (g.BreaksHardRule)
                 issues.Add(new(IssueSeverity.Error, $"'{g.Name}' is not where its pin or the floor rule says.", g.GroupId));
             if (g.FloorCount > 1)
-                issues.Add(new(IssueSeverity.Warning, $"'{g.Name}' is split across {g.FloorCount} floors.", g.GroupId));
+                issues.Add(new(IssueSeverity.Error, $"'{g.Name}' is split across {g.FloorCount} floors.", g.GroupId));
             else if (g.HasDistantParts)
-                issues.Add(new(IssueSeverity.Warning,
+                issues.Add(new(IssueSeverity.Error,
                     $"'{g.Name}' is split over tables that are not next to each other ({g.PeopleApart} of {g.Placed} away from the rest).", g.GroupId));
             else if (g.SmallParts > 0)
-                issues.Add(new(IssueSeverity.Warning, $"'{g.Name}' has a small part of its group alone at a table.", g.GroupId));
+                issues.Add(new(IssueSeverity.Minor, $"'{g.Name}' has a small part of its group alone at a table.", g.GroupId));
         }
 
-        // Parent groups: a warning when spread over parts of the room that are not next to each other, or over floors.
+        // Parent groups: spread over floors (serious) or over parts of the room that are not next to each other.
         foreach (var p in parents.OrderBy(p => p.Level))
         {
             if (p.FloorCount > 1)
-                issues.Add(new(IssueSeverity.Warning, $"'{p.Name}' is split across {p.FloorCount} floors ({p.PeopleApart} of {p.Placed} away from the rest).", p.GroupId));
+                issues.Add(new(IssueSeverity.Error, $"'{p.Name}' is split across {p.FloorCount} floors ({p.PeopleApart} of {p.Placed} away from the rest).", p.GroupId));
             else if (p.IsSpread)
                 issues.Add(new(IssueSeverity.Warning, $"'{p.Name}' is spread over parts of the room that are not next to each other ({p.PeopleApart} of {p.Placed} away from the rest).", p.GroupId));
         }
+        issues = [.. issues.OrderByDescending(i => i.Severity)];
 
         return new PlanSummary(score, groups.Sum(g => g.Placed), problem.PeopleCount, groups, parents, stats, issues);
     }

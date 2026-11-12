@@ -382,3 +382,10 @@ code {
 /* Dragging the background pans the canvas. */
 .editor-canvas .pan-surface { cursor: grab; }
 .editor-canvas.panning, .editor-canvas.panning * { cursor: grabbing !important; }
+
+/* Plan issues in three tiers: a coloured marker before each, and the counts above the list. */
+.issue-counts { font-weight: 600; margin-bottom: 2px; }
+.message-list li.issue-error::marker { color: #d32f2f; }
+.message-list li.issue-warning::marker { color: #ef6c00; }
+.message-list li.issue-minor::marker { color: #9e9e9e; }
+.message-list li.issue-minor { opacity: 0.8; }

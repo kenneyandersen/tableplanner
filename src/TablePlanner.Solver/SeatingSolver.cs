@@ -159,7 +159,7 @@ public static class SeatingSolver
         // beats searching longer. Re-optimizing and seeded runs (tests) make one attempt, unless told otherwise.
         var attemptsLeft = options.Attempts
             ?? (options.Mode == SolveMode.Fresh && options.Seed is null ? AffordableAttempts(problem, evaluator, sequence, free, budget, clock) : 1);
-        // Stopping early (a new plan, by time): when the best plan has no warnings and the last two attempts did not beat
+        // Stopping early (a new plan, by time): when the best plan has only minor issues (or none) and the last two attempts did not beat
         // it, more attempts would most likely only repeat it. Each attempt still gets its full share of the time.
         var mayStopEarly = options.Mode == SolveMode.Fresh && options.Seed is null && options.Attempts is null;
         var stoppedEarly = false;
@@ -181,7 +181,7 @@ public static class SeatingSolver
             if (attempt.StillImproving)
                 attemptsLeft = Math.Min(attemptsLeft, 1);
             notBetter = results.Count > 1 && attempt.Score <= bestBefore + 1e-6 ? notBetter + 1 : 0;
-            if (mayStopEarly && attemptsLeft > 0 && notBetter >= 2 && Choose(results).Warnings == 0)
+            if (mayStopEarly && attemptsLeft > 0 && notBetter >= 2 && Choose(results).IssueWeight < 100)
             {
                 stoppedEarly = true;
                 break;
@@ -243,13 +243,14 @@ public static class SeatingSolver
         var best = results.MaxBy(r => r.Score)!;
         var margin = Math.Abs(best.Score) * CloseScoreShare;
         return results.Where(r => r.Score >= best.Score - margin)
-            .OrderBy(r => r.Warnings)
+            .OrderBy(r => r.IssueWeight)
             .ThenByDescending(r => r.Score)
             .First();
     }
 
     /// <summary>The outcome of one attempt.</summary>
-    internal sealed record Attempt(int[] Plan, double Score, int Warnings, StopReason Stop, bool StillImproving);
+    /// <param name="IssueWeight">The plan's issues weighed by tier (<see cref="PlanSummary.IssueWeight"/>).</param>
+    internal sealed record Attempt(int[] Plan, double Score, int IssueWeight, StopReason Stop, bool StillImproving);
 
     /// <summary>What the attempts of one solve share: the problem, the clock, progress reports and the iteration count.</summary>
     private sealed class Run(EventProject project, SeatingProblem problem, PlanEvaluator evaluator, SeatSequence sequence, int[] free,
@@ -467,7 +468,7 @@ public static class SeatingSolver
             var finalScore = evaluator.Score(plan);
             _bestScore = Math.Max(_bestScore, finalScore);
             var stillImproving = stop == StopReason.TimeBudget && bestFoundAt - attemptStart > (searchEnd - attemptStart) * StillImprovingShare;
-            return new Attempt(plan, finalScore, evaluator.Summarize(plan).Issues.Count, stop!.Value, stillImproving);
+            return new Attempt(plan, finalScore, evaluator.Summarize(plan).IssueWeight, stop!.Value, stillImproving);
         }
     }
 

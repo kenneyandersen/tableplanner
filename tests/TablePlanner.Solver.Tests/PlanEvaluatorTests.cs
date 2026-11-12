@@ -167,4 +167,23 @@ public class PlanEvaluatorTests
         Assert.True(summary.Groups[0].BreaksHardRule);
         Assert.True(summary.Score < -PlanEvaluator.HardRulePenalty);
     }
+
+    [Fact]
+    public void Issues_come_in_tiers_with_a_split_across_floors_serious_and_a_small_part_minor()
+    {
+        var upstairs = new Group { Name = "Upstairs", PeopleCount = 10 };
+        var small = new Group { Name = "Small", PeopleCount = 10 };
+        var (setup, t) = Room(upstairs, small);
+
+        // Upstairs: 8 at 101 and 2 at 201 (another floor). Small: 8 at 102 and 2 at 101 next to it (a small part at a table).
+        var summary = Summary(setup,
+            (upstairs, t[0], [0, 1, 2, 3, 6, 7, 8, 9]), (upstairs, t[3], [0, 1]),
+            (small, t[1], [0, 1, 2, 3, 6, 7, 8, 9]), (small, t[0], [4, 5]));
+
+        Assert.Equal(Core.Validation.IssueSeverity.Error, summary.Issues.Single(i => i.Message.Contains("Upstairs")).Severity);
+        Assert.Equal(Core.Validation.IssueSeverity.Minor, summary.Issues.Single(i => i.Message.Contains("'Small'")).Severity);
+        Assert.Equal(Core.Validation.IssueSeverity.Error, summary.Issues[0].Severity); // serious first
+        Assert.True(summary.IssueWeight >= 10_000);
+        Assert.False(summary.OnlyMinorIssues);
+    }
 }

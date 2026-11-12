@@ -22,19 +22,21 @@ else
 
 @if (Summary.PeoplePlaced > 0 && Issues() is { Count: > 0 } issues)
 {
-    <MudAlert Severity="@(issues.Any(i => i.Severity == Core.Validation.IssueSeverity.Error) ? Severity.Error : Severity.Warning)" Dense="true" Class="mb-2">
+    @* Issues in three tiers (serious, warnings, minor), serious first; the box takes the colour of the worst. *@
+    <MudAlert Severity="@AlertSeverity(issues)" Dense="true" Class="mb-2">
+        <div class="issue-counts">@IssueCounts(issues)</div>
         <ul class="message-list">
             @foreach (var issue in issues.Take(_showAllIssues ? int.MaxValue : MaxIssues))
             {
                 @* A warning about a group selects that group, as clicking it in the list does. *@
                 if (issue.GroupId is { } groupId)
                 {
-                    <li class="issue-link @(Highlight == groupId ? "highlighted" : "")" title="Click to select the group"
+                    <li class="issue-link issue-@issue.Severity.ToString().ToLowerInvariant() @(Highlight == groupId ? "highlighted" : "")" title="Click to select the group"
                         @onclick="() => HighlightChanged.InvokeAsync(groupId)">@issue.Message</li>
                 }
                 else
                 {
-                    <li>@issue.Message</li>
+                    <li class="issue-@issue.Severity.ToString().ToLowerInvariant()">@issue.Message</li>
                 }
             }
             @if (issues.Count > MaxIssues)
@@ -119,6 +121,19 @@ else
 </div>
 
 @code {
+    private static Severity AlertSeverity(IReadOnlyList<PlanIssue> issues) =>
+        issues.Any(i => i.Severity == Core.Validation.IssueSeverity.Error) ? Severity.Error
+        : issues.Any(i => i.Severity == Core.Validation.IssueSeverity.Warning) ? Severity.Warning
+        : Severity.Info;
+
+    /// <summary>E.g. "1 serious · 2 warnings · 3 minor".</summary>
+    private static string IssueCounts(IReadOnlyList<PlanIssue> issues)
+    {
+        var (serious, warnings, minor) = (issues.Count(i => i.Severity == Core.Validation.IssueSeverity.Error),
+            issues.Count(i => i.Severity == Core.Validation.IssueSeverity.Warning), issues.Count(i => i.Severity == Core.Validation.IssueSeverity.Minor));
+        return string.Join(" · ", new[] { serious > 0 ? $"{serious} serious" : null, warnings == 1 ? "1 warning" : warnings > 1 ? $"{warnings} warnings" : null, minor > 0 ? $"{minor} minor" : null }.OfType<string>());
+    }
+
     /// <summary>The full list as a tooltip, for when it is cut short in the row.</summary>
     private static string? TablesTitle(IReadOnlyList<int> tables) =>
         tables.Count > 1 ? $"Tables {string.Join(", ", tables.Order())}" : null;

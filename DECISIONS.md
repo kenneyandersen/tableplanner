@@ -338,6 +338,14 @@ Wishes noted 2026-11-10, after testing (not started):
   Comparison (2 s, 5 runs each): Company levels 440: 0 warnings and 21/30 first choices (Search 0 and 18, Beam 1 and
   15; the first run without the shift had 1 warning, Search 7 with 53 people away from their department); Example party
   levels: 1 warning (Search and Beam 0); plans without levels as Search.
+- **Issues in three tiers** (2026-11-12, the user: some warnings are worse than others, e.g. a split across floors):
+  serious (red: people without seats, a broken pin or floor rule, a group split across floors or over tables far
+  apart, a main group split across floors), warnings (orange: a parent group spread over parts of the room) and minor
+  (grey: a small part of a group alone at a table). `IssueSeverity.Minor` added (the setup's own issues stay
+  Warning/Error); in a plan Error reads "serious". The plan page shows "1 serious · 2 warnings · 3 minor" above the
+  list, serious first, each with a coloured marker. The best attempt is chosen by tier (`PlanSummary.IssueWeight`:
+  one serious issue outweighs any number of warnings, one warning any number of minor ones), and stopping early needs
+  only minor issues or none. The score weights are unchanged (a split across floors already costs 1000).
 - **For tomorrow (noted 2026-11-11 evening)**:
   - Solver rethink (see the level-by-level method above). Care: keeping large groups together must not split a main
     group because its subgroups want to sit together (or near other groups); a main group's unity comes first.

@@ -5,10 +5,13 @@ namespace TablePlanner.Core.Validation;
 
 public enum IssueSeverity
 {
+    /// <summary>Worth knowing, but a small thing (e.g. a few people of a group alone at a table).</summary>
+    Minor,
+
     /// <summary>The solver can run, but not every rule can be met.</summary>
     Warning,
 
-    /// <summary>The setup must be fixed before the solver can run.</summary>
+    /// <summary>The setup must be fixed before the solver can run; in a plan: serious (people without seats, a group split across floors or far apart, a broken pin).</summary>
     Error,
 }
 

@@ -319,6 +319,19 @@ Wishes noted 2026-11-10, after testing (not started):
   panel). Stored without a model change: a right end seat alone is EndSeats = 2 with the left end seat unavailable,
   and an unavailable end seat means "no seat there" (not drawn on the plan or poster; a + in the editor)
   (`SetupOperations.ToggleEndSeat`, `HasEndSeat`).
+- **Stopping early** (2026-11-12, the user: a run always took the whole time limit): a new plan's run ends when the best
+  plan has no warnings and the last two attempts did not beat it ("Stopped early: searching longer found no better
+  plan" on the plan page; `SolveResult.StoppedEarly`). Time limits over 10 s allow up to 12 attempts (instead of 4), so
+  a long limit is spent on more, shorter attempts and can stop early. Tried first: also ending each attempt after a
+  while without improvement (by time); that cost quality (fewer first choices, more warnings on Party 2025), as the
+  search makes its last gains while it cools, so it was dropped. Why attempts never stopped on their own before: an
+  attempt gives up after 5 × 50,000 plans without improvement, which a browser does not reach in its time share.
+- **"By levels" method** (2026-11-12, `SolverMethod.Levels`, `LevelOrder`): the group order is kept as an order per
+  level of the tree (any depth): the main groups, then the subgroups inside each, and so on. Each change is made at
+  one level: two main groups swap or one moves (35% of changes), or the subgroups inside one parent group. Every parent
+  group is therefore one run of the order, so one stretch of the room; a main group too large for an area or floor is
+  split by the fill rule, between whole subgroups. The same score, polishing and attempts as the order search; without
+  group levels it is the order search. Start order: at each level the largest first.
 - **For tomorrow (noted 2026-11-11 evening)**:
   - Solver rethink (see the level-by-level method above). Care: keeping large groups together must not split a main
     group because its subgroups want to sit together (or near other groups); a main group's unity comes first.

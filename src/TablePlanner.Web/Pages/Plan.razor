@@ -65,6 +65,7 @@
                                    Margin="Margin.Dense" Dense="true" Class="ml-2 method-select" aria-label="Search method">
                             <MudSelectItem Value="SolverMethod.Search">Search</MudSelectItem>
                             <MudSelectItem Value="SolverMethod.Beam">Beam search</MudSelectItem>
+                            <MudSelectItem Value="SolverMethod.Levels">By levels</MudSelectItem>
                         </MudSelect>
                     </MudTooltip>
                     <MudTooltip Text="Improve the current plan while moving as few people as possible to other tables">
@@ -123,6 +124,10 @@
                             <MudText Typo="Typo.body2" Class="mb-2">
                                 Shown on the left. @(Session.Project.CurrentAssignment.Seats.Count > 0 ? "It replaces the current plan when you use it." : "")
                                 Found in @_proposal.Elapsed.TotalSeconds.ToString("0.0") s after trying @_proposal.Iterations.ToString("N0") plans@(AttemptNote(_proposal)).
+                                @if (_proposal.StoppedEarly)
+                                {
+                                    <span>Stopped early: searching longer found no better plan.</span>
+                                }
                             </MudText>
                             @if (_currentSummary is { PeoplePlaced: > 0 } current)
                             {

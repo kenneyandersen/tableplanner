@@ -7,6 +7,12 @@ public enum SolverMethod
 
     /// <summary>Builds the plan group by group, keeping the best partial plans at each step (beam search).</summary>
     Beam,
+
+    /// <summary>
+    /// Level by level: the order of the main groups, then of the subgroups inside each, so every parent group sits in
+    /// one stretch of the room. Without group levels it works like <see cref="Search"/>.
+    /// </summary>
+    Levels,
 }
 
 /// <summary>

@@ -89,6 +89,9 @@ public sealed record SolveResult(
 
     /// <summary>How many attempts were made; the plan is the best of them.</summary>
     public int Attempts { get; init; } = 1;
+
+    /// <summary>The run stopped before its time limit: searching on found nothing better (see SolveAsync).</summary>
+    public bool StoppedEarly { get; init; }
 }
 
 /// <summary>
@@ -116,6 +119,11 @@ public static class SeatingSolver
 
     /// <summary>Attempts by default when making a new plan (<see cref="SolverOptions.Attempts"/>).</summary>
     public const int DefaultAttempts = 4;
+
+    /// <summary>With a long time limit (over <see cref="LongBudgetSeconds"/>), up to this many attempts, so a run can stop early.</summary>
+    private const int MaxAttempts = 12;
+
+    private const double LongBudgetSeconds = 10;
 
     /// <summary>When choosing between attempts, plans within this share of the best score count as equally good, and the one with fewer warnings wins.</summary>
     internal const double CloseScoreShare = 0.01;
@@ -151,6 +159,11 @@ public static class SeatingSolver
         // beats searching longer. Re-optimizing and seeded runs (tests) make one attempt, unless told otherwise.
         var attemptsLeft = options.Attempts
             ?? (options.Mode == SolveMode.Fresh && options.Seed is null ? AffordableAttempts(problem, evaluator, sequence, free, budget, clock) : 1);
+        // Stopping early (a new plan, by time): when the best plan has no warnings and the last two attempts did not beat
+        // it, more attempts would most likely only repeat it. Each attempt still gets its full share of the time.
+        var mayStopEarly = options.Mode == SolveMode.Fresh && options.Seed is null && options.Attempts is null;
+        var stoppedEarly = false;
+        var notBetter = 0;
         var results = new List<Attempt>();
         while (attemptsLeft > 0)
         {
@@ -158,6 +171,7 @@ public static class SeatingSolver
             if (results.Count > 0 && (start >= budget || cancellationToken.IsCancellationRequested))
                 break;
             var end = start + (budget - start) / attemptsLeft;
+            var bestBefore = results.Count > 0 ? Choose(results).Score : double.NegativeInfinity;
             var attempt = await run.AttemptAsync(start, end, random);
             results.Add(attempt);
             attemptsLeft--;
@@ -166,8 +180,16 @@ public static class SeatingSolver
             // Still improving when its time ran out (a large plan or a slow browser): the rest goes to one long attempt.
             if (attempt.StillImproving)
                 attemptsLeft = Math.Min(attemptsLeft, 1);
+            notBetter = results.Count > 1 && attempt.Score <= bestBefore + 1e-6 ? notBetter + 1 : 0;
+            if (mayStopEarly && attemptsLeft > 0 && notBetter >= 2 && Choose(results).Warnings == 0)
+            {
+                stoppedEarly = true;
+                break;
+            }
         }
 
+        // Also when the attempts ended on their own before the time limit (none of them found anything better for long).
+        stoppedEarly |= mayStopEarly && !cancellationToken.IsCancellationRequested && clock.Elapsed < budget * 0.9;
         var chosen = Choose(results);
         var summary = evaluator.Summarize(chosen.Plan);
         progress?.Report(new SolveProgress(clock.Elapsed, budget, run.Iterations, summary.Score));
@@ -179,6 +201,7 @@ public static class SeatingSolver
         return new SolveResult(status, problem.ToAssignment(chosen.Plan), summary, summary.Issues, run.Iterations, clock.Elapsed, stop)
         {
             Attempts = results.Count,
+            StoppedEarly = stoppedEarly,
             Mode = options.Mode,
         };
     }
@@ -209,7 +232,9 @@ public static class SeatingSolver
         }
         var perSecond = Probe / Math.Max(1e-4, (clock.Elapsed - started).TotalSeconds);
         var affordable = perSecond * (budget - clock.Elapsed).TotalSeconds * SearchShare / (IterationsPerGroup * (double)free.Length);
-        return (int)Math.Clamp(Math.Floor(affordable), 1, DefaultAttempts);
+        // A long time limit is better spent on more attempts than on longer ones (and lets the run stop early).
+        var most = budget.TotalSeconds > LongBudgetSeconds ? MaxAttempts : DefaultAttempts;
+        return (int)Math.Clamp(Math.Floor(affordable), 1, most);
     }
 
     /// <summary>The best attempt: the highest score, except that of plans within <see cref="CloseScoreShare"/> of it the one with fewest warnings wins.</summary>
@@ -261,6 +286,10 @@ public static class SeatingSolver
         /// </summary>
         public async Task<Attempt> AttemptAsync(TimeSpan attemptStart, TimeSpan attemptEnd, Random random)
         {
+            // "By levels": the order changes one level at a time, keeping every parent group in one run (LevelOrder).
+            // Without levels (no parent groups) it is the same as the order search.
+            var levels = options.Mode == SolveMode.Fresh && (options.Method ?? project.Priorities.Method) == SolverMethod.Levels
+                && problem.ParentGroups.Count > 0 ? new LevelOrder(problem, free) : null;
             // The order search gets most of the time; polishing the seats (PlanPolisher) gets the rest.
             var searchEnd = attemptStart + (attemptEnd - attemptStart) * SearchShare;
             var iterationsAtStart = Iterations;
@@ -270,7 +299,7 @@ public static class SeatingSolver
                 current = OrderFromPlan(sequence, problem.ToPlan(project.CurrentAssignment), free, problem);
             else
                 // Every attempt starts from the same good order; the random search soon takes them different ways.
-                current = InitialOrder(problem, free);
+                current = levels?.Initial(free) ?? InitialOrder(problem, free);
 
             var plan = problem.EmptyPlan();
             sequence.Decode(current, plan);
@@ -280,7 +309,7 @@ public static class SeatingSolver
             var bestFoundAt = clock.Elapsed;
 
             // Also try the plain "largest first" order; keep whichever start is better.
-            if (options.Mode == SolveMode.Fresh)
+            if (options.Mode == SolveMode.Fresh && levels is null)
             {
                 var bySize = free.OrderByDescending(g => problem.Size[g]).ThenBy(g => g).ToArray();
                 sequence.Decode(bySize, plan);
@@ -358,7 +387,10 @@ public static class SeatingSolver
             {
                 Iterations++;
                 Array.Copy(current, candidate, current.Length);
-                Mutate(candidate, problem, random);
+                if (levels is not null)
+                    levels.Mutate(candidate, random);
+                else
+                    Mutate(candidate, problem, random);
                 sequence.Decode(candidate, plan);
                 var score = evaluator.Score(plan);
 

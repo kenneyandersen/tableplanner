@@ -26,7 +26,7 @@ public class TestPlanDiagnostics(ITestOutputHelper output)
         if (Environment.GetEnvironmentVariable("TABLEPLANNER_DIAGNOSTICS") != "1")
         {
             // In normal test runs, only a quick check: both methods seat everyone without anyone away from their group.
-            foreach (var method in new[] { SolverMethod.Search, SolverMethod.Beam })
+            foreach (var method in new[] { SolverMethod.Search, SolverMethod.Beam, SolverMethod.Levels })
             {
                 var quick = await SeatingSolver.SolveAsync(project, new SolverOptions { Method = method, Seed = 1, MaxIterations = 20_000, Yield = _ => Task.CompletedTask });
                 Assert.Equal(quick.Summary!.PeopleTotal, quick.Summary.PeoplePlaced);
@@ -49,12 +49,15 @@ public class TestPlanDiagnostics(ITestOutputHelper output)
             ("search 2s", SolverMethod.Search, 2, null),
             ("beam 2s 1x", SolverMethod.Beam, 2, 1),
             ("beam 2s", SolverMethod.Beam, 2, null),
+            ("levels 0.5s", SolverMethod.Levels, 0.5, null),
+            ("levels 2s", SolverMethod.Levels, 2, null),
         };
         const int Repeats = 5;
         foreach (var run in runs)
         {
             var (warnings, apart, small, split, unplaced, firstMet, firstWanted, score) = (0, 0, 0, 0, 0, 0, 0, 0.0);
             var parentApart = 0;
+            var seconds = 0.0;
             PlanSummary? worst = null;
             int[]? worstPlan = null;
             for (var i = 0; i < Repeats; i++)
@@ -73,12 +76,13 @@ public class TestPlanDiagnostics(ITestOutputHelper output)
                 (firstMet, firstWanted) = (firstMet + (first?.Met ?? 0), firstWanted + (first?.Wanted ?? 0));
                 score += s.Score;
                 parentApart += s.ParentGroups.Sum(p => p.PeopleApart);
+                seconds += result.Elapsed.TotalSeconds;
                 if (worst is null || s.Issues.Count > worst.Issues.Count)
                     (worst, worstPlan) = (s, problem.ToPlan(result.Assignment!));
             }
             output.WriteLine($"== {file} | {run.Name,-11} | score {score / Repeats,7:0} | warnings {warnings,2} | people apart {apart,3} | "
                 + $"small parts {small,2} | split groups {split / (double)Repeats,4:0.0} | 1st choices {firstMet}/{firstWanted} | unplaced {unplaced}"
-                + (parentApart > 0 ? $" | apart from parent group {parentApart}" : ""));
+                + (parentApart > 0 ? $" | apart from parent group {parentApart}" : "") + $" | {seconds / Repeats:0.0} s");
             if (worst!.Issues.Count > 0)
                 Print($"   worst of {Repeats}", worst, problem, worstPlan!);
         }

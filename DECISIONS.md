@@ -349,6 +349,14 @@ Wishes noted 2026-11-10, after testing (not started):
 - **Leaving the plan page with an unused new plan** (2026-11-12): asks "Discard the new plan?" (Stay / Discard and
   leave) when going to another page while a new plan waits for "Use this plan" or one is being made (then leaving
   stops it); closing or reloading the tab gets the browser's own question (`NavigationLock`).
+- **Dropping a group on the plan** (2026-11-12, the user: a family of 4 dropped at a table's end was put 2 + 2 over two
+  tables; noted 2026-11-11): the group now grows from the dropped seat to neighbouring seats (next to, across, diagonal,
+  back to back), cheapest first, never through another group, and going on to another table costs as much as 10 m, so
+  it stays at the dropped table while it fits there (`PlanEditing.SeatsForMove`). Was: the solver's fill order from
+  the dropped seat, which runs on to the next table.
+- **Dragging no longer lags**: the plan was drawn again on every pointer move (every 5 cm) so the dragged name could
+  follow; now the name is moved directly in the page (`tablePlanner.moveGhost`) and the plan is drawn again only when
+  the seat under the pointer, and so the preview, changes.
 - **For tomorrow (noted 2026-11-11 evening)**:
   - Solver rethink (see the level-by-level method above). Care: keeping large groups together must not split a main
     group because its subgroups want to sit together (or near other groups); a main group's unity comes first.

@@ -93,6 +93,11 @@ window.tablePlanner = {
         frame.contentWindow.print();
     },
 
+    /** Moves the dragged group's name on the plan (an SVG group) to x, y, without Blazor drawing the plan again. */
+    moveGhost(id, x, y) {
+        document.getElementById(id)?.setAttribute("transform", `translate(${x} ${y})`);
+    },
+
     /** Keeps sending pointer events to the element while dragging, even when the pointer leaves it. */
     capturePointer(element, pointerId) {
         try {

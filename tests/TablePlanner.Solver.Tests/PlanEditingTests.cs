@@ -20,13 +20,14 @@ public class PlanEditingTests
     }
 
     [Fact]
-    public void Move_takes_free_seats_along_the_fill_order_from_the_clicked_seat()
+    public void Move_takes_the_free_seats_nearest_the_dropped_seat()
     {
         var (project, problem, table, a, _) = Setup();
 
         var seats = PlanEditing.SeatsForMove(problem, project.CurrentAssignment, a.Id, new SeatId(table.Id, 3));
 
-        Assert.Equal([3, 8, 4], seats!.Select(s => s.Index));
+        // Top 3 (dropped), top 4 next to it, bottom 8 across from it.
+        Assert.Equal([3, 4, 8], seats!.Select(s => s.Index).Order());
     }
 
     [Fact]
@@ -34,10 +35,10 @@ public class PlanEditingTests
     {
         var (project, problem, table, a, _) = Setup();
 
-        // Starting at bottom 5 (A's own): 5, then 1 (own); 6, 2, 7 are B's; then 3.
+        // Dropped on its own seat (bottom 5): it stays where it is (5, top 0 across, top 1 diagonal); B's seats are skipped.
         var seats = PlanEditing.SeatsForMove(problem, project.CurrentAssignment, a.Id, new SeatId(table.Id, 5));
 
-        Assert.Equal([5, 1, 3], seats!.Select(s => s.Index));
+        Assert.Equal([0, 1, 5], seats!.Select(s => s.Index).Order());
     }
 
     [Fact]
@@ -51,20 +52,20 @@ public class PlanEditingTests
     }
 
     [Fact]
-    public void Move_stays_on_the_clicked_floor_and_uses_seats_before_the_click_when_needed()
+    public void Move_stays_on_the_clicked_floor()
     {
         var (project, _, table, a, _) = Setup();
         var upstairs = new Table { Number = 201, SeatsPerSide = 5 };
         project.Setup.Floors.Add(new Floor { Name = "First", Number = 2, Tables = [upstairs] });
         var problem = SeatingProblem.Create(project.Setup, project.Priorities);
 
-        // Clicking the last seat in fill order (bottom 9): 9 is free, then back to 4, 8, 3.
+        // Dropped on bottom 9 (a corner): 9, top 4 across, bottom 8 next to it; never the free table upstairs.
         var nearEnd = PlanEditing.SeatsForMove(problem, project.CurrentAssignment, a.Id, new SeatId(table.Id, 9));
         a.PeopleCount = 8;
         problem = SeatingProblem.Create(project.Setup, project.Priorities);
         var tooBig = PlanEditing.SeatsForMove(problem, project.CurrentAssignment, a.Id, new SeatId(table.Id, 9));
 
-        Assert.Equal([9, 4, 8], nearEnd!.Select(s => s.Index));
+        Assert.Equal([4, 8, 9], nearEnd!.Select(s => s.Index).Order());
         Assert.Null(tooBig);
     }
 
@@ -93,5 +94,24 @@ public class PlanEditingTests
 
         Assert.Equal([6, 2], swap[a.Id].Select(s => s.Index));
         Assert.Equal([7, 0, 5], swap[b.Id].Select(s => s.Index));
+    }
+
+    [Fact]
+    public void A_small_group_dropped_at_the_end_of_a_table_stays_at_that_table()
+    {
+        // The user's case: 4 people dropped on the last seat of a table, with another table just past its end: they all
+        // sit at the dropped table (before, the fill order put 2 of them at the next table).
+        var first = new Table { Number = 101, SeatsPerSide = 8, X = 3, Y = 3 };
+        var second = new Table { Number = 102, SeatsPerSide = 8, X = 3, Y = 5.5 };
+        var family = new Group { Name = "Andersen", PeopleCount = 4 };
+        var project = new EventProject();
+        project.Setup.Floors.Add(new Floor { Name = "Ground", Number = 1, Tables = [first, second] });
+        project.Setup.Groups.Add(family);
+        var problem = SeatingProblem.Create(project.Setup, project.Priorities);
+
+        var seats = PlanEditing.SeatsForMove(problem, project.CurrentAssignment, family.Id, new SeatId(first.Id, 15));
+
+        Assert.Equal(4, seats!.Count);
+        Assert.All(seats, s => Assert.Equal(first.Id, s.TableId));
     }
 }

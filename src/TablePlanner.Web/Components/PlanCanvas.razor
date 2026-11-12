@@ -90,9 +90,10 @@
         @* The dragged group (or person) follows the pointer; drawn last so it is on top. *@
         @if (_drag is { Started: true, At: { } at } drag && Setup.FindGroup(drag.GroupId) is { } dragged)
         {
-            <g class="drag-ghost">
-                <circle cx="@Svg(at.X)" cy="@Svg(at.Y)" r="@(drag.FromSeat is null ? "0.3" : "0.22")" style="fill: @Colours.GetValueOrDefault(dragged.Id, "#ccc")" />
-                <text x="@Svg(at.X + 0.45)" y="@Svg(at.Y)" font-size="0.32">@(drag.FromSeat is null ? $"{dragged.Name} ({dragged.PeopleCount})" : $"1 of {dragged.Name}")</text>
+            @* Placed with a transform, which follows the pointer without drawing the plan again (see Track). *@
+            <g class="drag-ghost" id="@_ghostId" transform="translate(@Svg(at.X) @Svg(at.Y))">
+                <circle cx="0" cy="0" r="@(drag.FromSeat is null ? "0.3" : "0.22")" style="fill: @Colours.GetValueOrDefault(dragged.Id, "#ccc")" />
+                <text x="0.45" y="0" font-size="0.32">@(drag.FromSeat is null ? $"{dragged.Name} ({dragged.PeopleCount})" : $"1 of {dragged.Name}")</text>
             </g>
         }
     </svg>
@@ -250,10 +251,14 @@
         _render = Track(drag, new Point(_origin.X + e.OffsetX / Scale, _origin.Y + e.OffsetY / Scale));
     }
 
-    /// <summary>Follows the dragged group to <paramref name="at"/>. True when the plan should be drawn again.</summary>
+    /// <summary>
+    /// Follows the dragged group to <paramref name="at"/>. True when the plan should be drawn again: only when the seat
+    /// under the pointer (and so the preview) changes. Otherwise only the dragged name moves, directly in the page, as
+    /// drawing the whole plan on every pointer move made dragging lag.
+    /// </summary>
     private bool Track(DragState drag, Point at)
     {
-        var moved = drag.At is not { } last || Math.Abs(last.X - at.X) + Math.Abs(last.Y - at.Y) > 0.05;
+        var first = drag.At is null;
         drag.At = at;
         var target = NearestSeat(at);
         if (target != drag.Target)
@@ -262,10 +267,17 @@
             drag.Preview = target is not { } seat ? null
                 : drag.FromSeat is not null ? PersonPreview(drag, seat)
                 : DropPreview?.Invoke(drag.GroupId, seat) is { } seats ? [.. seats] : null;
-            moved = true;
+            return true;
         }
-        return moved;
+        if (first)
+            return true;
+        if (JS is IJSInProcessRuntime js)
+            js.InvokeVoid("tablePlanner.moveGhost", _ghostId, at.X, at.Y);
+        return false;
     }
+
+    // The dragged name's element, moved by tablePlanner.moveGhost.
+    private readonly string _ghostId = $"drag-ghost-{Guid.NewGuid():N}";
 
     // A group dragged from the list: drag events carry screen positions, converted with the SVG's position on screen.
     private async Task OnListDragEnter(DragEventArgs e)

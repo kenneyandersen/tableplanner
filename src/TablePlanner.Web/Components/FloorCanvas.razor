@@ -125,8 +125,9 @@
             foreach (var rightEnd in resizable.IsRound ? [true] : new[] { false, true })
             {
                 var handle = ResizeHandle(resizable, rightEnd);
+                var (hw, hh) = EndHandleSize(resizable);
                 var keepRight = !rightEnd;
-                <rect class="resize-handle @(!resizable.IsRound && resizable.Rotation is Rotation.R90 or Rotation.R270 ? "resize-ns" : "resize-ew")" x="@Svg(handle.X - HandleSize / 2)" y="@Svg(handle.Y - HandleSize / 2)" width="@Svg(HandleSize)" height="@Svg(HandleSize)"
+                <rect class="resize-handle end-handle @(!resizable.IsRound && resizable.Rotation is Rotation.R90 or Rotation.R270 ? "resize-ns" : "resize-ew")" x="@Svg(handle.X - hw / 2)" y="@Svg(handle.Y - hh / 2)" width="@Svg(hw)" height="@Svg(hh)" rx="0.03"
                       @onpointerdown="e => OnHandleDown(e, id, keepRight)" @onpointerdown:stopPropagation="true">
                     <title>Drag to add or remove seats at this end</title>
                 </rect>
@@ -442,9 +443,18 @@
     /// A handle sits against each end of the table (in the table's own frame), within the narrow gap
     /// usually left between tables placed end to end.
     /// </summary>
+    // The handle to make a table longer or shorter: a slim bar on the end edge of the table top (inside it), so it does
+    // not cover the end seat just beyond, which is clicked to remove it or added with its +.
+    private const double EndHandleThickness = 0.12;
+    private const double EndHandleLength = 0.4;
+
     private static Point ResizeHandle(Table table, bool rightEnd) => table.IsRound
-        ? new Point(table.X + table.Diameter / 2 + HandleSize / 2 + 0.02, table.Y)
-        : new Point((rightEnd ? 1 : -1) * (table.Length / 2 + HandleSize / 2 + 0.02), 0).Rotate(table.Rotation).Offset(table.X, table.Y);
+        ? new Point(table.X + table.Diameter / 2 - EndHandleThickness / 2, table.Y)
+        : new Point((rightEnd ? 1 : -1) * (table.Length / 2 - EndHandleThickness / 2), 0).Rotate(table.Rotation).Offset(table.X, table.Y);
+
+    /// <summary>The end handle's size (width, height): thin along the table, longer across it.</summary>
+    private static (double Width, double Height) EndHandleSize(Table table) =>
+        !table.IsRound && table.Rotation is Rotation.R90 or Rotation.R270 ? (EndHandleLength, EndHandleThickness) : (EndHandleThickness, EndHandleLength);
 
     private async Task OnItemDown(PointerEventArgs e, Guid id)
     {

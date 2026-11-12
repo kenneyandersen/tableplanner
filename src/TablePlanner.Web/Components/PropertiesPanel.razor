@@ -41,7 +41,8 @@
                             YChanged="@(v => EditTable(table.Id, "Move table", t => t.Y = v))"
                             OnRotate="@(() => History.Execute("Rotate", p => SetupOperations.RotateItems(p, FloorId, [table.Id])))" />
             <MudText Typo="Typo.caption" Class="mud-text-secondary">
-                Click a seat of the selected table to make it unavailable; click it again to free it.
+                Click a seat of the selected table to make it unavailable (click again to free it). Click an end seat to
+                remove it, or the + at an end to add one.
             </MudText>
         </MudStack>
     }

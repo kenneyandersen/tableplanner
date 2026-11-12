@@ -380,6 +380,39 @@ public static class SetupOperations
         floor.Elements.Insert(target, element);
     }
 
+    /// <summary>Whether a long table has a seat at its left or right end (an unavailable end seat counts as none).</summary>
+    public static bool HasEndSeat(Table table, bool rightEnd)
+    {
+        if (table.IsRound)
+            return false;
+        var index = 2 * table.SeatsPerSide + (rightEnd ? 1 : 0);
+        return table.EndSeats >= (rightEnd ? 2 : 1) && !table.DisabledSeats.Contains(index);
+    }
+
+    /// <summary>
+    /// Adds or removes the seat at one end of a long table. Only the right end is stored as both ends with the left one
+    /// unavailable (seat numbers stay as they are: the left end seat is always number 2 × seats per side).
+    /// </summary>
+    public static void ToggleEndSeat(EventProject project, Guid tableId, bool rightEnd)
+    {
+        var table = GetTable(project, tableId);
+        if (table.IsRound)
+            return;
+        var (left, right) = (HasEndSeat(table, false), HasEndSeat(table, true));
+        if (rightEnd)
+            right = !right;
+        else
+            left = !left;
+        var leftIndex = 2 * table.SeatsPerSide;
+        table.DisabledSeats.RemoveWhere(i => i >= leftIndex);
+        ResizeTable(project, tableId, table.SeatsPerSide, right ? 2 : left ? 1 : 0);
+        if (right && !left)
+        {
+            table.DisabledSeats.Add(leftIndex);
+            project.CurrentAssignment.Seats.RemoveAll(s => s.Seat == new SeatId(tableId, leftIndex));
+        }
+    }
+
     public static void ToggleSeatDisabled(EventProject project, Guid tableId, int seatIndex)
     {
         var table = GetTable(project, tableId);

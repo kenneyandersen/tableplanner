@@ -75,6 +75,8 @@ public static class FloorPlanSvg
             svg.Append($"<rect x=\"{N(b.Left)}\" y=\"{N(b.Top)}\" width=\"{N(b.Width)}\" height=\"{N(b.Height)}\" rx=\"{N(TableGeometry.CornerRadius(table))}\" fill=\"#f6eedf\" stroke=\"#8d6e45\" stroke-width=\"0.03\"/>");
             foreach (var seat in seats)
             {
+                if (seat.IsDisabled && seat.Side is SeatSide.LeftEnd or SeatSide.RightEnd)
+                    continue; // an unavailable end seat is no seat at all
                 var taken = plan.GroupAt.TryGetValue(seat.Id, out var groupId);
                 var fill = taken ? colours.GetValueOrDefault(groupId, "#cccccc") : seat.IsDisabled ? "#d0d0d0" : "#ffffff";
                 var group = taken ? $" data-group=\"{GroupKey(groupId)}\"" : "";

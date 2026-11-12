@@ -314,6 +314,11 @@ Wishes noted 2026-11-10, after testing (not started):
   slides the people of a table one seat along (in fill order) when that moves a free seat to a taken end seat.
   Tried first: the fill order passing over end seats while seats are to spare; it cost first choices on the example
   (60 of 64 met over 8 seeds instead of 64), as it shifts where every later group lands, so it was dropped.
+- **End seats on the canvas** (2026-11-12): with one long table selected, a click on an end seat removes it and a
+  dashed + at an end without a seat adds one, so each end is set on its own (before, only "none / left / both" in the
+  panel). Stored without a model change: a right end seat alone is EndSeats = 2 with the left end seat unavailable,
+  and an unavailable end seat means "no seat there" (not drawn on the plan or poster; a + in the editor)
+  (`SetupOperations.ToggleEndSeat`, `HasEndSeat`).
 - **For tomorrow (noted 2026-11-11 evening)**:
   - Solver rethink (see the level-by-level method above). Care: keeping large groups together must not split a main
     group because its subgroups want to sit together (or near other groups); a main group's unity comes first.

@@ -157,6 +157,11 @@ code {
 .floor-canvas .seat.editable { cursor: pointer; }
 .floor-canvas .seat.editable:hover { stroke: var(--mud-palette-primary); stroke-width: 0.06; }
 .floor-canvas .seat-cross { stroke: #616161; stroke-width: 0.04; pointer-events: none; }
+/* On a selected long table: the dashed + at an end without a seat, to add one. */
+.floor-canvas .end-seat-add { cursor: pointer; }
+.floor-canvas .end-seat-add circle { fill: rgba(255, 255, 255, 0.6); stroke: var(--mud-palette-primary); stroke-width: 0.03; stroke-dasharray: 0.06 0.04; }
+.floor-canvas .end-seat-add path { stroke: var(--mud-palette-primary); stroke-width: 0.04; }
+.floor-canvas .end-seat-add:hover circle { fill: var(--mud-palette-primary-hover); }
 
 /* Floor elements: the box's fill comes from ElementDrawing.Fill (an attribute); only the outline is styled here.
    "> rect" is the box itself, not the rectangles inside the element's drawing (g.symbol). */

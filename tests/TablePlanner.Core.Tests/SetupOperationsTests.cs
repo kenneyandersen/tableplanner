@@ -397,4 +397,32 @@ public class SetupOperationsTests
 
         Assert.Equal([groups[3].Id, groups[1].Id, groups[2].Id, groups[4].Id, groups[5].Id], me.PreferredGroupIds);
     }
+
+    [Fact]
+    public void End_seats_are_added_and_removed_one_end_at_a_time()
+    {
+        var (project, floor) = NewProject();
+        var table = new Table { Number = 1, SeatsPerSide = 4, EndSeats = 0 };
+        floor.Tables.Add(table);
+        var (left, right) = (8, 9);
+
+        SetupOperations.ToggleEndSeat(project, table.Id, rightEnd: true);
+        Assert.Equal(2, table.EndSeats);
+        Assert.Equal([left], table.DisabledSeats);
+        Assert.False(SetupOperations.HasEndSeat(table, rightEnd: false));
+        Assert.True(SetupOperations.HasEndSeat(table, rightEnd: true));
+
+        SetupOperations.ToggleEndSeat(project, table.Id, rightEnd: false);
+        Assert.Equal(2, table.EndSeats);
+        Assert.Empty(table.DisabledSeats);
+
+        project.CurrentAssignment.Seats.Add(new SeatAssignment(new SeatId(table.Id, right), Guid.NewGuid()));
+        SetupOperations.ToggleEndSeat(project, table.Id, rightEnd: true);
+        Assert.Equal(1, table.EndSeats);
+        Assert.Empty(project.CurrentAssignment.Seats);
+
+        SetupOperations.ToggleEndSeat(project, table.Id, rightEnd: false);
+        Assert.Equal(0, table.EndSeats);
+        Assert.Empty(table.DisabledSeats);
+    }
 }

@@ -50,6 +50,9 @@
                 <rect x="@Svg(bounds.Left)" y="@Svg(bounds.Top)" width="@Svg(bounds.Width)" height="@Svg(bounds.Height)" rx="@Svg(TableGeometry.CornerRadius(table))" />
                 @foreach (var seat in seats)
                 {
+                    // An unavailable end seat is no seat at all (removed in the layout editor), so it is not drawn.
+                    if (seat.IsDisabled && seat.Side is SeatSide.LeftEnd or SeatSide.RightEnd)
+                        continue;
                     var groupId = _groupAt.GetValueOrDefault(seat.Id);
                     var group = groupId == Guid.Empty ? null : Setup.FindGroup(groupId);
                     var dimmed = Selected is not null && !IsSelected(groupId) && !MoveMode && _drag is not { Started: true };

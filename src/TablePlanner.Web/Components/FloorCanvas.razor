@@ -81,6 +81,9 @@
                 @foreach (var seat in TableGeometry.GetSeats(table))
                 {
                     var index = seat.Id.Index;
+                    // An unavailable end seat is "no seat" there: see the + below.
+                    if (seat.IsDisabled && seat.Side is SeatSide.LeftEnd or SeatSide.RightEnd)
+                        continue;
                     var editable = EditSeats && selected;
                     <circle cx="@Svg(seat.Position.X)" cy="@Svg(seat.Position.Y)" r="0.2"
                             class="seat @(seat.IsDisabled ? "disabled" : "") @(editable ? "editable" : "")"
@@ -88,6 +91,20 @@
                     @if (seat.IsDisabled)
                     {
                         <path d="M @Svg(seat.Position.X - 0.12) @Svg(seat.Position.Y - 0.12) l 0.24 0.24 m 0 -0.24 l -0.24 0.24" class="seat-cross" />
+                    }
+                }
+                @if (selected && Selection.Count == 1 && !table.IsRound)
+                {
+                    @* A selected long table: a dashed + at each end without a seat; click to add one (click an end seat to remove it). *@
+                    foreach (var (right, at) in EndSeatSpots(table))
+                    {
+                        var rightEnd = right;
+                        <g class="end-seat-add" @onpointerdown="() => ToggleEndSeat(id, rightEnd, add: true)"
+                           @onpointerdown:stopPropagation="true">
+                            <title>Add a seat at this end</title>
+                            <circle cx="@Svg(at.X)" cy="@Svg(at.Y)" r="0.2" />
+                            <path d="M @Svg(at.X - 0.1) @Svg(at.Y) h 0.2 M @Svg(at.X) @Svg(at.Y - 0.1) v 0.2" />
+                        </g>
                     }
                 }
                 <text x="@Svg(table.X)" y="@Svg(table.Y)" font-size="@Svg(Math.Min(0.4, Math.Min(bounds.Width, bounds.Height) * 0.6))">@table.Number</text>
@@ -686,6 +703,32 @@
             _pending?.Commit(description);
         _pending = null;
         if (clicked && seat is { } s)
-            History.Execute("Toggle seat", p => SetupOperations.ToggleSeatDisabled(p, s.TableId, s.Index));
+        {
+            // An end seat of a long table is removed; a seat along a side is made (un)available.
+            if (Floor?.Tables.FirstOrDefault(t => t.Id == s.TableId) is { IsRound: false } table && s.Index >= 2 * table.SeatsPerSide)
+            {
+                var right = s.Index > 2 * table.SeatsPerSide;
+                ToggleEndSeat(s.TableId, right, add: false);
+            }
+            else
+                History.Execute("Toggle seat", p => SetupOperations.ToggleSeatDisabled(p, s.TableId, s.Index));
+        }
+    }
+
+    private void ToggleEndSeat(Guid tableId, bool right, bool add) =>
+        History.Execute($"{(add ? "Add" : "Remove")} {(right ? "right" : "left")} end seat", p => SetupOperations.ToggleEndSeat(p, tableId, right));
+
+    /// <summary>The ends of a long table without a seat (or with an unavailable one): where a + adds one.</summary>
+    private static IEnumerable<(bool Right, Point At)> EndSeatSpots(Table table)
+    {
+        var full = new Table
+        {
+            Shape = table.Shape, X = table.X, Y = table.Y, Rotation = table.Rotation, SeatsPerSide = table.SeatsPerSide,
+            SeatSpacing = table.SeatSpacing, Width = table.Width, EndSeats = Table.MaxEndSeats,
+        };
+        var seats = TableGeometry.GetSeats(full);
+        foreach (var right in new[] { false, true })
+            if (!SetupOperations.HasEndSeat(table, right))
+                yield return (right, seats.Single(s => s.Side == (right ? SeatSide.RightEnd : SeatSide.LeftEnd)).Position);
     }
 }

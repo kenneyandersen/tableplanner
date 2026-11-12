@@ -372,6 +372,10 @@ Wishes noted 2026-11-10, after testing (not started):
 - **Deleting many projects** (2026-11-12, the user: filling up with test projects): a ⋮ menu on the projects page with
   "Delete test projects" (those named "Test – …", made by "Create test projects") and "Delete all projects…", each
   after a confirmation with the count.
+- **Right-click to add** (2026-11-12): right-click on the layout canvas opens a menu at the pointer ("Add table here":
+  the same presets as the toolbar; "Add element here": every kind), and the chosen item is added at the clicked spot,
+  snapped to the grid, and selected. The browser's own menu is not shown on the canvas; Escape or a click elsewhere
+  closes it; in the lower half of the window it opens upwards. Not while drawing walls or setting the scale.
 - **For tomorrow (noted 2026-11-11 evening)**:
   - Solver rethink (see the level-by-level method above). Care: keeping large groups together must not split a main
     group because its subgroups want to sit together (or near other groups); a main group's unity comes first.

@@ -9,7 +9,8 @@
     var extent = CanvasExtent.Of(floor);
     var (width, height) = (extent.Width, extent.Height);
     <svg @ref="_svg" class="floor-canvas @(Calibrating ? "calibrating" : "")" width="@Svg(width * Scale)" height="@Svg(height * Scale)" viewBox="@Svg(extent.Left) @Svg(extent.Top) @Svg(width) @Svg(height)"
-         @onpointerdown="OnBackgroundDown" @onpointermove="OnPointerMove" @onpointerup="OnPointerUp" @onpointercancel="OnPointerUp">
+         @onpointerdown="OnBackgroundDown" @onpointermove="OnPointerMove" @onpointerup="OnPointerUp" @onpointercancel="OnPointerUp"
+         @oncontextmenu="OnContextMenu" @oncontextmenu:preventDefault="true">
         <defs>
             <pattern id="grid-minor" width="@Svg(Grid.DefaultStep)" height="@Svg(Grid.DefaultStep)" patternUnits="userSpaceOnUse">
                 <path d="M @Svg(Grid.DefaultStep) 0 L 0 0 0 @Svg(Grid.DefaultStep)" class="grid-minor" />
@@ -286,6 +287,17 @@
 
     /// <summary>When on, clicks draw a wall (see <see cref="OnWallLayerDown"/>); turning it off drops an unfinished wall.</summary>
     [Parameter] public bool DrawingWall { get; set; }
+
+    /// <summary>Right-click on the canvas: where on the floor (metres) and on the screen (pixels), for the add menu.</summary>
+    [Parameter] public EventCallback<(Point At, double ClientX, double ClientY)> ContextMenuRequested { get; set; }
+
+    private async Task OnContextMenu(MouseEventArgs e)
+    {
+        if (DrawingWall || Calibrating || !ContextMenuRequested.HasDelegate)
+            return;
+        var xy = await JS.InvokeAsync<double[]>("tablePlanner.svgPoint", _svg, e.ClientX, e.ClientY);
+        await ContextMenuRequested.InvokeAsync((new Point(xy[0], xy[1]), e.ClientX, e.ClientY));
+    }
 
     // The wall being drawn: its corners so far, where the next one would go, and the last click (to follow the pointer).
     private readonly List<Point> _wallPoints = [];

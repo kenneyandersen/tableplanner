@@ -95,7 +95,25 @@
                     <FloorCanvas History="history" FloorId="floor.Id" Selection="_selection" SelectionChanged="SetSelection"
                                  Scale="_scale" EditSeats="_editSeats" ShowAdjacency="_showAdjacency"
                                  BackgroundUrl="@Session.ImageUrl(floor.Background?.ImageId)"
-                                 Calibrating="_calibrating" CalibrationPicked="Calibrate" DrawingWall="_drawingWall" @ref="_canvas" />
+                                 Calibrating="_calibrating" CalibrationPicked="Calibrate" DrawingWall="_drawingWall" @ref="_canvas"
+                                 ContextMenuRequested="OpenAddMenu" />
+                    @* Right-click on the canvas: add a table or an element where it was clicked. *@
+                    @if (_addMenu is { } menu)
+                    {
+                        <div class="context-backdrop" @onclick="CloseAddMenu" @oncontextmenu="CloseAddMenu" @oncontextmenu:preventDefault="true"></div>
+                        <MudPaper Class="context-menu" Elevation="8" Style="@MenuPosition(menu.ClientX, menu.ClientY)">
+                            <div class="context-heading">Add table here</div>
+                            @foreach (var (label, perSide, ends) in TablePresets)
+                            {
+                                <div class="context-item" @onclick="() => AddFromMenu(() => AddTable(perSide, ends, menu.At))">@label</div>
+                            }
+                            <div class="context-heading">Add element here</div>
+                            @foreach (var kind in Enum.GetValues<FloorElementKind>())
+                            {
+                                <div class="context-item" @onclick="() => AddFromMenu(() => AddElement(kind, menu.At))">@FloorElementGeometry.DisplayName(kind)</div>
+                            }
+                        </MudPaper>
+                    }
                 </div>
                 <div class="editor-side">
                     <PropertiesPanel History="history" FloorId="floor.Id" Selection="_selection"
@@ -226,9 +244,9 @@
         SelectFloor(newId);
     }
 
-    private void AddTable(int seatsPerSide, int endSeats)
+    private void AddTable(int seatsPerSide, int endSeats, Point? at = null)
     {
-        var (x, y) = FreeSpot();
+        var (x, y) = at is { } p0 ? (Grid.Snap(p0.X), Grid.Snap(p0.Y)) : FreeSpot();
         var newId = Guid.Empty;
         // A negative count in the presets means a round table with that many seats.
         History.Execute("Add table", p => newId = (seatsPerSide < 0
@@ -237,15 +255,41 @@
         SetSelection(new HashSet<Guid> { newId });
     }
 
-    private void AddElement(FloorElementKind kind)
+    private void AddElement(FloorElementKind kind, Point? at = null)
     {
-        var (x, y) = FreeSpot();
+        var (x, y) = at is { } p0 ? (Grid.Snap(p0.X), Grid.Snap(p0.Y)) : FreeSpot();
         var newId = Guid.Empty;
         History.Execute($"Add {FloorElementGeometry.DisplayName(kind).ToLowerInvariant()}",
             p => newId = SetupOperations.AddElement(p, CurrentFloor!.Id, kind, x, y).Id);
         SetSelection(new HashSet<Guid> { newId });
     }
 
+
+    // ---- Right-click menu ----
+
+    /// <summary>The open right-click menu: the floor point to add at, and where it was opened on the screen.</summary>
+    private (Point At, double ClientX, double ClientY)? _addMenu;
+
+    private async Task OpenAddMenu((Point At, double ClientX, double ClientY) request)
+    {
+        _viewportHeight = await JS.InvokeAsync<double>("tablePlanner.viewportHeight");
+        _addMenu = request;
+    }
+
+    private double _viewportHeight;
+
+    /// <summary>At the pointer; in the lower half of the window it opens upwards, so it stays on the screen.</summary>
+    private string MenuPosition(double x, double y) => y > _viewportHeight / 2
+        ? $"left: {Formatting.Svg(x)}px; bottom: {Formatting.Svg(_viewportHeight - y)}px"
+        : $"left: {Formatting.Svg(x)}px; top: {Formatting.Svg(y)}px";
+
+    private void CloseAddMenu() => _addMenu = null;
+
+    private void AddFromMenu(Action add)
+    {
+        _addMenu = null;
+        add();
+    }
     /// <summary>A spot below everything on the floor, so new items don't land on top of existing ones.</summary>
     private (double X, double Y) FreeSpot()
     {
@@ -310,6 +354,12 @@
 
     private void OnKeyDown(KeyboardEventArgs e)
     {
+        // With the right-click menu open, Escape only closes it.
+        if (_addMenu is not null && e.Key == "Escape")
+        {
+            _addMenu = null;
+            return;
+        }
         var ctrl = e.CtrlKey || e.MetaKey;
         var step = e.AltKey ? 0.1 : Grid.DefaultStep;
         switch (e.Key)

@@ -389,3 +389,10 @@ code {
 .message-list li.issue-warning::marker { color: #ef6c00; }
 .message-list li.issue-minor::marker { color: #9e9e9e; }
 .message-list li.issue-minor { opacity: 0.8; }
+
+/* Layout editor: the right-click menu to add a table or element where it was clicked. */
+.context-backdrop { position: fixed; inset: 0; z-index: 1400; }
+.context-menu { position: fixed; z-index: 1401; min-width: 240px; max-height: 70vh; overflow-y: auto; padding: 4px 0; font-size: 0.875rem; }
+.context-menu .context-heading { padding: 6px 14px 2px; font-size: 0.75rem; font-weight: 600; color: var(--mud-palette-text-secondary); text-transform: uppercase; letter-spacing: 0.04em; }
+.context-menu .context-item { padding: 5px 14px; cursor: pointer; }
+.context-menu .context-item:hover { background: var(--mud-palette-action-default-hover); }

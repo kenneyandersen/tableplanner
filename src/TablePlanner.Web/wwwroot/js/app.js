@@ -93,6 +93,11 @@ window.tablePlanner = {
         frame.contentWindow.print();
     },
 
+    /** The height of the browser window in pixels (for placing a menu so it stays on the screen). */
+    viewportHeight() {
+        return window.innerHeight;
+    },
+
     /** Moves the dragged group's name on the plan (an SVG group) to x, y, without Blazor drawing the plan again. */
     moveGhost(id, x, y) {
         document.getElementById(id)?.setAttribute("transform", `translate(${x} ${y})`);

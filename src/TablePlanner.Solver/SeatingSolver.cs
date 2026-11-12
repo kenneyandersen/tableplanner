@@ -54,7 +54,7 @@ public sealed record SolverOptions
     internal bool BeamOnly { get; init; }
 
     /// <summary>
-    /// Independent attempts within the time budget, keeping the best. Null: <see cref="SeatingSolver.DefaultAttempts"/>
+    /// Independent attempts within the time budget, keeping the best. Null: as many as the time allows, each sized to the plan (up to 16)
     /// for a new plan without a seed, otherwise 1. An attempt that is still improving when its time runs out makes the
     /// rest of the time go to one longer attempt.
     /// </summary>
@@ -117,13 +117,17 @@ public static class SeatingSolver
     /// <summary>The start temperature of the order search after a beam search.</summary>
     internal const double AfterBeamTemperature = 3;
 
-    /// <summary>Attempts by default when making a new plan (<see cref="SolverOptions.Attempts"/>).</summary>
-    public const int DefaultAttempts = 4;
+    /// <summary>
+    /// At most this many attempts for a new plan. Each is sized to what the plan needs (<see cref="IterationsPerGroup"/>),
+    /// not to the time limit, so a long limit makes more attempts (and the run can stop early) rather than longer ones.
+    /// </summary>
+    private const int MaxAttempts = 16;
 
-    /// <summary>With a long time limit (over <see cref="LongBudgetSeconds"/>), up to this many attempts, so a run can stop early.</summary>
-    private const int MaxAttempts = 12;
+    /// <summary>At most this many attempts when the groups have levels (see AffordableAttempts).</summary>
+    private const int LevelAttempts = 4;
 
-    private const double LongBudgetSeconds = 10;
+    /// <summary>An attempt counts as no better when it beats the best plan by less than this share of its score.</summary>
+    private const double NoBetterShare = 0.002;
 
     /// <summary>When choosing between attempts, plans within this share of the best score count as equally good, and the one with fewer warnings wins.</summary>
     internal const double CloseScoreShare = 0.01;
@@ -161,7 +165,9 @@ public static class SeatingSolver
             ?? (options.Mode == SolveMode.Fresh && options.Seed is null ? AffordableAttempts(problem, evaluator, sequence, free, budget, clock) : 1);
         // Stopping early (a new plan, by time): when the best plan has only minor issues (or none) and the last two attempts did not beat
         // it, more attempts would most likely only repeat it. Each attempt still gets its full share of the time.
-        var mayStopEarly = options.Mode == SolveMode.Fresh && options.Seed is null && options.Attempts is null;
+        // Not with group levels: there the last attempts still find better plans (stopping early cost first choices and
+        // kept departments apart in the comparisons), so those plans use the whole time limit, as before.
+        var mayStopEarly = options.Mode == SolveMode.Fresh && options.Seed is null && options.Attempts is null && problem.ParentGroups.Count == 0;
         var stoppedEarly = false;
         var notBetter = 0;
         var results = new List<Attempt>();
@@ -180,7 +186,7 @@ public static class SeatingSolver
             // Still improving when its time ran out (a large plan or a slow browser): the rest goes to one long attempt.
             if (attempt.StillImproving)
                 attemptsLeft = Math.Min(attemptsLeft, 1);
-            notBetter = results.Count > 1 && attempt.Score <= bestBefore + 1e-6 ? notBetter + 1 : 0;
+            notBetter = results.Count > 1 && attempt.Score <= bestBefore + Math.Max(1e-6, Math.Abs(bestBefore) * NoBetterShare) ? notBetter + 1 : 0;
             if (mayStopEarly && attemptsLeft > 0 && notBetter >= 2 && Choose(results).IssueWeight < 100)
             {
                 stoppedEarly = true;
@@ -212,7 +218,7 @@ public static class SeatingSolver
     /// <summary>
     /// How many attempts fit in the budget: plans are tried for a moment to see how fast this machine is (a browser is
     /// much slower than a test run), and each attempt should get about <see cref="IterationsPerGroup"/> per group.
-    /// Between 1 and <see cref="DefaultAttempts"/>.
+    /// Between 1 and <see cref="MaxAttempts"/>.
     /// </summary>
     private static int AffordableAttempts(SeatingProblem problem, PlanEvaluator evaluator, SeatSequence sequence, int[] free,
         TimeSpan budget, Stopwatch clock)
@@ -232,9 +238,9 @@ public static class SeatingSolver
         }
         var perSecond = Probe / Math.Max(1e-4, (clock.Elapsed - started).TotalSeconds);
         var affordable = perSecond * (budget - clock.Elapsed).TotalSeconds * SearchShare / (IterationsPerGroup * (double)free.Length);
-        // A long time limit is better spent on more attempts than on longer ones (and lets the run stop early).
-        var most = budget.TotalSeconds > LongBudgetSeconds ? MaxAttempts : DefaultAttempts;
-        return (int)Math.Clamp(Math.Floor(affordable), 1, most);
+        // With group levels an attempt needs much longer to bring the parent groups together than the per-group
+        // estimate says (shorter attempts cost first choices and split departments), so at most 4, as before.
+        return (int)Math.Clamp(Math.Floor(affordable), 1, problem.ParentGroups.Count > 0 ? LevelAttempts : MaxAttempts);
     }
 
     /// <summary>The best attempt: the highest score, except that of plans within <see cref="CloseScoreShare"/> of it the one with fewest warnings wins.</summary>

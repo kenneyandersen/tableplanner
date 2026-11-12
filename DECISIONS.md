@@ -326,6 +326,12 @@ Wishes noted 2026-11-10, after testing (not started):
   while without improvement (by time); that cost quality (fewer first choices, more warnings on Party 2025), as the
   search makes its last gains while it cools, so it was dropped. Why attempts never stopped on their own before: an
   attempt gives up after 5 × 50,000 plans without improvement, which a browser does not reach in its time share.
+  Then (same day): attempts are sized to the plan (about `IterationsPerGroup` plans per group, measured on the
+  machine) rather than to the time limit, up to 16, and an attempt counts as "no better" when it gains less than 0.2%;
+  so an easy plan stops after a few attempts whatever the limit (e.g. 0.6 s of 2 s on Club party, similar quality).
+  Not for plans with group levels: there shorter attempts and stopping early cost quality (By levels on Company levels:
+  46 → 40 first choices of 60 over 10 runs, warnings 0 → 2; the example: 4 → 8 minor issues), so they keep 4 attempts
+  and the whole time limit, as before.
 - **"By levels" method** (2026-11-12, `SolverMethod.Levels`, `LevelOrder`): the group order is kept as an order per
   level of the tree (any depth): the main groups, then the subgroups inside each, and so on. Each change is made at
   one level: two main groups swap or one moves (35% of changes), or the subgroups inside one parent group. Every parent

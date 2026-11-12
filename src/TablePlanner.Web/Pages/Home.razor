@@ -19,6 +19,14 @@
         </MudTooltip>
         <MudButton HtmlTag="label" Variant="Variant.Outlined" StartIcon="@Icons.Material.Filled.Upload" for="import-file">Import</MudButton>
         <InputFile id="import-file" accept=".json,application/json" OnChange="Import" hidden />
+        @if (_projects is { Count: > 0 })
+        {
+            @* Clearing out: the made-up test projects (named "Test – …"), or every project in this browser. *@
+            <MudMenu Icon="@Icons.Material.Filled.MoreVert" AriaLabel="More" AnchorOrigin="Origin.BottomRight" TransformOrigin="Origin.TopRight">
+                <MudMenuItem Icon="@Icons.Material.Filled.DeleteSweep" OnClick="DeleteTestProjects" Disabled="@(!_projects.Any(IsTestProject))">Delete test projects</MudMenuItem>
+                <MudMenuItem Icon="@Icons.Material.Filled.DeleteForever" OnClick="DeleteAll">Delete all projects…</MudMenuItem>
+            </MudMenu>
+        }
     </MudStack>
 
     @if (_projects is null)
@@ -194,6 +202,38 @@
             return;
 
         await Store.DeleteAsync(project.Id);
+        await Reload();
+    }
+
+    private static bool IsTestProject(ProjectSummary project) => project.Name.StartsWith("Test – ", StringComparison.Ordinal);
+
+    /// <summary>Deletes the projects made with "Create test projects" (named "Test – …").</summary>
+    private async Task DeleteTestProjects()
+    {
+        var tests = _projects!.Where(IsTestProject).ToList();
+        var confirmed = await Dialogs.ShowMessageBoxAsync("Delete test projects?",
+            $"Delete the {tests.Count} test projects (named \"Test – …\") from this browser? This can't be undone.",
+            yesText: "Delete", cancelText: "Cancel");
+        if (confirmed != true)
+            return;
+        foreach (var project in tests)
+            await Store.DeleteAsync(project.Id);
+        Snackbar.Add($"{tests.Count} test projects deleted.", Severity.Info);
+        await Reload();
+    }
+
+    /// <summary>Deletes every project in this browser, after asking.</summary>
+    private async Task DeleteAll()
+    {
+        var all = _projects!.ToList();
+        var confirmed = await Dialogs.ShowMessageBoxAsync("Delete all projects?",
+            $"Delete all {all.Count} projects from this browser? This can't be undone. Export the ones you may need again first.",
+            yesText: $"Delete all {all.Count}", cancelText: "Cancel");
+        if (confirmed != true)
+            return;
+        foreach (var project in all)
+            await Store.DeleteAsync(project.Id);
+        Snackbar.Add($"{all.Count} projects deleted.", Severity.Info);
         await Reload();
     }
 }

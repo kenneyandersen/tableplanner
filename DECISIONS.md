@@ -369,6 +369,9 @@ Wishes noted 2026-11-10, after testing (not started):
 - **Dragging no longer lags**: the plan was drawn again on every pointer move (every 5 cm) so the dragged name could
   follow; now the name is moved directly in the page (`tablePlanner.moveGhost`) and the plan is drawn again only when
   the seat under the pointer, and so the preview, changes.
+- **Deleting many projects** (2026-11-12, the user: filling up with test projects): a ⋮ menu on the projects page with
+  "Delete test projects" (those named "Test – …", made by "Create test projects") and "Delete all projects…", each
+  after a confirmation with the count.
 - **For tomorrow (noted 2026-11-11 evening)**:
   - Solver rethink (see the level-by-level method above). Care: keeping large groups together must not split a main
     group because its subgroups want to sit together (or near other groups); a main group's unity comes first.

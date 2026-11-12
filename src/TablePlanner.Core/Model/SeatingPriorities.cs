@@ -64,6 +64,12 @@ public sealed class SeatingPriorities
     /// <summary>Per empty seat between two occupied seats on the same side of a table. Empty seats belong at the table ends.</summary>
     public double EmptySeatGapPenalty { get; set; } = 5;
 
+    /// <summary>
+    /// Per seat at the end of a long table that is left free: when not every seat is needed, the ends stay empty rather
+    /// than a seat along a side.
+    /// </summary>
+    public double FreeEndSeatBonus { get; set; } = 10;
+
     /// <summary>When re-optimizing: per person who ends up at a different table than in the current plan.</summary>
     public double MovedPersonPenalty { get; set; } = 20;
 

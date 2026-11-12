@@ -57,8 +57,57 @@ internal sealed class PlanPolisher(SeatingProblem problem, SeatSequence sequence
                 if (stop())
                     break;
             }
+            if (!improved && !stop() && SlideToFreeEnds(plan, ref score))
+            {
+                swaps++;
+                improved = true;
+            }
         }
         return swaps;
+    }
+
+    /// <summary>
+    /// An end seat of a long table that is taken while a seat of the same table is free: everyone between the two (in fill
+    /// order) moves one seat along, so the free seat ends up at the end. Kept if the score improves. True when one was made.
+    /// </summary>
+    private bool SlideToFreeEnds(int[] plan, ref double score)
+    {
+        var seats = sequence.Seats;
+        var graph = problem.Graph;
+        for (var a = 0; a < seats.Count; a++)
+        {
+            var seat = graph.Seats[seats[a]];
+            if (plan[seats[a]] < 0 || seat.Side is not (Core.Geometry.SeatSide.LeftEnd or Core.Geometry.SeatSide.RightEnd))
+                continue;
+            // The nearest free seat of the same table, either way along the order.
+            foreach (var step in new[] { 1, -1 })
+            {
+                var b = a + step;
+                while (b >= 0 && b < seats.Count && graph.Seats[seats[b]].TableIndex == seat.TableIndex && plan[seats[b]] >= 0)
+                    b += step;
+                if (b < 0 || b >= seats.Count || graph.Seats[seats[b]].TableIndex != seat.TableIndex)
+                    continue;
+                Slide(plan, a, b);
+                var s = evaluator.Score(plan);
+                if (s > score + 1e-6)
+                {
+                    score = s;
+                    return true;
+                }
+                Slide(plan, b, a);
+            }
+        }
+        return false;
+    }
+
+    /// <summary>Moves the free seat at position <paramref name="free"/> to <paramref name="to"/>, everyone between moving one seat towards <paramref name="free"/>.</summary>
+    private void Slide(int[] plan, int to, int free)
+    {
+        var seats = sequence.Seats;
+        var step = free > to ? 1 : -1;
+        for (var k = free; k != to; k -= step)
+            plan[seats[k]] = plan[seats[k - step]];
+        plan[seats[to]] = -1;
     }
 
     /// <summary>

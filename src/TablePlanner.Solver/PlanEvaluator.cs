@@ -137,7 +137,9 @@ public sealed class PlanEvaluator
             double Distance(Core.Geometry.Point p) => Math.Sqrt((p.X - cx) * (p.X - cx) + (p.Y - cy) * (p.Y - cy));
             var furthest = Math.Max(0.01, floorSeats.Max(s => Distance(s.Position)));
             foreach (var seat in floorSeats)
-                _freeSeatBonus[seat.Index] = FreeAtEdgeWeight * Distance(seat.Position) / furthest;
+                _freeSeatBonus[seat.Index] = FreeAtEdgeWeight * Distance(seat.Position) / furthest
+                    // An end seat of a long table is better left free than one along a side.
+                    + (seat.Side is Core.Geometry.SeatSide.LeftEnd or Core.Geometry.SeatSide.RightEnd ? p.FreeEndSeatBonus : 0);
         }
         var groups = problem.Groups.Count;
         _placed = new int[groups];

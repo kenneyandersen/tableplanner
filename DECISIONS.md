@@ -307,6 +307,13 @@ Wishes noted 2026-11-10, after testing (not started):
     dropped**. Dragging Sales (50) onto the right end of table 103: the preview starts at that seat, but then follows the
     solver's fill order (4 seats at the end of 103, 6 at the end of 104, all of 105 and 106) instead of growing from
     the drop point into the nearest free seats (the rest of 103, then 102/106).
+- **Disabled seats on the plan** (2026-11-12): seats made unavailable in the layout editor are grey and crossed out on
+  the plan page too (they were drawn like empty seats), and crossed out on the poster and guest page (already grey).
+- **Free end seats** (2026-11-12, the user: rather an empty seat at a table's end than one along a side): priority
+  `FreeEndSeatBonus` (10, "Per end seat left free" in Priorities) per free end seat of a long table. The polisher
+  slides the people of a table one seat along (in fill order) when that moves a free seat to a taken end seat.
+  Tried first: the fill order passing over end seats while seats are to spare; it cost first choices on the example
+  (60 of 64 met over 8 seeds instead of 64), as it shifts where every later group lands, so it was dropped.
 - **For tomorrow (noted 2026-11-11 evening)**:
   - Solver rethink (see the level-by-level method above). Care: keeping large groups together must not split a main
     group because its subgroups want to sit together (or near other groups); a main group's unity comes first.

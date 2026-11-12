@@ -60,6 +60,7 @@ public static class PriorityPresets
         target.FloorSplitPenalty = source.FloorSplitPenalty;
         target.SmallFragmentPenalty = source.SmallFragmentPenalty;
         target.EmptySeatGapPenalty = source.EmptySeatGapPenalty;
+        target.FreeEndSeatBonus = source.FreeEndSeatBonus;
         target.MovedPersonPenalty = source.MovedPersonPenalty;
         target.PreferenceRankWeights = [.. source.PreferenceRankWeights];
         target.MutualPreferenceBonus = source.MutualPreferenceBonus;
@@ -72,7 +73,7 @@ public static class PriorityPresets
         && a.ApartPersonPenalty == b.ApartPersonPenalty
         && a.ParentApartPenalty == b.ParentApartPenalty
         && a.FloorSplitPenalty == b.FloorSplitPenalty && a.SmallFragmentPenalty == b.SmallFragmentPenalty
-        && a.EmptySeatGapPenalty == b.EmptySeatGapPenalty && a.MovedPersonPenalty == b.MovedPersonPenalty
+        && a.EmptySeatGapPenalty == b.EmptySeatGapPenalty && a.FreeEndSeatBonus == b.FreeEndSeatBonus && a.MovedPersonPenalty == b.MovedPersonPenalty
         && a.MutualPreferenceBonus == b.MutualPreferenceBonus
         // The dialog pads the list to five ranks with zeros, so trailing zeros do not count.
         && a.PreferenceRankWeights.AsEnumerable().Reverse().SkipWhile(w => w == 0).SequenceEqual(b.PreferenceRankWeights.AsEnumerable().Reverse().SkipWhile(w => w == 0));

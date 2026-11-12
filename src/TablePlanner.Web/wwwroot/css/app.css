@@ -214,6 +214,9 @@ code {
 .message-list .issue-link.highlighted { font-weight: 600; }
 
 .plan-canvas .seat.empty { fill: #ffffff; }
+/* Seats made unavailable in the layout editor: grey and crossed out, as there. */
+.plan-canvas .seat.disabled { fill: #bdbdbd; stroke: #9e9e9e; }
+.plan-canvas .seat-cross { stroke: #616161; stroke-width: 0.04; pointer-events: none; }
 .plan-canvas .seat.taken { stroke: rgba(0, 0, 0, 0.45); cursor: pointer; }
 .plan-canvas .seat.dimmed { opacity: 0.25; }
 .plan-canvas .seat.highlighted { stroke: #000; stroke-width: 0.06; }

@@ -46,6 +46,7 @@
                                  Variant="Variant.Outlined" Margin="Margin.Dense" />
             </MudItem>
             <PriorityField Label="Per empty seat between people" @bind-Value="_p.EmptySeatGapPenalty" />
+            <PriorityField Label="Per end seat left free (rather than one along a side)" @bind-Value="_p.FreeEndSeatBonus" />
         </MudGrid>
         <MudSwitch T="bool" @bind-Value="_p.NeverSplitAcrossFloors" Color="Color.Primary" Class="mb-3">
             Never split a group across floors (a hard rule; groups that cannot fit stay without seats)

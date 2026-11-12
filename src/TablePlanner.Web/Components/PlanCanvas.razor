@@ -59,8 +59,13 @@
                             style="@(group is null ? null : $"fill: {Colours.GetValueOrDefault(groupId, "#ccc")}")"
                             @onclick="() => SeatClicked.InvokeAsync(seatId)" @onclick:stopPropagation="true"
                             @onpointerdown="e => OnGroupPointerDown(e, group?.Id, seatId)">
-                        <title>@SeatTitle(table, group)</title>
+                        <title>@(seat.IsDisabled ? $"Table {table.Number}, seat not available" : SeatTitle(table, group))</title>
                     </circle>
+                    @if (seat.IsDisabled)
+                    {
+                        @* Not available (set in the layout editor): crossed out, as there. *@
+                        <path d="M @Svg(seat.Position.X - 0.12) @Svg(seat.Position.Y - 0.12) l 0.24 0.24 m 0 -0.24 l -0.24 0.24" class="seat-cross" />
+                    }
                 }
                 @{ var numberAt = GroupLabels.TableNumberPosition(table); }
                 <text class="table-number" x="@Svg(numberAt.X)" y="@Svg(numberAt.Y)" font-size="@Svg(GroupLabels.TableNumberFontSize)">@table.Number</text>

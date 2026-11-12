@@ -1,3 +1,4 @@
+using TablePlanner.Core.Geometry;
 using TablePlanner.Core.Model;
 using TablePlanner.Core.Validation;
 
@@ -394,5 +395,23 @@ public class SeatingSolverTests
     private sealed class SyncProgress(Action<SolveProgress> report) : IProgress<SolveProgress>
     {
         public void Report(SolveProgress value) => report(value);
+    }
+
+    [Fact]
+    public async Task End_seats_are_left_free_rather_than_side_seats()
+    {
+        // 8 seats per side and one at each end (18); two groups of 8 fill both sides exactly.
+        var table = new Table { Number = 1, SeatsPerSide = 8, EndSeats = 2, X = 4, Y = 3 };
+        var project = new EventProject();
+        project.Setup.Floors.Add(new Floor { Name = "Hall", Number = 1, Tables = [table] });
+        project.Setup.Groups.Add(new Group { Name = "Ann", PeopleCount = 8 });
+        project.Setup.Groups.Add(new Group { Name = "Bo", PeopleCount = 8 });
+
+        var result = await Solve(project);
+
+        AssertValid(project, result);
+        var ends = TableGeometry.GetSeats(table).Where(s => s.Side is SeatSide.LeftEnd or SeatSide.RightEnd).Select(s => s.Id).ToHashSet();
+        Assert.Equal(16, result.Assignment!.Seats.Count);
+        Assert.DoesNotContain(result.Assignment.Seats, s => ends.Contains(s.Seat));
     }
 }

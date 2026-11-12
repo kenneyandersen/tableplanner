@@ -79,6 +79,8 @@ public static class FloorPlanSvg
                 var fill = taken ? colours.GetValueOrDefault(groupId, "#cccccc") : seat.IsDisabled ? "#d0d0d0" : "#ffffff";
                 var group = taken ? $" data-group=\"{GroupKey(groupId)}\"" : "";
                 svg.Append($"<circle class=\"seat\"{group} cx=\"{N(seat.Position.X)}\" cy=\"{N(seat.Position.Y)}\" r=\"0.22\" fill=\"{HtmlTemplate.Escape(fill)}\" stroke=\"#6b5638\" stroke-width=\"0.03\"/>");
+                if (seat.IsDisabled)
+                    svg.Append($"<path class=\"seat-cross\" d=\"M {N(seat.Position.X - 0.12)} {N(seat.Position.Y - 0.12)} l 0.24 0.24 m 0 -0.24 l -0.24 0.24\" stroke=\"#616161\" stroke-width=\"0.04\"/>");
             }
             var number = GroupLabels.TableNumberPosition(table);
             svg.Append($"<text class=\"table-number\" x=\"{N(number.X)}\" y=\"{N(number.Y)}\" font-size=\"{N(GroupLabels.TableNumberFontSize)}\" font-weight=\"700\" fill=\"#6d5534\">{table.Number}</text>");

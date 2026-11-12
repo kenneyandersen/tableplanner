@@ -346,6 +346,9 @@ Wishes noted 2026-11-10, after testing (not started):
   list, serious first, each with a coloured marker. The best attempt is chosen by tier (`PlanSummary.IssueWeight`:
   one serious issue outweighs any number of warnings, one warning any number of minor ones), and stopping early needs
   only minor issues or none. The score weights are unchanged (a split across floors already costs 1000).
+- **Leaving the plan page with an unused new plan** (2026-11-12): asks "Discard the new plan?" (Stay / Discard and
+  leave) when going to another page while a new plan waits for "Use this plan" or one is being made (then leaving
+  stops it); closing or reloading the tab gets the browser's own question (`NavigationLock`).
 - **For tomorrow (noted 2026-11-11 evening)**:
   - Solver rethink (see the level-by-level method above). Care: keeping large groups together must not split a main
     group because its subgroups want to sit together (or near other groups); a main group's unity comes first.

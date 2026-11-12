@@ -9,6 +9,10 @@
 
 <PageTitle>Plan · Table Planner</PageTitle>
 
+@* A new plan that is not used yet (or one being made) is lost when leaving the page: ask first. Closing or reloading
+   the tab gets the browser's own question. *@
+<NavigationLock OnBeforeInternalNavigation="ConfirmLeave" ConfirmExternalNavigation="@(_proposal is not null || _running)" />
+
 <ProjectLoader Id="Id">
     @if (CurrentFloor is not { } floor)
     {
@@ -179,6 +183,21 @@
 </ProjectLoader>
 
 @code {
+    /// <summary>Leaving the page with a new plan not yet used (or while one is being made): asks whether to discard it.</summary>
+    private async Task ConfirmLeave(LocationChangingContext context)
+    {
+        if (_proposal is null && !_running)
+            return;
+        var message = _running
+            ? "A plan is being made. Leave the page and stop it?"
+            : "The new plan has not been used yet. Leave the page and discard it? (Use this plan first to keep it.)";
+        var leave = await Dialogs.ShowMessageBoxAsync("Discard the new plan?", message, yesText: "Discard and leave", cancelText: "Stay");
+        if (leave != true)
+            context.PreventNavigation();
+        else if (_running)
+            _cancel?.Cancel();
+    }
+
     private const double DefaultScale = 40, MinScale = 15, MaxScale = 100;
 
     private Guid _floorId;

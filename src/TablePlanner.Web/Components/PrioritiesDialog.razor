@@ -65,7 +65,7 @@
         <MudText Typo="Typo.subtitle2">Re-optimizing and time</MudText>
         <MudGrid Spacing="2">
             <PriorityField Label="Per person moved to another table" @bind-Value="_p.MovedPersonPenalty" />
-            <PriorityField Label="Time limit (seconds)" @bind-Value="_p.TimeBudgetSeconds" Min="1" Max="120" />
+            <PriorityField Label="Time limit (seconds, at most; usually done sooner)" @bind-Value="_p.TimeBudgetSeconds" Min="1" Max="600" />
         </MudGrid>
     </DialogContent>
     <DialogActions>

@@ -85,8 +85,11 @@ public sealed class SeatingPriorities
     /// <summary>Extra when two groups that prefer each other sit together.</summary>
     public double MutualPreferenceBonus { get; set; } = 50;
 
-    /// <summary>The solver stops after this time and returns the best plan found.</summary>
-    public double TimeBudgetSeconds { get; set; } = 8;
+    /// <summary>
+    /// A safety cap: the solver stops after at most this time and returns the best plan found. It usually stops sooner,
+    /// once more attempts no longer improve the plan.
+    /// </summary>
+    public double TimeBudgetSeconds { get; set; } = 60;
 
     /// <summary>How Make plan searches. Re-optimizing always improves the current plan with <see cref="SolverMethod.Search"/>.</summary>
     public SolverMethod Method { get; set; } = SolverMethod.Search;

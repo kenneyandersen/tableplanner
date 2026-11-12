@@ -123,8 +123,8 @@ public static class SeatingSolver
     /// </summary>
     private const int MaxAttempts = 16;
 
-    /// <summary>At most this many attempts when the groups have levels (see AffordableAttempts).</summary>
-    private const int LevelAttempts = 4;
+    /// <summary>With group levels an attempt is sized this many times longer (see AffordableAttempts).</summary>
+    private const double LevelAttemptFactor = 4;
 
     /// <summary>An attempt counts as no better when it beats the best plan by less than this share of its score.</summary>
     private const double NoBetterShare = 0.002;
@@ -165,9 +165,7 @@ public static class SeatingSolver
             ?? (options.Mode == SolveMode.Fresh && options.Seed is null ? AffordableAttempts(problem, evaluator, sequence, free, budget, clock) : 1);
         // Stopping early (a new plan, by time): when the best plan has only minor issues (or none) and the last two attempts did not beat
         // it, more attempts would most likely only repeat it. Each attempt still gets its full share of the time.
-        // Not with group levels: there the last attempts still find better plans (stopping early cost first choices and
-        // kept departments apart in the comparisons), so those plans use the whole time limit, as before.
-        var mayStopEarly = options.Mode == SolveMode.Fresh && options.Seed is null && options.Attempts is null && problem.ParentGroups.Count == 0;
+        var mayStopEarly = options.Mode == SolveMode.Fresh && options.Seed is null && options.Attempts is null;
         var stoppedEarly = false;
         var notBetter = 0;
         var results = new List<Attempt>();
@@ -237,10 +235,10 @@ public static class SeatingSolver
             evaluator.Score(plan);
         }
         var perSecond = Probe / Math.Max(1e-4, (clock.Elapsed - started).TotalSeconds);
-        var affordable = perSecond * (budget - clock.Elapsed).TotalSeconds * SearchShare / (IterationsPerGroup * (double)free.Length);
-        // With group levels an attempt needs much longer to bring the parent groups together than the per-group
-        // estimate says (shorter attempts cost first choices and split departments), so at most 4, as before.
-        return (int)Math.Clamp(Math.Floor(affordable), 1, problem.ParentGroups.Count > 0 ? LevelAttempts : MaxAttempts);
+        // With group levels an attempt needs several times longer to bring the parent groups together.
+        var perAttempt = IterationsPerGroup * (double)free.Length * (problem.ParentGroups.Count > 0 ? LevelAttemptFactor : 1);
+        var affordable = perSecond * (budget - clock.Elapsed).TotalSeconds * SearchShare / perAttempt;
+        return (int)Math.Clamp(Math.Floor(affordable), 1, MaxAttempts);
     }
 
     /// <summary>The best attempt: the highest score, except that of plans within <see cref="CloseScoreShare"/> of it the one with fewest warnings wins.</summary>

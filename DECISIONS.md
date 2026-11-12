@@ -332,6 +332,12 @@ Wishes noted 2026-11-10, after testing (not started):
   Not for plans with group levels: there shorter attempts and stopping early cost quality (By levels on Company levels:
   46 → 40 first choices of 60 over 10 runs, warnings 0 → 2; the example: 4 → 8 minor issues), so they keep 4 attempts
   and the whole time limit, as before.
+  Then (same day, the user: "focus on the running time needed, with a safety cap"): with group levels an attempt is
+  sized 4 × longer (`LevelAttemptFactor`), and those plans stop early too. With a 10 s cap, 3 runs, By levels:
+  Company levels the same quality as 4 full attempts (0 issues, 13/18 first choices) in 5.1 s instead of 9.3 s; the
+  example 1.8 s instead of 3.7 s (1 minor issue against 0). Factor 2 lost a first choice; 8 gained nothing.
+  The time limit is now a safety cap: default 60 s for new projects (was 8; existing projects keep theirs), up to
+  600 s in Priorities ("at most; usually done sooner").
 - **"By levels" method** (2026-11-12, `SolverMethod.Levels`, `LevelOrder`): the group order is kept as an order per
   level of the tree (any depth): the main groups, then the subgroups inside each, and so on. Each change is made at
   one level: two main groups swap or one moves (35% of changes), or the subgroups inside one parent group. Every parent

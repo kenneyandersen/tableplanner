@@ -157,6 +157,11 @@ code {
 .floor-canvas .seat.editable { cursor: pointer; }
 .floor-canvas .seat.editable:hover { stroke: var(--mud-palette-primary); stroke-width: 0.06; }
 .floor-canvas .seat-cross { stroke: #616161; stroke-width: 0.04; pointer-events: none; }
+/* On a selected long table: the dashed + at an end without a seat, to add one. */
+.floor-canvas .end-seat-add { cursor: pointer; }
+.floor-canvas .end-seat-add circle { fill: rgba(255, 255, 255, 0.6); stroke: var(--mud-palette-primary); stroke-width: 0.03; stroke-dasharray: 0.06 0.04; }
+.floor-canvas .end-seat-add path { stroke: var(--mud-palette-primary); stroke-width: 0.04; }
+.floor-canvas .end-seat-add:hover circle { fill: var(--mud-palette-primary-hover); }
 
 /* Floor elements: the box's fill comes from ElementDrawing.Fill (an attribute); only the outline is styled here.
    "> rect" is the box itself, not the rectangles inside the element's drawing (g.symbol). */
@@ -214,6 +219,9 @@ code {
 .message-list .issue-link.highlighted { font-weight: 600; }
 
 .plan-canvas .seat.empty { fill: #ffffff; }
+/* Seats made unavailable in the layout editor: grey and crossed out, as there. */
+.plan-canvas .seat.disabled { fill: #bdbdbd; stroke: #9e9e9e; }
+.plan-canvas .seat-cross { stroke: #616161; stroke-width: 0.04; pointer-events: none; }
 .plan-canvas .seat.taken { stroke: rgba(0, 0, 0, 0.45); cursor: pointer; }
 .plan-canvas .seat.dimmed { opacity: 0.25; }
 .plan-canvas .seat.highlighted { stroke: #000; stroke-width: 0.06; }
@@ -374,3 +382,17 @@ code {
 /* Dragging the background pans the canvas. */
 .editor-canvas .pan-surface { cursor: grab; }
 .editor-canvas.panning, .editor-canvas.panning * { cursor: grabbing !important; }
+
+/* Plan issues in three tiers: a coloured marker before each, and the counts above the list. */
+.issue-counts { font-weight: 600; margin-bottom: 2px; }
+.message-list li.issue-error::marker { color: #d32f2f; }
+.message-list li.issue-warning::marker { color: #ef6c00; }
+.message-list li.issue-minor::marker { color: #9e9e9e; }
+.message-list li.issue-minor { opacity: 0.8; }
+
+/* Layout editor: the right-click menu to add a table or element where it was clicked. */
+.context-backdrop { position: fixed; inset: 0; z-index: 1400; }
+.context-menu { position: fixed; z-index: 1401; min-width: 240px; max-height: 70vh; overflow-y: auto; padding: 4px 0; font-size: 0.875rem; }
+.context-menu .context-heading { padding: 6px 14px 2px; font-size: 0.75rem; font-weight: 600; color: var(--mud-palette-text-secondary); text-transform: uppercase; letter-spacing: 0.04em; }
+.context-menu .context-item { padding: 5px 14px; cursor: pointer; }
+.context-menu .context-item:hover { background: var(--mud-palette-action-default-hover); }
